@@ -1,0 +1,48 @@
+# ==========================================
+# HorRAGor - Fichier .gitignore Standard
+# ==========================================
+
+# --- Environnement Virtuel & Python ---
+.venv/
+venv/
+ENV/
+env/
+bin/
+lib/
+include/
+/build/
+/dist/
+*.egg-info/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Variables d'Environnement (Sécurité Supabase / API) ---
+.env
+.env.local
+*.env
+
+# --- Base de Données & Index Vectoriels Locaux (Souveraineté) ---
+# Exclure l'index FAISS local pour ne pas pousser de données lourdes ou sensibles
+*.faiss
+*.pkl
+**/faiss_index/
+
+# --- IDE & Outils de Code (VS Code, Cursor, WSL) ---
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+.DS_Store
+
+# --- Notebooks de Test (si applicables) ---
+.ipynb_checkpoints/
+
+# --- Logs & Fichiers Temporaires ---
+*.log
+logs/
+*.tmp
+*.bak
