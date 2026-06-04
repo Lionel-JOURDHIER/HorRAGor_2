@@ -45,78 +45,73 @@ Projet : HorRAGor
 """
 
 # IMPORT ----------------------------------------------------------
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+
 from schemas import (
     HealthResponse,
     FilmDetail,
     FilmShort,
     ChatRequest,
-
+    ChatResponse,
+    WikipediaResponse,
+    DirectorsResponse,
+    GenresResponse,
 )
 
 
 router = APIRouter()
 
 # HEALTH ----------------------------------------------------------
-@router.get(
-    "/health",
-    response_model=HealthResponse
-)
+@router.get("/health", response_model=HealthResponse, tags=["System"])
 async def health():
+    """Check API availability."""
+    return HealthResponse(status="ok")
 
-    return HealthResponse(
-        status="ok"
-    )
+# LISTS -----------------------------------------------------------
+@router.get("/list_real", response_model=DirectorsResponse, tags=["Metadata"])
+async def list_real():
+    """Return list of directors."""
+    return DirectorsResponse(directors=["Christopher Nolan", "Ridley Scott"])
+
+
+@router.get("/list_genre", response_model=GenresResponse, tags=["Metadata"])
+async def list_genre():
+    """Return list of genres."""
+    return GenresResponse(genres=["Sci-Fi", "Action", "Drama"])
 
 # FILMS -----------------------------------------------------------
-
-@router.get("/list_real")
-async def list_real():
-
-    return {
-        "directors": [
-            "Christopher Nolan",
-            "Ridley Scott"
-        ]
-    }
-
-@router.get("/list_genre")
-async def list_genre():
-
-    return {
-        "genres": [
-            "Sci-Fi",
-            "Action",
-            "Drama"
-        ]
-    }
-
-@router.get("/film/{tmdb_id}", response_model=FilmShort)
-async def get_film(tmdb_id: int):
-
-    return FilmDetail(
-        tmdb_id=603,
-        title="The Matrix",
-        original_language="en"
-    )
-
-@router.get("/film/{tmdb_id}", response_model=FilmDetail)
-async def get_film(tmdb_id: int):
-
-    return FilmDetail(
-        tmdb_id=603,
-        title="The Matrix",
-        original_language="en"
-    )
+@router.get( "/film/{tmdb_id}", response_model=FilmDetail, tags=["Films"])
+async def get_film_detail(tmdb_id: int):
+    """ Return full movie details by TMDB id."""
+    return FilmDetail( tmdb_id=tmdb_id, title="The Matrix", original_language="en")
 
 # CHAT ----------------------------------------------------------
-@router.post("/chat")
-async def chat(
-        request: ChatRequest
-):
-
-    return {
-        "answer": "Film trouvé."
-    }
+@router.post("/chat", response_model=ChatResponse, tags=["Agent"])
+async def chat(request: ChatRequest):
+    """ Main endpoint for ReAct agent interaction."""
+    # TODO: replace with LangGraph call
+    return ChatResponse(
+        answer=f"Received: {request.message}",
+        steps=[],
+        recommendations=[
+            FilmShort(
+                tmdb_id=603,
+                title="The Matrix",
+                release_date=None,
+                genres=["Sci-Fi"],
+                tmdb_score=8.7
+            )
+        ]
+    )
 
 # WIKIPEDIA ----------------------------------------------------
+@router.get("/wikipedia/{tmdb_id}", response_model=WikipediaResponse, tags=["Wikipedia"])
+async def wikipedia(tmdb_id: int):
+    """ Retrieve movie info from Wikipedia using TMDB ID."""
+
+    # TODO: connect Wikipedia tool
+    return WikipediaResponse(
+        title="The Matrix",
+        synopsis="Wikipedia data not implemented yet.",
+        source_url=None
+    )
