@@ -1,4 +1,4 @@
-"""FAISS/connection.py
+"""database/connection.py
 Module de configuration de la connexion à la base de données distante Supabase.
 
 Ce fichier gère l'initialisation du moteur de base de données (Engine) et la

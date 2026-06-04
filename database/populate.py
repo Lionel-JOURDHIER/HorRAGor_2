@@ -1,4 +1,4 @@
-"""FAISS/populate.py
+"""database/populate.py
 Script d'extraction, de vectorisation locale et d'alimentation (Populate).
 
 Ce module s'exécute de manière autonome ou planifiée pour synchroniser la nouvelle

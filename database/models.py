@@ -1,4 +1,4 @@
-"""FAISS/models.py
+"""database/models.py
 Module de définition des modèles de données (ORM) pour le projet HorRAGor.
 
 Ce fichier utilise SQLAlchemy 2.0 pour mapper les tables PostgreSQL hébergées

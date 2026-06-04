@@ -1,4 +1,4 @@
-"""FAISS/faiss_service.py
+"""database/faiss_service.py
 Service de gestion de l'index FAISS en mémoire (RAM) et moteur de recherche hybride.
 
 Ce module orchestre le cycle de vie de l'index vectoriel local au runtime de l'API.
