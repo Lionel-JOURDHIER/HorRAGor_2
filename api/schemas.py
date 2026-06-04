@@ -38,6 +38,13 @@ class HealthResponse(BaseModel):
     status: str = "ok"
 
 # CLASSES FILMS -----------------------------------------------------------
+
+class DirectorsResponse(BaseModel):
+    directors: List[str]
+
+class GenresResponse(BaseModel):
+    genres: List[str]
+
 class FilmShort(BaseModel):
     tmdb_id: int
     title: str
