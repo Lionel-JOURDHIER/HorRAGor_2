@@ -28,9 +28,10 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from database.connection import get_db
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from database.connection import get_db
 
 # --- CONFIGURATION DES CHEMINS (KISS & DRY) ---
 database_path = Path(__file__).resolve().parent
@@ -39,7 +40,7 @@ root_path = database_path.parent
 if str(root_path) not in sys.path:
     sys.path.append(str(root_path))
 
-# --- IMPORTS DE TES MODULES (API & TABLES) ---
+from api.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
 from database.tables.collections import Collection
 from database.tables.film_genres import FilmGenre
 from database.tables.films import Film
@@ -48,8 +49,6 @@ from database.tables.realisateurs import Realisateur
 from database.tables.scores_imdb import ScoreImdb
 from database.tables.scores_rt import ScoreRt
 from database.tables.scores_tmdb import ScoreTmdb
-
-from api.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
 
 
 def get_film_details_by_id(session: Session, tmdb_id: int) -> Optional[FilmDetail]:

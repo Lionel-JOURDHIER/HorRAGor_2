@@ -25,8 +25,9 @@ Auteur/Responsable : Lionel (Epic 1 & 2)
 
 import faiss
 import numpy as np
-from models import FilmEmbedding
 from sqlalchemy.orm import Session
+
+from database.models import FilmEmbedding
 
 
 class FaissService:
@@ -51,14 +52,47 @@ class FaissService:
             self.index.add(data)
             print(f"✅ Index FAISS construit avec {len(vectors)} films.")
 
-    def search(self, query_vector: list[float], k: int = 5):
-        """Recherche les k films les plus proches."""
-        query = np.array([query_vector]).astype("float32")
-        distances, indices = self.index.search(query, k)
+    def search(self, query_vector: list, k: int = 1):
+        """
+        Recherche dans l'index FAISS.
+        Retourne un tuple (ids, distances) au lieu de juste les ids.
+        """
+        import numpy as np
 
-        results = [self.id_mapping[idx] for idx in indices[0] if idx != -1]
+        xq = np.array([query_vector]).astype("float32")
+
+        # D = distances, I = indices FAISS
+        D, I = self.index.search(xq, k)
+
+        results = []
+        for distance, faiss_id in zip(D[0], I[0]):
+            if faiss_id in self.id_mapping:
+                tmdb_id = self.id_mapping[faiss_id]
+                results.append((tmdb_id, float(distance)))
+
         return results
 
+    def get_vector_by_id(self, movie_id: int) -> list[float] | None:
+        """
+        Récupère le vecteur d'un film à partir de son identifiant TMDB.
+        Cherche directement dans l'index FAISS via le mapping inverse en RAM.
+        """
+        if not self.id_mapping:
+            print("⚠️ Le mapping FAISS est vide. L'index a-t-il été build ?")
+            return None
+
+        # On cherche l'ID FAISS (l'index de la ligne) correspondant au movie_id (TMDB)
+        # Si ton mapping est inversé (ex: {faiss_id: movie_id}), on le parcourt :
+        for faiss_id, tmdb_id in self.id_mapping.items():
+            if tmdb_id == movie_id:
+                # Récupération directe du vecteur dans la matrice de l'index FAISS
+                return self.index.reconstruct(faiss_id).tolist()
+
+        print(f"🎬 ID TMDB {movie_id} introuvable dans l'index FAISS local.")
+        return None
+
+
+faiss_global_service = FaissService(dimension=1024)
 
 if __name__ == "__main__":
     # Import local pour éviter les dépendances circulaires lors de l'import du module

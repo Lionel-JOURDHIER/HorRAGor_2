@@ -24,6 +24,7 @@ Auteur/Responsable : Lionel (Epic 1 & 2)
 """
 
 import os
+from contextlib import contextmanager
 from typing import Generator
 
 from dotenv import load_dotenv
@@ -59,6 +60,7 @@ engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5, max_overfl
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+@contextmanager
 def get_db() -> Generator[Session, None, None]:
     """
     Générateur (Context Manager) de session de base de données.

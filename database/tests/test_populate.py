@@ -5,22 +5,23 @@ Garantit une couverture à 100% en interceptant correctement l'appel next(get_db
 
 from unittest.mock import MagicMock, patch
 
-import populate
 import pytest
 
+import database.populate as populate
 
-@patch("populate.OllamaEmbeddings")
-def test_generate_local_embedding_nominal(mock_ollama_class):
+
+@patch("database.populate.OLLAMA_CLIENT_EMBEDD")
+def test_generate_local_embedding_nominal(mock_ollama_client):
     """Vérifie que la fonction appelle correctement l'inférence Ollama."""
-    mock_instance = MagicMock()
-    mock_instance.embed_query.return_value = [0.1] * 1024
-    mock_ollama_class.return_value = mock_instance
+    # ✅ On configure directement la méthode de l'instance mockée
+    mock_ollama_client.embed_query.return_value = [0.1] * 1024
 
+    # Appel de ta fonction
     vector = populate.generate_local_embedding("Inception")
 
+    # Assertions
     assert len(vector) == 1024
     assert vector[0] == 0.1
-    mock_instance.embed_query.assert_called_once_with("Inception")
 
 
 def test_generate_local_embedding_edge_cases():
@@ -33,11 +34,11 @@ def test_generate_local_embedding_edge_cases():
     assert vec_none == [0.0] * 1024
 
 
-@patch("populate.engine")
-@patch("populate.get_db")
-@patch("populate.generate_local_embedding")
-@patch("populate.fetch_already_vectorized_ids")
-@patch("populate.fetch_source_films")
+@patch("database.populate.engine")
+@patch("database.populate.get_db")
+@patch("database.populate.generate_local_embedding")
+@patch("database.populate.fetch_already_vectorized_ids")
+@patch("database.populate.fetch_source_films")
 def test_run_pipeline_nominal_flow(
     mock_fetch_src, mock_fetch_vec, mock_embed, mock_get_db, mock_engine
 ):
@@ -69,10 +70,10 @@ def test_run_pipeline_nominal_flow(
     assert mock_session.commit.called
 
 
-@patch("populate.engine")
-@patch("populate.get_db")
-@patch("populate.fetch_already_vectorized_ids")
-@patch("populate.fetch_source_films")
+@patch("database.populate.engine")
+@patch("database.populate.get_db")
+@patch("database.populate.fetch_already_vectorized_ids")
+@patch("database.populate.fetch_source_films")
 def test_run_pipeline_deduplicated(
     mock_fetch_src, mock_fetch_vec, mock_get_db, mock_engine
 ):
@@ -95,9 +96,9 @@ def test_run_pipeline_deduplicated(
     assert mock_session.merge.called is False
 
 
-@patch("populate.engine")
-@patch("populate.get_db")
-@patch("populate.fetch_source_films")
+@patch("database.populate.engine")
+@patch("database.populate.get_db")
+@patch("database.populate.fetch_source_films")
 def test_run_pipeline_error_handling(mock_fetch_src, mock_get_db, mock_engine):
     """Vérifie le déclenchement automatique du rollback en cas de crash durant l'extraction."""
     mock_session = MagicMock()

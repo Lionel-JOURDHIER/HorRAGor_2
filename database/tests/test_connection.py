@@ -13,10 +13,11 @@ Usage :
 import sys
 from unittest.mock import MagicMock, patch
 
-# Import direct rendu robuste grâce au conftest.py global
-import connection
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+# Import direct rendu robuste grâce au conftest.py global
+import database.connection as connection
 
 
 def test_db_connection():
@@ -68,7 +69,8 @@ def test_get_db_generator():
 def test_db_connection_failure():
     """Force un échec de connexion pour couvrir le bloc 'except Exception as e'."""
     with patch(
-        "connection.engine.connect", side_effect=Exception("Crash réseau simulé")
+        "database.connection.engine.connect",
+        side_effect=Exception("Crash réseau simulé"),
     ):
         try:
             test_db_connection()
@@ -79,9 +81,9 @@ def test_db_connection_failure():
 def test_db_connection_url_parse_failure():
     """Force un échec de parsing de l'URL sur le bon module (Couvre le premier 'except')."""
     # On patche DATABASE_URL directement dans le module 'connection'
-    with patch("connection.DATABASE_URL", "sqlite:///:memory:"):
+    with patch("database.connection.DATABASE_URL", "sqlite:///:memory:"):
         # On patche aussi connect pour éviter que le test ne crash sur l'étape suivante
-        with patch("connection.engine.connect"):
+        with patch("database.connection.engine.connect"):
             test_db_connection()
 
 
