@@ -49,6 +49,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
+from agents.tools.wiki_tools import wikipedia_search
+
 from database.connection import get_db
 from database.queries import get_film_details_by_id, get_all_directors, get_all_genres
 
@@ -143,13 +145,19 @@ async def chat(request: ChatRequest):
     )
 
 # WIKIPEDIA ----------------------------------------------------
-@router.get("/wikipedia/{tmdb_id}", response_model=WikipediaResponse, tags=["Wikipedia"])
-async def wikipedia(tmdb_id: int):
+@router.get("/wikipedia/{tmdb_id}", response_model=WikipediaResponse, responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}, tags=["Wikipedia"])
+async def wikipedia(tmdb_id: int, session: Session = Depends(get_db)):
     """ Retrieve movie info from Wikipedia using TMDB ID."""
+    try:
+        film = get_film_details_by_id(session, tmdb_id)
+        if not film:
+            raise HTTPException(status_code=404, detail="Film not found")
+        
+        title = film.title
+        year = film.release_date.year if film.release_date else None
 
-    # TODO: connect Wikipedia tool
-    return WikipediaResponse(
-        title="The Matrix",
-        synopsis="Wikipedia data not implemented yet.",
-        source_url=None
-    )
+        response_wiki = wikipedia_search.invoke({"title": title,"year": year})
+        return response_wiki
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve film: {str(e)}")
