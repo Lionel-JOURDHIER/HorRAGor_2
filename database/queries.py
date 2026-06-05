@@ -24,32 +24,21 @@ Dépendances principales :
 Auteur/Responsable : Lionel (Epic 1 & 2)
 """
 
-import sys
-from pathlib import Path
 from typing import List, Optional
 
-from connection import get_db
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-# --- CONFIGURATION DES CHEMINS (KISS & DRY) ---
-database_path = Path(__file__).resolve().parent
-root_path = database_path.parent
-
-if str(root_path) not in sys.path:
-    sys.path.append(str(root_path))
-
-# --- IMPORTS DE TES MODULES (API & TABLES) ---
-from tables.collections import Collection
-from tables.film_genres import FilmGenre
-from tables.films import Film
-from tables.genres import Genre
-from tables.realisateurs import Realisateur
-from tables.scores_imdb import ScoreImdb
-from tables.scores_rt import ScoreRt
-from tables.scores_tmdb import ScoreTmdb
-
 from api.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
+from database.connection import get_db
+from database.tables.collections import Collection
+from database.tables.film_genres import FilmGenre
+from database.tables.films import Film
+from database.tables.genres import Genre
+from database.tables.realisateurs import Realisateur
+from database.tables.scores_imdb import ScoreImdb
+from database.tables.scores_rt import ScoreRt
+from database.tables.scores_tmdb import ScoreTmdb
 
 
 def get_film_details_by_id(session: Session, tmdb_id: int) -> Optional[FilmDetail]:

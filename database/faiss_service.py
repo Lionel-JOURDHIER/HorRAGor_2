@@ -25,8 +25,9 @@ Auteur/Responsable : Lionel (Epic 1 & 2)
 
 import faiss
 import numpy as np
-from models import FilmEmbedding
 from sqlalchemy.orm import Session
+
+from database.models import FilmEmbedding
 
 
 class FaissService:
@@ -59,6 +60,8 @@ class FaissService:
         results = [self.id_mapping[idx] for idx in indices[0] if idx != -1]
         return results
 
+
+faiss_global_service = FaissService(dimension=1024)
 
 if __name__ == "__main__":
     # Import local pour éviter les dépendances circulaires lors de l'import du module
