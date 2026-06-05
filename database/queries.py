@@ -26,7 +26,7 @@ Auteur/Responsable : Lionel (Epic 1 & 2)
 
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from connection import get_db
 from sqlalchemy import select
@@ -49,7 +49,7 @@ from tables.scores_imdb import ScoreImdb
 from tables.scores_rt import ScoreRt
 from tables.scores_tmdb import ScoreTmdb
 
-from api.schemas import FilmDetail
+from api.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
 
 
 def get_film_details_by_id(session: Session, tmdb_id: int) -> Optional[FilmDetail]:
@@ -128,27 +128,128 @@ def get_film_details_by_id(session: Session, tmdb_id: int) -> Optional[FilmDetai
     )
 
 
+def get_all_directors(session: Session) -> DirectorsResponse:
+    """
+    Récupère la liste unique de tous les réalisateurs disponibles en base,
+    triée par ordre alphabétique.
+    """
+    statement = (
+        select(Realisateur.name)
+        .where(Realisateur.name != None)
+        .distinct()
+        .order_by(Realisateur.name)
+    )
+    directors_list = list(session.execute(statement).scalars().all())
+
+    return DirectorsResponse(directors=directors_list)
+
+
+def get_all_genres(session: Session) -> GenresResponse:
+    """
+    Récupère la liste unique de tous les genres de films disponibles en base,
+    triée par ordre alphabétique.
+    """
+    statement = (
+        select(Genre.genre_name)
+        .where(Genre.genre_name != None)
+        .distinct()
+        .order_by(Genre.genre_name)
+    )
+    genres_list = list(session.execute(statement).scalars().all())
+
+    return GenresResponse(genres=genres_list)
+
+
+def get_films_short_by_ids(session: Session, tmdb_ids: List[int]) -> List[FilmShort]:
+    """
+    Récupère les informations compactes (FilmShort) pour une liste d'identifiants TMDB.
+    Utile pour afficher rapidement les résultats d'une recherche vectorielle FAISS.
+    """
+    if not tmdb_ids:
+        return []
+
+    # 1. Requête principale pour récupérer les films et leurs scores TMDB
+    statement = (
+        select(Film, ScoreTmdb)
+        .outerjoin(ScoreTmdb, Film.tmdb_id == ScoreTmdb.tmdb_id)
+        .where(Film.tmdb_id.in_(tmdb_ids))
+    )
+
+    records = session.execute(statement).all()
+    if not records:
+        return []
+
+    # 2. Récupération groupée de tous les genres pour ces films (évite le N+1 query)
+    genres_statement = (
+        select(FilmGenre.tmdb_id, Genre.genre_name)
+        .join(Genre, FilmGenre.id_genre == Genre.id_genre)
+        .where(FilmGenre.tmdb_id.in_(tmdb_ids))
+    )
+    genres_records = session.execute(genres_statement).all()
+
+    # Cartographie des genres par ID de film : {tmdb_id: [genre1, genre2, ...]}
+    genres_by_film = {}
+    for t_id, g_name in genres_records:
+        genres_by_film.setdefault(t_id, []).append(g_name)
+
+    # 3. Construction de la liste finale triée selon l'ordre initial des IDs demandés (pertinence FAISS)
+    films_map = {}
+    for film, score_tmdb in records:
+        films_map[film.tmdb_id] = FilmShort(
+            tmdb_id=film.tmdb_id,
+            title=film.title,
+            release_date=film.release_date,
+            genres=genres_by_film.get(film.tmdb_id, []),
+            tmdb_score=float(score_tmdb.vote_average)
+            if score_tmdb and score_tmdb.vote_average
+            else None,
+        )
+
+    # On réordonne pour respecter scrupuleusement le classement de FAISS
+    return [films_map[t_id] for t_id in tmdb_ids if t_id in films_map]
+
+
 # --- Zone de Test Multi-Tables ---
 if __name__ == "__main__":
     db_gen = get_db()
     session = next(db_gen)
 
-    # ID extrait de ton log précédent pour tester en direct
     test_id = 898555
 
     try:
         print(
-            f"🚀 Test d'extraction Merise complet (SQLAlchemy Pur) pour l'ID: {test_id}..."
+            f"🚀 1. Test de get_film_details_by_id() (Détails complets) pour l'ID: {test_id}..."
         )
         details = get_film_details_by_id(session, test_id)
-
         if details:
-            print(f"✅ Jointure et validation Pydantic réussies pour : {details.title}")
+            print(f"✅ Film détaillé trouvé : {details.title}")
             print(details.model_dump_json(indent=2))
         else:
-            print(f"⚠️ Film {test_id} introuvable dans Supabase.")
+            print(f"⚠️ Film détaillé {test_id} introuvable.")
+
+        print("\n📁 2. Test de get_all_genres() (Liste globale)...")
+        genres_resp = get_all_genres(session)
+        print(
+            f"✅ {len(genres_resp.genres)} genres récupérés. Exemple : {genres_resp.genres[:3]}"
+        )
+
+        print("\n🎬 3. Test de get_all_directors() (Liste globale)...")
+        directors_resp = get_all_directors(session)
+        print(
+            f"✅ {len(directors_resp.directors)} réalisateurs récupérés. Exemple : {directors_resp.directors[:3]}"
+        )
+
+        print(
+            f"\n📇 4. Test de get_films_short_by_ids() (Format Court / Retour FAISS) pour l'ID: {test_id}..."
+        )
+        shorts = get_films_short_by_ids(session, [test_id])
+        if shorts:
+            print("✅ Film court structuré avec succès :")
+            print(shorts[0].model_dump_json(indent=2))
+        else:
+            print(f"⚠️ Aucun film court retourné pour l'ID {test_id}.")
 
     except Exception as e:
-        print(f"❌ Erreur lors du test d'extraction : {e}")
+        print(f"❌ Erreur générale lors des tests d'extraction : {e}")
     finally:
         session.close()
