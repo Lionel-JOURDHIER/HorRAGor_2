@@ -66,7 +66,12 @@ from api.schemas import (
     ErrorResponse
 )
 
+# LOGGER ------------------------------------------------------
+from logger import setup_logger, get_logger
+setup_logger()
+logger = get_logger("ROUTES")
 
+# ROUTER ---------------------------------------------------------
 router = APIRouter()
 
 
@@ -76,12 +81,11 @@ async def health(db: Session = Depends(get_db)):
     """Check API availability."""
     try:
         db.execute(text("SELECT 1"))
+        logger.info("HEATH SUSSESS")
         return HealthResponse(status="ok")
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Health check failed: {str(e)}"
-        )
+        logger.error(f"Health check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
 
 # LISTS -----------------------------------------------------------
 @router.get("/list_real", response_model=DirectorsResponse, responses={500: {"model": ErrorResponse}}, tags=["Metadata"])
@@ -91,7 +95,9 @@ async def list_real(session: Session = Depends(get_db)):
         directors = get_all_directors(session)
         return directors
     except Exception as e:
+        logger.error(f"Failed to retrieve directors: {str(e)}")
         raise HTTPException( status_code=500, detail=f"Failed to retrieve directors: {str(e)}")
+        
 
 
 @router.get("/list_genre", response_model=GenresResponse, responses={500: {"model": ErrorResponse}}, tags=["Metadata"])
@@ -101,6 +107,7 @@ async def list_genre(session: Session = Depends(get_db)):
         genres = get_all_genres(session)
         return genres
     except Exception as e:
+        logger.error(f"Failed to retrieve genres: {str(e)}")
         raise HTTPException( status_code=500, detail=f"Failed to retrieve genres: {str(e)}")
 
 # FILMS -----------------------------------------------------------
@@ -110,15 +117,17 @@ async def get_film_detail(tmdb_id: int, session: Session = Depends(get_db)):
     try:
         film = get_film_details_by_id(session, tmdb_id)
         if film is None:
+            logger.error("Film is None")
             raise HTTPException( status_code=404, detail="Film not found")
 
         return film
 
     except HTTPException:
+        logger.error("Error get_film_details_by_id")
         raise
 
     except Exception as e:
-
+        logger.error(f"Failed to retrieve film: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to retrieve film: {str(e)}"
@@ -157,7 +166,9 @@ async def wikipedia(tmdb_id: int, session: Session = Depends(get_db)):
         year = film.release_date.year if film.release_date else None
 
         response_wiki = wikipedia_search.invoke({"title": title,"year": year})
+        logger.info("Sussesfully Retrieve movie info from Wikipedia")
         return response_wiki
 
     except Exception as e:
+        logger.error(f"Failed to retrieve film: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve film: {str(e)}")

@@ -19,16 +19,26 @@ Dépendances principales :
 Auteur/Responsable : Équipe Agents
 """
 
+
 import requests
 from urllib.parse import quote
 from langchain_core.tools import tool
-
 from api.schemas import WikipediaRequest, WikipediaResponse
 
+
+# LOGGER ------------------------------------------------------
+from logger import setup_logger, get_logger
+setup_logger()
+logger = get_logger("WIKI_TOOL")
+
+
+# PATH --------------------------------------------------------
 SEARCH_URL = "https://en.wikipedia.org/w/api.php"
 HEADERS = {"User-Agent": "HorRAGor/2.0 (educational project)"}
 
+# FUNCTION CACHERS --------------------------------------------
 def _search_wiki(title: str) -> str | None:
+    """Searche synopsys by correct film title"""
     try:
         params = {
             "action": "query",
@@ -84,11 +94,11 @@ def _get_summary(title: str) -> tuple[str | None, str | None]:
 
         summary = page.get("extract")
         url = page.get("fullurl")
-
+        logger.info("Summary and wiki_url loaded")
         return summary, url
 
     except Exception as e:
-        print("SUMMARY ERROR:", repr(e))
+        logger.error("SUMMARY ERROR:", repr(e))
         raise
 
 # MAIN PIPELINE TOOL ---------------------------
