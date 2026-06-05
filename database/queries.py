@@ -26,8 +26,26 @@ Auteur/Responsable : Lionel (Epic 1 & 2)
 
 from typing import List, Optional
 
+from connection import get_db
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+# --- CONFIGURATION DES CHEMINS (KISS & DRY) ---
+database_path = Path(__file__).resolve().parent
+root_path = database_path.parent
+
+if str(root_path) not in sys.path:
+    sys.path.append(str(root_path))
+
+# --- IMPORTS DE TES MODULES (API & TABLES) ---
+from tables.collections import Collection
+from tables.film_genres import FilmGenre
+from tables.films import Film
+from tables.genres import Genre
+from tables.realisateurs import Realisateur
+from tables.scores_imdb import ScoreImdb
+from tables.scores_rt import ScoreRt
+from tables.scores_tmdb import ScoreTmdb
 
 from api.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
 from database.connection import get_db
