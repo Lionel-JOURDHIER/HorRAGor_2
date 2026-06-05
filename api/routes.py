@@ -56,7 +56,10 @@ from schemas import (
     WikipediaResponse,
     DirectorsResponse,
     GenresResponse,
+    ErrorResponse
 )
+
+from modules.supabase_service import supabase_service
 
 
 router = APIRouter()
