@@ -45,7 +45,8 @@ Projet : HorRAGor
 """
 
 # IMPORT ----------------------------------------------------------
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 from schemas import (
     HealthResponse,
@@ -61,14 +62,20 @@ from schemas import (
 
 from modules.supabase_service import supabase_service
 
+from database.connection import get_db
 
 router = APIRouter()
 
+
 # HEALTH ----------------------------------------------------------
 @router.get("/health", response_model=HealthResponse, responses={500: {"model": ErrorResponse}}, tags=["System"])
-async def health():
+async def health(db: Session = Depends(get_db)):
     """Check API availability."""
     try:
+        db_ok = supabase_service.check_connection()
+        if not db_ok:
+            raise Exception("Database unavailable")
+
         return HealthResponse(status="ok")
     except Exception as e:
 
@@ -78,16 +85,24 @@ async def health():
         )
 
 # LISTS -----------------------------------------------------------
-@router.get("/list_real", response_model=DirectorsResponse, tags=["Metadata"])
+@router.get("/list_real", response_model=DirectorsResponse, responses={500: {"model": ErrorResponse}}, tags=["Metadata"])
 async def list_real():
     """Return list of directors."""
-    return DirectorsResponse(directors=["Christopher Nolan", "Ridley Scott"])
+    try:
+        directors = supabase_service.get_directors()
+        return DirectorsResponse( directors=directors)
+    except Exception as e:
+        raise HTTPException( status_code=500, detail=f"Failed to retrieve directors: {str(e)}")
 
 
-@router.get("/list_genre", response_model=GenresResponse, tags=["Metadata"])
+@router.get("/list_genre", response_model=GenresResponse, responses={500: {"model": ErrorResponse}}, tags=["Metadata"])
 async def list_genre():
     """Return list of genres."""
-    return GenresResponse(genres=["Sci-Fi", "Action", "Drama"])
+    try:
+        genres = supabase_service.get_genres()
+        return GenresResponse(genres=genres)
+    except Exception as e:
+        raise HTTPException( status_code=500, detail=f"Failed to retrieve genres: {str(e)}")
 
 # FILMS -----------------------------------------------------------
 @router.get( "/film/{tmdb_id}", response_model=FilmDetail, tags=["Films"])
