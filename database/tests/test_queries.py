@@ -2,14 +2,14 @@ from datetime import date
 from unittest.mock import MagicMock
 
 import pytest
-from queries import (
+
+from api.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
+from database.queries import (
     get_all_directors,
     get_all_genres,
     get_film_details_by_id,
     get_films_short_by_ids,
 )
-
-from api.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
 
 
 @pytest.fixture

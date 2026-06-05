@@ -2,7 +2,7 @@
 Tests unitaires pour la validation de la structure ORM de FilmEmbedding.
 """
 
-from models import FilmEmbedding
+from database.models import FilmEmbedding
 
 
 def test_film_embedding_structure():

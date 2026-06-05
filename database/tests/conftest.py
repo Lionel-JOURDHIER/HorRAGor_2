@@ -9,9 +9,15 @@ peuvent importer 'connection', 'models' ou 'faiss_service' sans duplication de c
 import os
 import sys
 
-# On détermine le chemin absolu du dossier parent ('database')
-DATABASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 1. On trouve le dossier de ce conftest (database/tests)
+TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# On l'ajoute au path unique de l'exécution
-if DATABASE_DIR not in sys.path:
-    sys.path.insert(0, DATABASE_DIR)
+# 2. On remonte au dossier 'database'
+DATABASE_DIR = os.path.dirname(TESTS_DIR)
+
+# 3. On remonte à la racine réelle du projet (HorRAGor_2)
+ROOT_DIR = os.path.dirname(DATABASE_DIR)
+
+# On injecte la racine tout en haut du path pour que 'database' et 'api' soient visibles
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
