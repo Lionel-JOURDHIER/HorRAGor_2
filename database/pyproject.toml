@@ -4,4 +4,24 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "dotenv>=0.9.9",
+    "faiss-cpu>=1.14.2",
+    "langchain-ollama>=1.1.0",
+    "pgvector>=0.4.2",
+    "psycopg2>=2.9.12",
+    "sqlalchemy>=2.0.50",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.coverage.report]
+# Dit à coverage d'ignorer les blocs d'exécution directe
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:"
+]
