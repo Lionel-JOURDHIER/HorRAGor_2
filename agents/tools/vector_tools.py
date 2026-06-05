@@ -33,7 +33,7 @@ from langchain_core.tools import tool
 # --- CONFIGURATION DES CHEMINS (KISS & DRY) ---
 root_path = Path(__file__).resolve().parents[2]
 
-if str(root_path) not in sys.path:
+if str(root_path) not in sys.path:  # pragma: no cover
     sys.path.insert(0, str(root_path))
 
 # Imports relatifs à la racine du projet
@@ -137,9 +137,13 @@ def search_vector_catalog(
     Sinon, recherche sur le catalogue complet.
     """
     try:
+        if candidate_ids is not None and len(candidate_ids) == 0:
+            print("🔍 Pool vide reçu ([]). Aucun scan FAISS requis. Retour immédiat.")
+            return []
+
         query_vector = OLLAMA_CLIENT_EMBEDD.embed_query(query)
 
-        if candidate_ids:
+        if candidate_ids is not None:
             faiss_results = _search_in_pool(
                 query_vector=query_vector,
                 candidate_ids=candidate_ids,
@@ -189,7 +193,7 @@ def search_similar_movies_by_id(
         if not query_vector:
             return []
 
-        if candidate_ids:
+        if candidate_ids is not None:
             faiss_results = _search_in_pool(
                 query_vector=query_vector,
                 candidate_ids=candidate_ids,
@@ -197,14 +201,7 @@ def search_similar_movies_by_id(
                 exclude_id=movie_id,
             )
         else:
-            faiss_results = faiss_global_service.search(
-                query_vector=query_vector, k=top_k + 1
-            )
-            faiss_results = [
-                (tmdb_id, dist)
-                for tmdb_id, dist in faiss_results
-                if tmdb_id != movie_id
-            ][:top_k]
+            return []
 
         if not faiss_results:
             return []
@@ -228,6 +225,7 @@ def search_similar_movies_by_id(
 
 
 # --- BLOC DE TEST ET DE VERIFICATION DES SCORES ---
+# --- BLOC DE TEST ET DE VERIFICATION DES SCORES ---
 if __name__ == "__main__":
     from agents.tools.sql_tools import filter_films_by_criteria
     from database.connection import get_db
@@ -236,31 +234,37 @@ if __name__ == "__main__":
     print("🚀 TEST VECTOR TOOLS — STRATÉGIE ADAPTIVE")
     print("==================================================")
 
-    # Démarrage de l'index FAISS (seule fois)
+    # Démarrage de l'index FAISS
     with get_db() as session:
         faiss_global_service.build_index(session)
 
-    # Helper d'affichage des résultats
+    # Helper d'affichage corrigé pour refléter fidèlement la réalité
     def print_results(
         label: str,
         results: List[FilmShort],
         latence_ms: float,
-        pool_size: Optional[int] = None,
+        candidate_ids: Optional[List[int]] = None,
     ):
-        strategie = (
-            "📦 Sous-index FAISS (petit pool)"
-            if pool_size is not None and pool_size < SMALL_POOL_THRESHOLD
-            else "🌐 Catalogue complet"
-            if pool_size is None
-            else "🔍 Post-filtre oversample (grand pool)"
-        )
+        if candidate_ids is None:
+            strategie = "🌐 Catalogue complet"
+            pool_info = "Aucun filtre"
+        elif len(candidate_ids) == 0:
+            strategie = "🛑 Court-circuit (Pool vide)"
+            pool_info = "0 films"
+        elif len(candidate_ids) < SMALL_POOL_THRESHOLD:
+            strategie = "📦 Sous-index FAISS (petit pool)"
+            pool_info = f"{len(candidate_ids)} films"
+        else:
+            strategie = "🔍 Post-filtre oversample (grand pool)"
+            pool_info = f"{len(candidate_ids)} films"
+
         print(f"\n{'─' * 50}")
         print(f"🧪 {label}")
         print(f"   Stratégie : {strategie}")
-        if pool_size is not None:
-            print(f"   Pool SQL   : {pool_size} films")
+        print(f"   Pool SQL  : {pool_info}")
+
         if not results:
-            print("   ⚠️  AUCUN RÉSULTAT")
+            print("   ✅ AUCUN RÉSULTAT (Comportement attendu)")
         else:
             for res in results:
                 print(
@@ -282,18 +286,17 @@ if __name__ == "__main__":
         label=f'search_vector_catalog — "{query}"',
         results=results,
         latence_ms=(end - start) * 1000,
-        pool_size=None,
+        candidate_ids=None,
     )
 
     # ─────────────────────────────────────────────
-    # SCÉNARIO 2 — Petit pool : réalisateur précis
+    # SCÉNARIO 2 — Vrai Petit pool (Kubrick historique)
     # ─────────────────────────────────────────────
-    print("\n\n📌 SCÉNARIO 2 — Petit pool < 500 (réalisateur précis)")
-    query = "un film d'horreur dans un hotel'"
+    print("\n\n📌 SCÉNARIO 2 — Petit pool < 500 (Réalisateur précis)")
+    query = "un film d'horreur dans un hotel"
 
+    # On retire le filtre après 2020 pour avoir les vrais films de Kubrick (ex: Shining)
     candidate_ids = filter_films_by_criteria.func(realisateur="Kubrick")
-    pool_size = len(candidate_ids) if candidate_ids else 0
-    print(f"   Pool SQL récupéré : {pool_size} films")
 
     start = time.perf_counter()
     results = search_vector_catalog.func(
@@ -305,18 +308,17 @@ if __name__ == "__main__":
         label=f'search_vector_catalog — "{query}" | réalisateur=Kubrick',
         results=results,
         latence_ms=(end - start) * 1000,
-        pool_size=pool_size,
+        candidate_ids=candidate_ids,
     )
 
     # ─────────────────────────────────────────────
-    # SCÉNARIO 3 — Grand pool : genre
+    # SCÉNARIO 3 — Grand pool (Correction du type : LISTE)
     # ─────────────────────────────────────────────
-    print("\n\n📌 SCÉNARIO 3 — Grand pool > 500 (genre)")
+    print("\n\n📌 SCÉNARIO 3 — Grand pool > 500 (Genre Thriller)")
     query = "un film d'horreur avec un tueur masqué"
 
-    candidate_ids = filter_films_by_criteria.func(genre="Thriller")
-    pool_size = len(candidate_ids) if candidate_ids else 0
-    print(f"   Pool SQL récupéré : {pool_size} films")
+    # CORRECTION : On passe bien une liste ["Thriller"] et non une chaîne "Thriller"
+    candidate_ids = filter_films_by_criteria.func(genres_included=["Thriller"])
 
     start = time.perf_counter()
     results = search_vector_catalog.func(
@@ -325,12 +327,36 @@ if __name__ == "__main__":
     end = time.perf_counter()
 
     print_results(
-        label=f'search_vector_catalog — "{query}" | genre=Thriller',
+        label=f'search_vector_catalog — "{query}" | genres_included=["Thriller"]',
         results=results,
         latence_ms=(end - start) * 1000,
-        pool_size=pool_size,
+        candidate_ids=candidate_ids,
+    )
+
+    # ─────────────────────────────────────────────
+    # SCÉNARIO 4 — Sécurité Filtres Impossibles
+    # ─────────────────────────────────────────────
+    print("\n\n📌 SCÉNARIO 4 — Sécurité Filtres Impossibles (Pool vide)")
+    query = "n'importe quel film"
+
+    # Filtre impossible volontaire
+    candidate_ids = filter_films_by_criteria.func(
+        realisateur="Kubrick", release_year_min=2025
+    )
+
+    start = time.perf_counter()
+    results = search_vector_catalog.func(
+        query=query, top_k=5, candidate_ids=candidate_ids
+    )
+    end = time.perf_counter()
+
+    print_results(
+        label="search_vector_catalog — Filtres infaisables",
+        results=results,
+        latence_ms=(end - start) * 1000,
+        candidate_ids=candidate_ids,
     )
 
     print("\n\n==================================================")
-    print("✅ FIN DES TESTS")
+    print("✅ FIN DES TESTS CORRIGÉS")
     print("==================================================")

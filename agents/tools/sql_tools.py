@@ -38,7 +38,7 @@ from sqlalchemy.orm import Session
 
 # Définit la racine du projet comme étant 2 dossiers au-dessus (agents/tools/ -> agents/ -> racine)
 root_path = Path(__file__).resolve().parents[2]
-if str(root_path) not in sys.path:
+if str(root_path) not in sys.path:  # pragma: no cover
     sys.path.insert(0, str(root_path))
 
 from database.connection import get_db
@@ -153,8 +153,8 @@ def _build_filtered_ids(
     ids = list(session.execute(statement).scalars().all())
 
     if not ids:
-        print("⚠️ Pool vide après filtrage — FAISS tournera sur le catalogue complet.")
-        return None
+        print("⚠️ Pool vide après filtrage — renvois d'une liste vide.")
+        return []
 
     print(f"✅ Pré-filtrage SQL : {len(ids)} films éligibles.")
     return ids

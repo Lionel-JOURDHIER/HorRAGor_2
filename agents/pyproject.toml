@@ -17,3 +17,16 @@ dependencies = [
 [tool.setuptools]
 package-dir = {"" = "."}
 packages = ["database", "agents"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.coverage.report]
+# Dit à coverage d'ignorer les blocs d'exécution directe
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:"
+]
