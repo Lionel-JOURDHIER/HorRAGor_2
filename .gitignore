@@ -46,3 +46,8 @@ __pycache__/
 logs/
 *.tmp
 *.bak
+
+htmlcov/
+.coverage
+coverage.xml
+data_backup/
