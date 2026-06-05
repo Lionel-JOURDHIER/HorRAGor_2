@@ -1,0 +1,1 @@
+"""Module utilitaires pour HorRAGor."""
