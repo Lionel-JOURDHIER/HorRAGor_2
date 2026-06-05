@@ -60,7 +60,6 @@ engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5, max_overfl
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-@contextmanager
 def get_db() -> Generator[Session, None, None]:
     """
     Générateur (Context Manager) de session de base de données.
@@ -76,3 +75,17 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+@contextmanager
+def db_session() -> Session:
+    """À utiliser avec la syntaxe 'with db_session() as session:'"""
+    session = SessionLocal()  # ou ton sessionmaker
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

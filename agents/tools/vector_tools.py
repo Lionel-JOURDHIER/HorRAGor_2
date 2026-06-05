@@ -38,7 +38,7 @@ if str(root_path) not in sys.path:  # pragma: no cover
 
 # Imports relatifs à la racine du projet
 from api.schemas import FilmShort
-from database.connection import get_db
+from database.connection import db_session
 from database.faiss_service import faiss_global_service
 from database.populate import OLLAMA_CLIENT_EMBEDD
 from database.queries import get_films_short_by_ids
@@ -160,7 +160,7 @@ def search_vector_catalog(
         ordered_ids = [int(res[0]) for res in faiss_results]
         distance_map = {int(res[0]): res[1] for res in faiss_results}
 
-        with get_db() as session:
+        with db_session() as session:
             films: List[FilmShort] = get_films_short_by_ids(session, ordered_ids)
 
         for film in films:
@@ -209,7 +209,7 @@ def search_similar_movies_by_id(
         ordered_ids = [int(res[0]) for res in faiss_results]
         distance_map = {int(res[0]): res[1] for res in faiss_results}
 
-        with get_db() as session:
+        with db_session() as session:
             films: List[FilmShort] = get_films_short_by_ids(session, ordered_ids)
 
         for film in films:
@@ -228,14 +228,14 @@ def search_similar_movies_by_id(
 # --- BLOC DE TEST ET DE VERIFICATION DES SCORES ---
 if __name__ == "__main__":
     from agents.tools.sql_tools import filter_films_by_criteria
-    from database.connection import get_db
+    from database.connection import db_session
 
     print("==================================================")
     print("🚀 TEST VECTOR TOOLS — STRATÉGIE ADAPTIVE")
     print("==================================================")
 
     # Démarrage de l'index FAISS
-    with get_db() as session:
+    with db_session() as session:
         faiss_global_service.build_index(session)
 
     # Helper d'affichage corrigé pour refléter fidèlement la réalité

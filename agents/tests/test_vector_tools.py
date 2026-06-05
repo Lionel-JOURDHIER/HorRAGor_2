@@ -7,14 +7,14 @@ from agents.tools.vector_tools import (
     search_vector_catalog,
 )
 from api.schemas import FilmShort
-from database.connection import get_db
+from database.connection import db_session
 from database.faiss_service import faiss_global_service
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_faiss_index():
     """Initialise l'index FAISS global une seule fois pour ce module de test."""
-    with get_db() as session:
+    with db_session() as session:
         faiss_global_service.build_index(session)
     yield
     # Optionnel : nettoyage si nécessaire à la fin du module
@@ -105,7 +105,7 @@ def test_search_empty_pool_short_circuit():
 
 def test_build_filtered_ids_no_filters_active():
     """Lignes 24-25 : Aucun filtre actif (retourne None)"""
-    with get_db() as session:
+    with db_session() as session:
         result = _build_filtered_ids(
             session=session,
             realisateur=None,
@@ -122,7 +122,7 @@ def test_build_filtered_ids_no_filters_active():
 
 def test_build_filtered_ids_with_genres_excluded():
     """Lignes 44-53 : Exclusion de genres (NOT EXISTS)"""
-    with get_db() as session:
+    with db_session() as session:
         result = _build_filtered_ids(
             session=session,
             genres_included=["Horror"],
@@ -133,7 +133,7 @@ def test_build_filtered_ids_with_genres_excluded():
 
 def test_build_filtered_ids_with_runtime_bounds():
     """Lignes 61-64 : Filtres sur la durée du film (runtime min/max)"""
-    with get_db() as session:
+    with db_session() as session:
         result = _build_filtered_ids(
             session=session, genres_included=["Horror"], runtime_min=60, runtime_max=120
         )
@@ -142,7 +142,7 @@ def test_build_filtered_ids_with_runtime_bounds():
 
 def test_build_filtered_ids_with_tmdb_score():
     """Lignes 65-68 : Import dynamique et filtre du score TMDB"""
-    with get_db() as session:
+    with db_session() as session:
         result = _build_filtered_ids(
             session=session, genres_included=["Horror"], tmdb_score_min=6.0
         )
@@ -327,7 +327,7 @@ def test_search_similar_movies_else_candidate_ids_none():
 
 def test_build_filtered_ids_with_release_year_bounds():
     """Ligne rouge : Force l'exécution du filtre de l'année maximale de sortie (release_year_max)"""
-    with get_db() as session:
+    with db_session() as session:
         # On définit une plage d'années pour forcer le passage dans les deux blocs 'if'
         result = _build_filtered_ids(
             session=session,

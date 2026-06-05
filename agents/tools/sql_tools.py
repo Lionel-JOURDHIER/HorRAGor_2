@@ -21,7 +21,7 @@ Contrat de retour :
 Dépendances principales :
     - langchain_core.tools (tool)
     - sqlalchemy (select, and_, extract)
-    - database.connection (get_db)
+    - database.connection (db_session)
     - database.tables (Film, FilmGenre, Genre, Realisateur)
 
 Auteur/Responsable : Lionel
@@ -41,7 +41,7 @@ root_path = Path(__file__).resolve().parents[2]
 if str(root_path) not in sys.path:  # pragma: no cover
     sys.path.insert(0, str(root_path))
 
-from database.connection import get_db
+from database.connection import db_session
 from database.tables.collections import Collection  # noqa: F401
 from database.tables.film_genres import FilmGenre
 from database.tables.films import Film
@@ -191,7 +191,7 @@ def filter_films_by_criteria(
     Returns:
         List[int] | None : tmdb_ids éligibles, ou None si pas de restriction.
     """
-    with get_db() as session:
+    with db_session() as session:
         return _build_filtered_ids(
             session=session,
             realisateur=realisateur,

@@ -40,7 +40,7 @@ def test_faiss_service_search():
     # Recherche avec le même vecteur
     results = service.search([0.5] * 1024, k=1)
 
-    assert results == [777]
+    assert results == [(777, 0.0)]
 
 
 @patch("database.populate.generate_local_embedding")
