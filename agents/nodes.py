@@ -576,20 +576,41 @@ if __name__ == "__main__":
     print(f"✅ title_router → current_step : {state_1.current_step}")
     print(f"📋 {state_1.steps[-1].status}")
 
-    # validation
-    res = validation_node(state_1)
-    state_1 = state_1.model_copy(update=res)
-    print(f"✅ validation → {state_1.steps[-1].status}")
-
     # aiguillage
     next_node = route_after_title_check(state_1)
     print(f"🔀 Direction : {next_node}")
 
     if next_node == "direct_movie_detail":
+        # 3. Exécution de la génération de fiche technique
         res = direct_movie_detail_node(state_1)
         state_1 = state_1.model_copy(update=res)
-        print(f"\n🤖 RÉPONSE :\n{state_1.answer}")
+        print(
+            f"ℹ️  Films récupérés pour contexte : {[m.title for m in state_1.retrieved_movies]}"
+        )
+        print(f"🤖 PREMIÈRE RÉPONSE LLM :\n{state_1.answer}\n")
 
+        # 4. Passage dans le nœud de Validation (Output Guardrails)
+        print("🔍 Lancement de la validation de la réponse...")
+        res_val = validation_node(state_1)
+        state_1 = state_1.model_copy(update=res_val)
+        print(
+            f"📋 Résultat Validateur → current_step d'aiguillage : {state_1.current_step}"
+        )
+        print(f"📋 Status : {state_1.steps[-1].status}")
+
+        # 5. Simulation du routage post-validation
+        post_val_route = route_after_validation(state_1)
+        print(f"🔀 Action requise du graphe : {post_val_route}")
+
+        if post_val_route == "enrich_with_wiki":
+            print("🌐 Déclenchement du nœud Wikipédia...")
+            res_wiki = wikipedia_enrich_node(state_1)
+            state_1 = state_1.model_copy(update=res_wiki)
+            print(f"🤖 RÉPONSE ENRICHIE FINALE :\n{state_1.answer}")
+        elif post_val_route == "go_to_end":
+            print("🏁 Réponse validée sans modification nécessaire.")
+        elif post_val_route == "retry_direct":
+            print("🔄 La validation a demandé un ré-essai (Correction locale).")
     print()
 
     # --------------------------------------------------------------------------
@@ -612,23 +633,42 @@ if __name__ == "__main__":
     state_2 = state_2.model_copy(update=res)
     print(f"✅ title_router → current_step : {state_2.current_step}")
 
-    # validation
-    res = validation_node(state_2)
-    state_2 = state_2.model_copy(update=res)
-    print(f"✅ validation → {state_2.steps[-1].status}")
-
     # aiguillage
     next_node = route_after_title_check(state_2)
     print(f"🔀 Direction : {next_node}")
 
     if next_node == "filter_and_search_hybrid":
+        # 3. Exécution de la recherche hybride SQL + FAISS
         res = filter_and_search_hybrid_node(state_2)
         state_2 = state_2.model_copy(update=res)
 
         print("\n⚙️  Filtres mergés :")
         print(json.dumps(state_2.sql_filters.model_dump(exclude_none=True), indent=2))
-        print(f"\n🎯 IDs SQL candidats : {len(state_2.candidate_ids or [])}")
+        print(f"🎯 IDs SQL candidats : {len(state_2.candidate_ids or [])}")
         print(f"📚 Films FAISS retenus : {len(state_2.retrieved_movies)}")
-        print(f"\n🤖 RÉPONSE :\n{state_2.answer}")
+        print(f"🤖 PREMIÈRE RÉPONSE LLM :\n{state_2.answer}\n")
+
+        # 4. Passage dans le nœud de Validation
+        print("🔍 Lancement de la validation de la réponse...")
+        res_val = validation_node(state_2)
+        state_2 = state_2.model_copy(update=res_val)
+        print(
+            f"📋 Résultat Validateur → current_step d'aiguillage : {state_2.current_step}"
+        )
+        print(f"📋 Status : {state_2.steps[-1].status}")
+
+        # 5. Simulation du routage post-validation
+        post_val_route = route_after_validation(state_2)
+        print(f"🔀 Action requise du graphe : {post_val_route}")
+
+        if post_val_route == "enrich_with_wiki":
+            print("🌐 Déclenchement du nœud Wikipédia...")
+            res_wiki = wikipedia_enrich_node(state_2)
+            state_2 = state_2.model_copy(update=res_wiki)
+            print(f"🤖 RÉPONSE ENRICHIE FINALE :\n{state_2.answer}")
+        elif post_val_route == "go_to_end":
+            print("🏁 Réponse validée ou aucun film disponible. Fin nominale.")
+        elif post_val_route == "retry_hybrid":
+            print("🔄 La validation a demandé un ré-essai (Correction locale).")
 
     print("\n" + "─" * 50)

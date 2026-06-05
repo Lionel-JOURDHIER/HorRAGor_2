@@ -10,7 +10,6 @@ from agents.nodes import (
     filter_and_search_hybrid_node,
     route_after_title_check,
     title_router_node,
-    validation_node,
 )
 from agents.state import AgentState, AgentStep
 from api.schemas import ChatFilters
@@ -80,21 +79,6 @@ def test_title_router_node_not_found(mock_llm, base_state):
 
     result = title_router_node(base_state)
     assert result["current_step"] == "no_title"
-
-
-def test_validation_node_empty_query():
-    """Vérifie que validation_node intercepte les requêtes vides[cite: 2]."""
-    state = AgentState(user_query="   ")
-    result = validation_node(state)
-    assert result["current_step"] == "no_title"
-
-
-def test_validation_node_valid_query(base_state):
-    """Vérifie que validation_node laisse passer une requête valide[cite: 2]."""
-    base_state.current_step = "has_title"
-    result = validation_node(base_state)
-    # L'état renvoyé doit juste mettre à jour les étapes, pas d'écrasement de current_step[cite: 2]
-    assert "current_step" not in result
 
 
 @patch("agents.nodes.search_vector_catalog.func")
