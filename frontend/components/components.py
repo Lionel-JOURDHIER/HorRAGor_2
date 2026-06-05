@@ -5,6 +5,7 @@ Ce module contient les composants graphiques modulaires utilisés dans l'interfa
 principale pour afficher les films, gérer les formulaires et l'historique de chat.
 
 Composants disponibles :
+    - normalize_movie_data : Adapte les données API au format frontend
     - display_movie_card : Affiche une carte visuelle d'un film avec affiche et détails
     - display_movie_list : Affiche une liste de films recommandés
     - create_filters_sidebar : Crée la barre latérale avec tous les filtres SQL
@@ -17,6 +18,50 @@ Auteur : Flavie (Epic 7)
 
 import streamlit as st
 from typing import Dict, List, Optional, Any
+from datetime import date
+
+
+def normalize_movie_data(movie: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Adapte les données d'un film provenant de l'API au format attendu par le frontend.
+    
+    Mapping API -> Frontend :
+    - title -> titre
+    - release_date -> annee
+    - runtime -> duree
+    - tmdb_score -> score_tmdb (inchangé)
+    
+    Args:
+        movie: Données du film au format API
+        
+    Returns:
+        Données du film au format frontend
+    """
+    normalized = movie.copy()
+    
+    # Mapper title -> titre
+    if "title" in normalized:
+        normalized["titre"] = normalized.pop("title")
+    
+    # Mapper release_date -> annee (extraire l'année)
+    if "release_date" in normalized and normalized["release_date"]:
+        release_date = normalized["release_date"]
+        if isinstance(release_date, str):
+            # Format ISO: "2020-01-15" -> 2020
+            normalized["annee"] = int(release_date.split("-")[0])
+        elif isinstance(release_date, date):
+            normalized["annee"] = release_date.year
+        normalized.pop("release_date", None)
+    
+    # Mapper runtime -> duree
+    if "runtime" in normalized:
+        normalized["duree"] = normalized.pop("runtime")
+    
+    # Mapper director -> realisateur si présent
+    if "director" in normalized and not normalized.get("realisateur"):
+        normalized["realisateur"] = normalized.pop("director")
+    
+    return normalized
 
 
 def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None:
@@ -24,10 +69,12 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
     Affiche une carte visuelle pour un film avec son affiche et ses informations.
     
     Args:
-        movie: Dictionnaire contenant les informations du film
-               (titre, realisateur, annee, score_tmdb, synopsis, poster_url, etc.)
+        movie: Dictionnaire contenant les informations du film (format API)
         show_details: Si True, affiche les détails complets, sinon version compacte
     """
+    # Normaliser les données API vers le format frontend
+    movie = normalize_movie_data(movie)
+    
     with st.container():
         col1, col2 = st.columns([1, 2])
         
@@ -78,7 +125,7 @@ def display_movie_list(movies: List[Dict[str, Any]], title: str = "🎬 Films re
     Affiche une liste de films sous forme de cartes compactes.
     
     Args:
-        movies: Liste de dictionnaires contenant les informations des films
+        movies: Liste de dictionnaires contenant les informations des films (format API)
         title: Titre de la section
     """
     if not movies:
@@ -89,7 +136,12 @@ def display_movie_list(movies: List[Dict[str, Any]], title: str = "🎬 Films re
     st.markdown(f"*{len(movies)} film(s) trouvé(s)*")
     
     for idx, movie in enumerate(movies, 1):
-        with st.expander(f"#{idx} - {movie.get('titre', 'Titre inconnu')} ({movie.get('annee', 'N/A')})"):
+        # Normaliser pour l'affichage
+        normalized_movie = normalize_movie_data(movie)
+        titre = normalized_movie.get('titre', 'Titre inconnu')
+        annee = normalized_movie.get('annee', 'N/A')
+        
+        with st.expander(f"#{idx} - {titre} ({annee})"):
             display_movie_card(movie, show_details=True)
 
 
@@ -116,7 +168,8 @@ def create_filters_sidebar(api_url: str) -> Dict[str, Any]:
         try:
             response = requests.get(f"{api_url}/list_real", timeout=5)
             if response.status_code == 200:
-                realisateurs = response.json()
+                data = response.json()
+                realisateurs = data.get("directors", [])
                 selected_real = st.selectbox(
                     "Choisir un réalisateur",
                     options=["Tous"] + realisateurs,
@@ -136,7 +189,8 @@ def create_filters_sidebar(api_url: str) -> Dict[str, Any]:
         try:
             response = requests.get(f"{api_url}/list_genre", timeout=5)
             if response.status_code == 200:
-                genres = response.json()
+                data = response.json()
+                genres = data.get("genres", [])
                 
                 genres_inclus = st.multiselect(
                     "Genres à conserver",
@@ -239,15 +293,25 @@ def display_agent_status(status: Dict[str, Any]) -> None:
     """
     Affiche l'état de réflexion de l'agent ReAct.
     
+    Supporte deux formats :
+    1. Format API simple : {"step": str, "status": str}
+    2. Format frontend étendu : {"etape": str, "tool": str, "pensee": str, "progression": int, "resultat": any}
+    
     Args:
         status: Dictionnaire contenant l'état actuel de l'agent
-                (étape, tool utilisé, progression, etc.)
     """
     if not status:
         return
     
     with st.expander("🔍 État de réflexion de l'agent", expanded=True):
-        # Étape en cours
+        # Format API simple
+        if "step" in status:
+            st.markdown(f"**Étape :** {status['step']}")
+            if "status" in status:
+                status_emoji = "✅" if status["status"] == "success" else "⏳"
+                st.markdown(f"**Statut :** {status_emoji} {status['status']}")
+        
+        # Format frontend étendu (rétrocompatibilité)
         if status.get("etape"):
             st.markdown(f"**Étape :** {status['etape']}")
         
