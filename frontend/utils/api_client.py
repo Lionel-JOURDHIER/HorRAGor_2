@@ -64,6 +64,11 @@ def get_film_by_id(film_id: int) -> Optional[Dict[str, Any]]:
     Returns:
         Dictionnaire contenant les informations du film ou None si erreur
     """
+    # Validation de l'ID
+    if film_id <= 0:
+        print(f"ID de film invalide: {film_id}")
+        return None
+    
     api_url = get_api_url()
     try:
         response = requests.get(f"{api_url}/film/{film_id}", timeout=10)
@@ -85,8 +90,10 @@ def get_realisateurs() -> List[str]:
     try:
         response = requests.get(f"{api_url}/list_real", timeout=10)
         response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
+        data = response.json()
+        # L'API retourne {"directors": [...]}
+        return data.get("directors", [])
+    except (requests.exceptions.RequestException, ValueError) as e:
         print(f"Erreur lors de la récupération des réalisateurs: {e}")
         return []
 
@@ -102,13 +109,15 @@ def get_genres() -> List[str]:
     try:
         response = requests.get(f"{api_url}/list_genre", timeout=10)
         response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
+        data = response.json()
+        # L'API retourne {"genres": [...]}
+        return data.get("genres", [])
+    except (requests.exceptions.RequestException, ValueError) as e:
         print(f"Erreur lors de la récupération des genres: {e}")
         return []
 
 
-def send_chat_query(prompt: str, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def send_chat_query(prompt: str, filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """
     Envoie une requête au chatbot avec le texte utilisateur et les filtres optionnels.
     
@@ -132,7 +141,13 @@ def send_chat_query(prompt: str, filters: Optional[Dict[str, Any]] = None) -> Di
         - answer: Texte généré par le LLM
         - recommendations: Liste des films recommandés
         - steps: Liste des étapes de l'agent
+        Ou None si erreur
     """
+    # Validation du prompt
+    if not prompt or not prompt.strip():
+        print("Le message ne peut pas être vide")
+        return None
+    
     api_url = get_api_url()
     
     # Adapter les filtres au format API
