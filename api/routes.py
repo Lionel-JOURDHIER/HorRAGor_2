@@ -65,10 +65,17 @@ from modules.supabase_service import supabase_service
 router = APIRouter()
 
 # HEALTH ----------------------------------------------------------
-@router.get("/health", response_model=HealthResponse, tags=["System"])
+@router.get("/health", response_model=HealthResponse, responses={500: {"model": ErrorResponse}}, tags=["System"])
 async def health():
     """Check API availability."""
-    return HealthResponse(status="ok")
+    try:
+        return HealthResponse(status="ok")
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Health check failed: {str(e)}"
+        )
 
 # LISTS -----------------------------------------------------------
 @router.get("/list_real", response_model=DirectorsResponse, tags=["Metadata"])
