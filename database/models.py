@@ -1,20 +1,30 @@
-"""database/models.py
-Module de définition des modèles de données (ORM) pour le projet HorRAGor.
-
-Ce fichier utilise SQLAlchemy 2.0 pour mapper les tables PostgreSQL hébergées
-sur Supabase. Il fait le pont entre les données textuelles pures et les structures
-vectorielles nécessaires à l'indexation.
-
-Tables mappées :
-    - Film : Reflet de la table de production existante (en lecture seule pour ce module),
-             contenant les métadonnées des films (titre, réalisateur, synopsis, durée, etc.).
-    - FilmEmbedding : Nouvelle table dédiée au stockage persistant des vecteurs
-                      d'embeddings (dimension 1024) générés localement par le
-                      modèle `qwen3-embedding:0.6b`.
-
-Dépendances principales :
-    - sqlalchemy.orm (DeclarativeBase, Mapped, mapped_column)
-    - pgvector.sqlalchemy (Vector)
-
-Auteur/Responsable : Lionel (Epic 1 & 2)
 """
+Modèles ORM SQLAlchemy pour l'extension RAG HorRAGor.
+"""
+
+from pgvector.sqlalchemy import Vector  # Extension pgvector native de Supabase
+from sqlalchemy import Column, Integer
+from sqlalchemy.orm import DeclarativeBase
+
+
+# 0. Classe de base déclarative partagée par tous les modèles ORM (ex: Film, FilmEmbedding)
+class Base(DeclarativeBase):
+    """Classe de base declarative SQLAlchemy 2.0 pour HorRAGor."""
+
+    pass
+
+
+class FilmEmbedding(Base):
+    """
+    Table d'extension RAG autonome contenant uniquement les identifiants
+    et les vecteurs associés de dimension 1024.
+    """
+
+    __tablename__ = "film_embeddings"
+
+    # Clé primaire alignée sur la table d'origine
+    tmdb_id = Column(Integer, primary_key=True, autoincrement=False)
+
+    # Tes deux colonnes de vecteurs distinctes (dimension 1024)
+    embedd_title = Column(Vector(1024), nullable=False)
+    embedd_overview = Column(Vector(1024), nullable=False)
