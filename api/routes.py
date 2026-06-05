@@ -45,9 +45,14 @@ Projet : HorRAGor
 """
 
 # IMPORT ----------------------------------------------------------
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 
-from schemas import (
+from database.connection import get_db
+from database.queries import get_film_details_by_id, get_all_directors, get_all_genres
+
+from api.schemas import (
     HealthResponse,
     FilmDetail,
     FilmShort,
@@ -59,34 +64,64 @@ from schemas import (
     ErrorResponse
 )
 
-from modules.supabase_service import supabase_service
-
 
 router = APIRouter()
 
+
 # HEALTH ----------------------------------------------------------
-@router.get("/health", response_model=HealthResponse, tags=["System"])
-async def health():
+@router.get("/health", response_model=HealthResponse, responses={500: {"model": ErrorResponse}}, tags=["System"])
+async def health(db: Session = Depends(get_db)):
     """Check API availability."""
-    return HealthResponse(status="ok")
+    try:
+        db.execute(text("SELECT 1"))
+        return HealthResponse(status="ok")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Health check failed: {str(e)}"
+        )
 
 # LISTS -----------------------------------------------------------
-@router.get("/list_real", response_model=DirectorsResponse, tags=["Metadata"])
-async def list_real():
+@router.get("/list_real", response_model=DirectorsResponse, responses={500: {"model": ErrorResponse}}, tags=["Metadata"])
+async def list_real(session: Session = Depends(get_db)):
     """Return list of directors."""
-    return DirectorsResponse(directors=["Christopher Nolan", "Ridley Scott"])
+    try:
+        directors = get_all_directors(session)
+        return directors
+    except Exception as e:
+        raise HTTPException( status_code=500, detail=f"Failed to retrieve directors: {str(e)}")
 
 
-@router.get("/list_genre", response_model=GenresResponse, tags=["Metadata"])
-async def list_genre():
+@router.get("/list_genre", response_model=GenresResponse, responses={500: {"model": ErrorResponse}}, tags=["Metadata"])
+async def list_genre(session: Session = Depends(get_db)):
     """Return list of genres."""
-    return GenresResponse(genres=["Sci-Fi", "Action", "Drama"])
+    try:
+        genres = get_all_genres(session)
+        return genres
+    except Exception as e:
+        raise HTTPException( status_code=500, detail=f"Failed to retrieve genres: {str(e)}")
 
 # FILMS -----------------------------------------------------------
-@router.get( "/film/{tmdb_id}", response_model=FilmDetail, tags=["Films"])
-async def get_film_detail(tmdb_id: int):
+@router.get( "/film/{tmdb_id}", response_model=FilmDetail, responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},tags=["Films"])
+async def get_film_detail(tmdb_id: int, session: Session = Depends(get_db)):
     """ Return full movie details by TMDB id."""
-    return FilmDetail( tmdb_id=tmdb_id, title="The Matrix", original_language="en")
+    try:
+        film = get_film_details_by_id(session, tmdb_id)
+        if film is None:
+            raise HTTPException( status_code=404, detail="Film not found")
+
+        return film
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve film: {str(e)}"
+        )
+
 
 # CHAT ----------------------------------------------------------
 @router.post("/chat", response_model=ChatResponse, tags=["Agent"])

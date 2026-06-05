@@ -20,8 +20,11 @@ Auteur/Responsable : Hanna (Epic 3)
 """
 
 from fastapi import FastAPI
+from pathlib import Path
 
-from routes import router
+
+
+from api.routes import router
 
 app = FastAPI(
     title="HorRAGor API",
