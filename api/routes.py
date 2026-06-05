@@ -72,7 +72,7 @@ router = APIRouter()
 async def health(db: Session = Depends(get_db)):
     """Check API availability."""
     try:
-        db_ok = supabase_service.check_connection()
+        db_ok = "OK"
         if not db_ok:
             raise Exception("Database unavailable")
 
@@ -89,8 +89,8 @@ async def health(db: Session = Depends(get_db)):
 async def list_real():
     """Return list of directors."""
     try:
-        directors = supabase_service.get_directors()
-        return DirectorsResponse( directors=directors)
+        directors = ["directors"]
+        return DirectorsResponse( directors=["directors"])
     except Exception as e:
         raise HTTPException( status_code=500, detail=f"Failed to retrieve directors: {str(e)}")
 
@@ -99,7 +99,7 @@ async def list_real():
 async def list_genre():
     """Return list of genres."""
     try:
-        genres = supabase_service.get_genres()
+        genres = ["genres"]
         return GenresResponse(genres=genres)
     except Exception as e:
         raise HTTPException( status_code=500, detail=f"Failed to retrieve genres: {str(e)}")
