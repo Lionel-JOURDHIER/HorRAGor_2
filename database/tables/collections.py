@@ -8,7 +8,7 @@ PK : tmdb_collection_id (INT) — identifiant natif TMDB utilisé directement
 
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
-from tables.base import Base
+from database.tables.base import Base
 
 
 class Collection(Base):

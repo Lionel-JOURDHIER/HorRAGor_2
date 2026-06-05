@@ -6,7 +6,7 @@ PK : director_id (INT) — identifiant natif TMDB, pas d'AUTO_INCREMENT.
 
 from sqlalchemy import DECIMAL, Column, ForeignKey, Integer
 from sqlalchemy.orm import relationship
-from tables.base import Base
+from database.tables.base import Base
 
 
 class ScoreTmdb(Base):

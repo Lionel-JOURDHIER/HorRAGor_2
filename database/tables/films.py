@@ -17,7 +17,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import relationship
-from tables.base import Base
+from database.tables.base import Base
 
 
 class Film(Base):

@@ -7,7 +7,7 @@ PK surrogate id_film_genre (INT AUTO_INCREMENT).
 
 from sqlalchemy import Column, ForeignKey, Integer, SmallInteger
 from sqlalchemy.orm import relationship
-from tables.base import Base
+from database.tables.base import Base
 
 
 class FilmGenre(Base):
