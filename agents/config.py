@@ -2,7 +2,18 @@
 Centralisation de l'initialisation des modèles de langage locaux (Souverains).
 """
 
+import os
+
+from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
+
+load_dotenv()
+
+_OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+llm = ChatOllama(model="granite4.1:8b", base_url=_OLLAMA_URL, temperature=0.1)
+structured_llm = ChatOllama(
+    model="granite4.1:8b", base_url=_OLLAMA_URL, temperature=0.0, format="json"
+)
 
 # LLM Principal pour la génération de texte et l'analyse sémantique
 llm = ChatOllama(
