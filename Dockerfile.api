@@ -1,0 +1,55 @@
+# Dockerfile.api
+# Image pour l'API FastAPI + couche agents LangGraph
+
+FROM python:3.11-slim
+
+# Variables d'environnement de build
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
+
+WORKDIR /app
+
+# Installation des dépendances système (curl pour healthcheck, build-essential pour faiss)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Installation de uv (gestionnaire de paquets)
+RUN pip install --no-cache-dir uv
+
+# Copie des fichiers de dépendances de chaque package
+# On copie d'abord pour profiter du cache Docker si le code change mais pas les deps
+COPY database/pyproject.toml database/uv.lock ./database/
+COPY agents/pyproject.toml agents/uv.lock ./agents/
+COPY api/pyproject.toml api/uv.lock ./api/
+
+# Installation des dépendances (merge des trois packages)
+# faiss-cpu est requis dans l'image — faiss-gpu nécessite une image cuda de base
+RUN uv pip install --system --no-cache \
+    fastapi \
+    uvicorn[standard] \
+    sqlalchemy \
+    psycopg2-binary \
+    pgvector \
+    python-dotenv \
+    langchain-core \
+    langchain-ollama \
+    langgraph \
+    faiss-cpu \
+    numpy \
+    pydantic \
+    requests \
+    wikipedia \
+    loguru
+
+# Copie du code source complet
+COPY . .
+
+# Création du répertoire de persistence FAISS
+RUN mkdir -p /app/faiss_data
+
+EXPOSE 8000
+
+CMD ["uv", "run", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
