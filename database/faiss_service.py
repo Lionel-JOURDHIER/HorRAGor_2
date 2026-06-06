@@ -23,6 +23,9 @@ Dépendances principales :
 Auteur/Responsable : Lionel (Epic 1 & 2)
 """
 
+import json
+import os
+
 import faiss
 import numpy as np
 from sqlalchemy.orm import Session
@@ -34,15 +37,13 @@ class FaissService:
     def __init__(self, dimension: int = 1024):
         self.dimension = dimension
         self.index = faiss.IndexFlatL2(dimension)
-        self.id_mapping = {}  # Pour lier l'index FAISS à ton tmdb_id
+        self.id_mapping = {}
 
     def build_index(self, session: Session):
         """Charge tous les vecteurs depuis Supabase vers FAISS."""
         embeddings = session.query(FilmEmbedding).all()
-
         vectors = []
         for i, emb in enumerate(embeddings):
-            # On concatène titre et overview pour l'indexation
             vector = np.array(emb.embedd_title, dtype="float32")
             vectors.append(vector)
             self.id_mapping[i] = emb.tmdb_id
@@ -51,6 +52,40 @@ class FaissService:
             data = np.array(vectors).astype("float32")
             self.index.add(data)
             print(f"✅ Index FAISS construit avec {len(vectors)} films.")
+
+    def save_index(self, index_path: str, mapping_path: str) -> None:
+        """
+        Persiste l'index FAISS et le mapping sur disque.
+
+        Args:
+            index_path:   Chemin du fichier .index (format binaire FAISS).
+            mapping_path: Chemin du fichier .json (mapping faiss_id → tmdb_id).
+        """
+        os.makedirs(os.path.dirname(index_path), exist_ok=True)
+        faiss.write_index(self.index, index_path)
+        with open(mapping_path, "w") as f:
+            json.dump(self.id_mapping, f)
+        print(f"💾 Index FAISS sauvegardé : {self.index.ntotal} films → {index_path}")
+
+    def load_index(self, index_path: str, mapping_path: str) -> bool:
+        """
+        Charge l'index FAISS et le mapping depuis le disque.
+
+        Returns:
+            True si le chargement a réussi, False si les fichiers sont absents.
+        """
+        if not os.path.exists(index_path) or not os.path.exists(mapping_path):
+            print("ℹ️  Aucun index persisté trouvé — construction requise.")
+            return False
+
+        self.index = faiss.read_index(index_path)
+        with open(mapping_path, "r") as f:
+            raw = json.load(f)
+            # JSON sérialise les clés en string — on les reconvertit en int
+            self.id_mapping = {int(k): v for k, v in raw.items()}
+
+        print(f"✅ Index FAISS chargé depuis disque : {self.index.ntotal} films.")
+        return True
 
     def search(self, query_vector: list, k: int = 1):
         """
