@@ -10,20 +10,18 @@ from langchain_ollama import ChatOllama
 load_dotenv()
 
 _OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-llm = ChatOllama(model="granite4.1:8b", base_url=_OLLAMA_URL, temperature=0.1)
-structured_llm = ChatOllama(
-    model="granite4.1:8b", base_url=_OLLAMA_URL, temperature=0.0, format="json"
-)
 
 # LLM Principal pour la génération de texte et l'analyse sémantique
 llm = ChatOllama(
     model="granite4.1:8b",
+    base_url=_OLLAMA_URL,
     temperature=0,  # Température basse pour privilégier la fidélité au contexte RAG
 )
 
 # Variante du LLM configurée strictement pour l'extraction de données structurées (JSON)
 structured_llm = ChatOllama(
     model="granite4.1:8b",
+    base_url=_OLLAMA_URL,
     temperature=0.0,  # Zéro créativité pour l'extraction factuelle des filtres
     format="json",  # Force le serveur Ollama à valider et renvoyer du JSON brut
 )

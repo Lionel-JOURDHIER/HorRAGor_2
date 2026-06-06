@@ -72,6 +72,20 @@ Si les données sur Supabase ont changé et que vous devez reconstruire l'index 
 ```bash
 docker volume rm horragor_faiss_data && docker compose up -d
 ```
+
+### 📦 Gestion des modèles Ollama
+Puisque Ollama s'exécute désormais directement sur votre machine hôte, la gestion des modèles se fait localement.
+
+Si vous n'avez pas encore téléchargé les modèles nécessaires, exécutez simplement les commandes suivantes directement dans votre terminal (sans passer par Docker) :
+```bash
+# Téléchargement du modèle de langage
+ollama pull granite4.1:8b
+
+# Téléchargement du modèle d'embedding
+ollama pull qwen3-embedding:0.6b
+```
+Astuce : Une fois téléchargés, ces modèles sont stockés dans le dossier spécifié par la variable OLLAMA_MODELS_PATH (ou le dossier par défaut ~/.ollama). Ils restent disponibles instantanément pour tous vos projets et conteneurs.
+
 --- 
 ## 🌐 Étape 3 : Accès aux Applications
 
@@ -93,3 +107,4 @@ docker compose logs -f api
 ```bash
 docker compose down
 ```
+
