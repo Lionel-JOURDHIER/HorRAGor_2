@@ -24,6 +24,7 @@ Auteur/Responsable : Lionel (Epic 1 & 2)
 """
 
 import os
+from contextlib import contextmanager
 from typing import Generator
 
 from dotenv import load_dotenv
@@ -74,3 +75,17 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+@contextmanager
+def db_session() -> Session:
+    """À utiliser avec la syntaxe 'with db_session() as session:'"""
+    session = SessionLocal()  # ou ton sessionmaker
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

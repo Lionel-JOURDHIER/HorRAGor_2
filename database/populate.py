@@ -24,10 +24,21 @@ Dépendances principales :
 Auteur/Responsable : Lionel (Epic 1 & 2)
 """
 
-from connection import engine, get_db
+import os
+
+from dotenv import load_dotenv
 from langchain_ollama import OllamaEmbeddings
-from models import Base, FilmEmbedding
 from sqlalchemy import text
+
+from database.connection import engine, get_db
+from database.models import Base, FilmEmbedding
+
+load_dotenv()
+
+_OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_CLIENT_EMBEDD = OllamaEmbeddings(
+    model="qwen3-embedding:0.6b", base_url=_OLLAMA_URL
+)
 
 
 def fetch_source_films(session) -> list:
@@ -55,7 +66,7 @@ def generate_local_embedding(text_content: str) -> list[float]:
 
     # --- LE VRAI TRAVAIL COMMENCE ICI ---
     # Initialisation du client Ollama avec ton modèle souverain (dim 1024 d'après tes specs)
-    ollama_client = OllamaEmbeddings(model="qwen3-embedding:0.6b")
+    ollama_client = OLLAMA_CLIENT_EMBEDD
 
     # Appel de l'inférence locale
     return ollama_client.embed_query(text_content)

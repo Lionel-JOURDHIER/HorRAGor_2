@@ -1,9 +1,10 @@
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import populate
 import pytest
-from faiss_service import FaissService
+
+import database.populate as populate
+from database.faiss_service import FaissService
 
 
 def test_faiss_service_build_index():
@@ -39,11 +40,11 @@ def test_faiss_service_search():
     # Recherche avec le même vecteur
     results = service.search([0.5] * 1024, k=1)
 
-    assert results == [777]
+    assert results == [(777, 0.0)]
 
 
-@patch("populate.generate_local_embedding")
-@patch("populate.get_db")
+@patch("database.populate.generate_local_embedding")
+@patch("database.populate.get_db")
 def test_run_pipeline_batch_recovery(mock_get_db, mock_embed):
     """Vérifie que le bloc 'except' sauve bien le lot en cours si Ollama crash."""
     mock_session = MagicMock()
@@ -67,9 +68,12 @@ def test_run_pipeline_batch_recovery(mock_get_db, mock_embed):
     mock_row3 = MagicMock(tmdb_id=3, title="Film 3", overview="Synopsis 3")
 
     with patch(
-        "populate.fetch_source_films", return_value=[mock_row1, mock_row2, mock_row3]
+        "database.populate.fetch_source_films",
+        return_value=[mock_row1, mock_row2, mock_row3],
     ):
-        with patch("populate.fetch_already_vectorized_ids", return_value=set()):
+        with patch(
+            "database.populate.fetch_already_vectorized_ids", return_value=set()
+        ):
             with pytest.raises(Exception) as exc_info:
                 populate.run_pipeline()
 

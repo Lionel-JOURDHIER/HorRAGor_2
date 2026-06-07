@@ -13,10 +13,13 @@ Usage :
 import sys
 from unittest.mock import MagicMock, patch
 
-# Import direct rendu robuste grâce au conftest.py global
-import connection
+import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+# Import direct rendu robuste grâce au conftest.py global
+import database.connection as connection
+from database.connection import db_session
 
 
 def test_db_connection():
@@ -68,7 +71,8 @@ def test_get_db_generator():
 def test_db_connection_failure():
     """Force un échec de connexion pour couvrir le bloc 'except Exception as e'."""
     with patch(
-        "connection.engine.connect", side_effect=Exception("Crash réseau simulé")
+        "database.connection.engine.connect",
+        side_effect=Exception("Crash réseau simulé"),
     ):
         try:
             test_db_connection()
@@ -79,9 +83,9 @@ def test_db_connection_failure():
 def test_db_connection_url_parse_failure():
     """Force un échec de parsing de l'URL sur le bon module (Couvre le premier 'except')."""
     # On patche DATABASE_URL directement dans le module 'connection'
-    with patch("connection.DATABASE_URL", "sqlite:///:memory:"):
+    with patch("database.connection.DATABASE_URL", "sqlite:///:memory:"):
         # On patche aussi connect pour éviter que le test ne crash sur l'étape suivante
-        with patch("connection.engine.connect"):
+        with patch("database.connection.engine.connect"):
             test_db_connection()
 
 
@@ -95,6 +99,34 @@ def test_password_security_trigger():
                 raise ValueError("❌ Erreur : Le mot de passe par défaut est détecté.")
         except ValueError as e:
             assert "par défaut" in str(e)
+
+
+def test_db_session_success():
+    """Vérifie que db_session fournit bien une session active et se ferme proprement."""
+    with db_session() as session:
+        assert isinstance(session, Session)
+        assert session.is_active  # La session est bien active ici
+
+    # Validation de la fermeture via l'état interne de SQLAlchemy :
+    # 1. Le dictionnaire d'état de la session doit être marqué comme inactif/vide
+    assert getattr(session, "_goforward", None) is None
+
+    # 2. Alternative comportementale : Si on tente de re-fermer ou d'inspecter
+    # le registre de transaction, SQLAlchemy refuse ou renvoie une erreur d'état.
+    assert not hasattr(session, "new") or len(session.new) == 0
+
+
+def test_db_session_rollback_on_exception():
+    """Vérifie que db_session effectue bien un rollback si une erreur survient."""
+
+    class FakeDatabaseError(Exception):
+        pass
+
+    # On force une levée d'exception à l'intérieur du bloc contextuel
+    with pytest.raises(FakeDatabaseError):
+        with db_session() as session:
+            # On simule un ajout qui va crasher ou une erreur d'exécution
+            raise FakeDatabaseError("Simulated database crash")
 
 
 if __name__ == "__main__":

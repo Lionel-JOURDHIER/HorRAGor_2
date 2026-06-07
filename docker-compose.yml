@@ -1,0 +1,91 @@
+# docker-compose.yml
+# Lance l'ensemble du stack HorRAGor : Ollama (GPU), API FastAPI, Frontend Streamlit
+# Prérequis : nvidia-container-toolkit installé, modèles Ollama déjà téléchargés en local
+
+services:
+
+  # # ─── 1. OLLAMA ─────────────────────────────────────────────────────────────
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: horragor_ollama
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+  #   volumes:
+  #     # Monte les modèles déjà téléchargés en local (évite le re-pull)
+  #     - ${OLLAMA_MODELS_PATH:-~/.ollama}:/root/.ollama
+  #   ports:
+  #     - "11434:11434"
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "ollama list || exit 1"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 6
+  #     start_period: 15s
+  #   restart: unless-stopped
+  #   networks:
+  #     - horragor_net
+
+  # ─── 2. API FASTAPI ─────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: horragor_api
+    # depends_on:
+    #   ollama:
+    #     condition: service_healthy
+    env_file: .env
+    environment:
+      # Redirection Ollama vers le service Docker (écrase localhost)
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      # Chemins de persistence de l'index FAISS dans le volume
+      - FAISS_INDEX_PATH=/app/faiss_data/horragor.index
+      - FAISS_MAPPING_PATH=/app/faiss_data/horragor_mapping.json
+      - PYTHONPATH=/app
+    volumes:
+      - faiss_data:/app/faiss_data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s  # FAISS peut prendre du temps au premier démarrage
+    restart: unless-stopped
+    networks:
+      - horragor_net
+
+  # ─── 3. FRONTEND STREAMLIT ─────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: horragor_frontend
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      - API_URL=http://api:8000
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
+    networks:
+      - horragor_net
+
+# ─── VOLUMES ──────────────────────────────────────────────────────────────────
+volumes:
+  faiss_data:
+    name: horragor_faiss_data
+    # Le volume persiste entre les redémarrages
+    # Pour forcer un rebuild : docker volume rm horragor_faiss_data
+
+# ─── RÉSEAU ───────────────────────────────────────────────────────────────────
+networks:
+  horragor_net:
+    driver: bridge

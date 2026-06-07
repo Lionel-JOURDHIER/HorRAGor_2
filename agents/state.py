@@ -18,3 +18,42 @@ Dépendances principales :
     - typing (TypedDict, Annotated)
     - langgraph.graph.message (add_messages)
 """
+
+from typing import Any, List, Optional
+
+from pydantic import BaseModel, Field
+
+from api.schemas import ChatFilters
+
+# Import de ton modèle FilmShort depuis le package approprié (ex: database.models)
+# from database.models import FilmShort
+
+
+class AgentStep(BaseModel):
+    """Execution step produced by the ReAct workflow."""
+
+    step: str
+    status: str
+
+
+class AgentState(BaseModel):
+    """Shared state exchanged between LangGraph nodes."""
+
+    user_query: str
+
+    # Filtres entrants du front-end à fusionner
+    initial_filters: ChatFilters = Field(default_factory=ChatFilters)
+
+    # Suivi de l'exécution
+    current_step: Optional[str] = None
+    steps: List[AgentStep] = Field(default_factory=list)
+
+    # Données intermédiaires et filtres mergés
+    sql_filters: ChatFilters = Field(default_factory=ChatFilters)
+    candidate_ids: Optional[List[int]] = None
+
+    # Données de sortie pour les réponses finales
+    retrieved_movies: List[Any] = Field(
+        default_factory=list
+    )  # Contiendra FilmShort ou FilmDetail
+    answer: Optional[str] = None

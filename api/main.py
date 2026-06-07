@@ -19,16 +19,43 @@ Dépendances principales :
 Auteur/Responsable : Hanna (Epic 3)
 """
 
+import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from pathlib import Path
-
-
 
 from api.routes import router
 
-app = FastAPI(
-    title="HorRAGor API",
-    version="0.1.0"
-)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Cycle de vie de l'API :
+    - Démarrage : charge ou construit l'index FAISS, puis le persiste.
+    - Arrêt : libération propre des ressources.
+    """
+    from database.connection import db_session
+    from database.faiss_service import faiss_global_service
+
+    index_path = os.getenv("FAISS_INDEX_PATH", "faiss_data/horragor.index")
+    mapping_path = os.getenv("FAISS_MAPPING_PATH", "faiss_data/horragor_mapping.json")
+
+    # Tentative de chargement depuis le volume persisté
+    loaded = faiss_global_service.load_index(index_path, mapping_path)
+
+    if not loaded:
+        # Premier démarrage ou volume réinitialisé → build depuis Supabase
+        print("🔧 Construction de l'index FAISS depuis Supabase...")
+        with db_session() as session:
+            faiss_global_service.build_index(session)
+        faiss_global_service.save_index(index_path, mapping_path)
+        print("✅ Index FAISS sauvegardé pour les prochains démarrages.")
+
+    yield
+
+    print("👋 Shutdown HorRAGor API.")
+
+
+app = FastAPI(title="HorRAGor API", version="0.1.0")
 
 app.include_router(router)

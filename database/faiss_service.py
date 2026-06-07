@@ -23,25 +23,27 @@ Dépendances principales :
 Auteur/Responsable : Lionel (Epic 1 & 2)
 """
 
+import json
+import os
+
 import faiss
 import numpy as np
-from models import FilmEmbedding
 from sqlalchemy.orm import Session
+
+from database.models import FilmEmbedding
 
 
 class FaissService:
     def __init__(self, dimension: int = 1024):
         self.dimension = dimension
         self.index = faiss.IndexFlatL2(dimension)
-        self.id_mapping = {}  # Pour lier l'index FAISS à ton tmdb_id
+        self.id_mapping = {}
 
     def build_index(self, session: Session):
         """Charge tous les vecteurs depuis Supabase vers FAISS."""
         embeddings = session.query(FilmEmbedding).all()
-
         vectors = []
         for i, emb in enumerate(embeddings):
-            # On concatène titre et overview pour l'indexation
             vector = np.array(emb.embedd_title, dtype="float32")
             vectors.append(vector)
             self.id_mapping[i] = emb.tmdb_id
@@ -51,14 +53,81 @@ class FaissService:
             self.index.add(data)
             print(f"✅ Index FAISS construit avec {len(vectors)} films.")
 
-    def search(self, query_vector: list[float], k: int = 5):
-        """Recherche les k films les plus proches."""
-        query = np.array([query_vector]).astype("float32")
-        distances, indices = self.index.search(query, k)
+    def save_index(self, index_path: str, mapping_path: str) -> None:
+        """
+        Persiste l'index FAISS et le mapping sur disque.
 
-        results = [self.id_mapping[idx] for idx in indices[0] if idx != -1]
+        Args:
+            index_path:   Chemin du fichier .index (format binaire FAISS).
+            mapping_path: Chemin du fichier .json (mapping faiss_id → tmdb_id).
+        """
+        os.makedirs(os.path.dirname(index_path), exist_ok=True)
+        faiss.write_index(self.index, index_path)
+        with open(mapping_path, "w") as f:
+            json.dump(self.id_mapping, f)
+        print(f"💾 Index FAISS sauvegardé : {self.index.ntotal} films → {index_path}")
+
+    def load_index(self, index_path: str, mapping_path: str) -> bool:
+        """
+        Charge l'index FAISS et le mapping depuis le disque.
+
+        Returns:
+            True si le chargement a réussi, False si les fichiers sont absents.
+        """
+        if not os.path.exists(index_path) or not os.path.exists(mapping_path):
+            print("ℹ️  Aucun index persisté trouvé — construction requise.")
+            return False
+
+        self.index = faiss.read_index(index_path)
+        with open(mapping_path, "r") as f:
+            raw = json.load(f)
+            # JSON sérialise les clés en string — on les reconvertit en int
+            self.id_mapping = {int(k): v for k, v in raw.items()}
+
+        print(f"✅ Index FAISS chargé depuis disque : {self.index.ntotal} films.")
+        return True
+
+    def search(self, query_vector: list, k: int = 1):
+        """
+        Recherche dans l'index FAISS.
+        Retourne un tuple (ids, distances) au lieu de juste les ids.
+        """
+        import numpy as np
+
+        xq = np.array([query_vector]).astype("float32")
+
+        # D = distances, I = indices FAISS
+        D, I = self.index.search(xq, k)
+
+        results = []
+        for distance, faiss_id in zip(D[0], I[0]):
+            if faiss_id in self.id_mapping:
+                tmdb_id = self.id_mapping[faiss_id]
+                results.append((tmdb_id, float(distance)))
+
         return results
 
+    def get_vector_by_id(self, movie_id: int) -> list[float] | None:
+        """
+        Récupère le vecteur d'un film à partir de son identifiant TMDB.
+        Cherche directement dans l'index FAISS via le mapping inverse en RAM.
+        """
+        if not self.id_mapping:
+            print("⚠️ Le mapping FAISS est vide. L'index a-t-il été build ?")
+            return None
+
+        # On cherche l'ID FAISS (l'index de la ligne) correspondant au movie_id (TMDB)
+        # Si ton mapping est inversé (ex: {faiss_id: movie_id}), on le parcourt :
+        for faiss_id, tmdb_id in self.id_mapping.items():
+            if tmdb_id == movie_id:
+                # Récupération directe du vecteur dans la matrice de l'index FAISS
+                return self.index.reconstruct(faiss_id).tolist()
+
+        print(f"🎬 ID TMDB {movie_id} introuvable dans l'index FAISS local.")
+        return None
+
+
+faiss_global_service = FaissService(dimension=1024)
 
 if __name__ == "__main__":
     # Import local pour éviter les dépendances circulaires lors de l'import du module

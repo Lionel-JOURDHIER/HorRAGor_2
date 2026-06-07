@@ -64,6 +64,11 @@ def get_film_by_id(film_id: int) -> Optional[Dict[str, Any]]:
     Returns:
         Dictionnaire contenant les informations du film ou None si erreur
     """
+    # Validation de l'ID
+    if film_id <= 0:
+        print(f"ID de film invalide: {film_id}")
+        return None
+    
     api_url = get_api_url()
     try:
         response = requests.get(f"{api_url}/film/{film_id}", timeout=10)
@@ -85,8 +90,10 @@ def get_realisateurs() -> List[str]:
     try:
         response = requests.get(f"{api_url}/list_real", timeout=10)
         response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
+        data = response.json()
+        # L'API retourne {"directors": [...]}
+        return data.get("directors", [])
+    except (requests.exceptions.RequestException, ValueError) as e:
         print(f"Erreur lors de la récupération des réalisateurs: {e}")
         return []
 
@@ -102,13 +109,15 @@ def get_genres() -> List[str]:
     try:
         response = requests.get(f"{api_url}/list_genre", timeout=10)
         response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
+        data = response.json()
+        # L'API retourne {"genres": [...]}
+        return data.get("genres", [])
+    except (requests.exceptions.RequestException, ValueError) as e:
         print(f"Erreur lors de la récupération des genres: {e}")
         return []
 
 
-def send_chat_query(prompt: str, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def send_chat_query(prompt: str, filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """
     Envoie une requête au chatbot avec le texte utilisateur et les filtres optionnels.
     
@@ -129,18 +138,38 @@ def send_chat_query(prompt: str, filters: Optional[Dict[str, Any]] = None) -> Di
     
     Returns:
         Dictionnaire contenant :
-        - status: "success" ou "error"
-        - reponse_texte: Texte généré par le LLM
-        - films_recommandes: Liste des 5 films avec détails
-        - etats_agent: Liste des états de réflexion (optionnel)
-        - message_erreur: Message d'erreur si échec
+        - answer: Texte généré par le LLM
+        - recommendations: Liste des films recommandés
+        - steps: Liste des étapes de l'agent
+        Ou None si erreur
     """
+    # Validation du prompt
+    if not prompt or not prompt.strip():
+        print("Le message ne peut pas être vide")
+        return None
+    
     api_url = get_api_url()
     
-    # Préparer le payload
+    # Adapter les filtres au format API
+    api_filters = None
+    if filters:
+        api_filters = {
+            "realisateur": filters.get("realisateur"),
+            "genres_included": filters.get("genres_inclus", []),
+            "genres_excluded": filters.get("genres_exclus", []),
+            "release_year_min": filters.get("date_sortie_min"),
+            "release_year_max": filters.get("date_sortie_max"),
+            "tmdb_score_min": filters.get("score_tmdb_min"),
+            "runtime_min": filters.get("duree_min"),
+            "runtime_max": filters.get("duree_max")
+        }
+        # Retirer les clés None
+        api_filters = {k: v for k, v in api_filters.items() if v is not None}
+    
+    # Préparer le payload avec le format API
     payload = {
-        "prompt": prompt,
-        "filters": filters or {}
+        "message": prompt,
+        "filters": api_filters
     }
     
     try:
@@ -150,7 +179,15 @@ def send_chat_query(prompt: str, filters: Optional[Dict[str, Any]] = None) -> Di
             timeout=60  # Timeout plus long pour l'agent
         )
         response.raise_for_status()
-        return response.json()
+        api_response = response.json()
+        
+        # Adapter la réponse API au format attendu par le frontend
+        return {
+            "status": "success",
+            "reponse_texte": api_response.get("answer", ""),
+            "films_recommandes": api_response.get("recommendations", []),
+            "etats_agent": api_response.get("steps", [])
+        }
     except requests.exceptions.Timeout:
         return {
             "status": "error",
@@ -207,12 +244,12 @@ def send_chat_query_streaming(prompt: str, filters: Optional[Dict[str, Any]] = N
         }
 
 
-def get_wikipedia_info(film_title: str) -> Optional[Dict[str, Any]]:
+def get_wikipedia_info(tmdb_id: int) -> Optional[Dict[str, Any]]:
     """
     Récupère les informations détaillées d'un film depuis Wikipedia.
     
     Args:
-        film_title: Titre du film à rechercher
+        tmdb_id: ID TMDB du film
         
     Returns:
         Dictionnaire contenant le synopsis et informations Wikipedia ou None
@@ -220,12 +257,11 @@ def get_wikipedia_info(film_title: str) -> Optional[Dict[str, Any]]:
     api_url = get_api_url()
     try:
         response = requests.get(
-            f"{api_url}/wikipedia",
-            params={"title": film_title},
+            f"{api_url}/wikipedia/{tmdb_id}",
             timeout=15
         )
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Erreur lors de la récupération Wikipedia pour {film_title}: {e}")
+        print(f"Erreur lors de la récupération Wikipedia pour TMDB ID {tmdb_id}: {e}")
         return None
