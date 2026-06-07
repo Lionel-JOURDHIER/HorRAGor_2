@@ -53,7 +53,8 @@ from agents.nodes import (
     validation_node,
     wikipedia_enrich_node,
 )
-from agents.state import AgentState
+# from agents.state import AgentState
+from api.schemas import AgentState
 
 # 1. Initialisation du graphe avec l'état partagé de l'agent
 workflow = StateGraph(AgentState)

@@ -19,41 +19,41 @@ Dépendances principales :
     - langgraph.graph.message (add_messages)
 """
 
-from typing import Any, List, Optional
+# from typing import Any, List, Optional
 
-from pydantic import BaseModel, Field
+# from pydantic import BaseModel, Field
 
-from api.schemas import ChatFilters
+# from api.schemas import ChatFilters, AgentStep, AgentState
 
 # Import de ton modèle FilmShort depuis le package approprié (ex: database.models)
 # from database.models import FilmShort
 
 
-class AgentStep(BaseModel):
-    """Execution step produced by the ReAct workflow."""
+# class AgentStep(BaseModel):
+#     """Execution step produced by the ReAct workflow."""
 
-    step: str
-    status: str
+#     step: str
+#     status: str
 
 
-class AgentState(BaseModel):
-    """Shared state exchanged between LangGraph nodes."""
+# class AgentState(BaseModel):
+#     """Shared state exchanged between LangGraph nodes."""
 
-    user_query: str
+#     user_query: str
 
-    # Filtres entrants du front-end à fusionner
-    initial_filters: ChatFilters = Field(default_factory=ChatFilters)
+#     # Filtres entrants du front-end à fusionner
+#     initial_filters: ChatFilters = Field(default_factory=ChatFilters)
 
-    # Suivi de l'exécution
-    current_step: Optional[str] = None
-    steps: List[AgentStep] = Field(default_factory=list)
+#     # Suivi de l'exécution
+#     current_step: Optional[str] = None
+#     steps: List[AgentStep] = Field(default_factory=list)
 
-    # Données intermédiaires et filtres mergés
-    sql_filters: ChatFilters = Field(default_factory=ChatFilters)
-    candidate_ids: Optional[List[int]] = None
+#     # Données intermédiaires et filtres mergés
+#     sql_filters: ChatFilters = Field(default_factory=ChatFilters)
+#     candidate_ids: Optional[List[int]] = None
 
-    # Données de sortie pour les réponses finales
-    retrieved_movies: List[Any] = Field(
-        default_factory=list
-    )  # Contiendra FilmShort ou FilmDetail
-    answer: Optional[str] = None
+#     # Données de sortie pour les réponses finales
+#     retrieved_movies: List[Any] = Field(
+#         default_factory=list
+#     )  # Contiendra FilmShort ou FilmDetail
+#     answer: Optional[str] = None

@@ -46,13 +46,20 @@ Projet : HorRAGor
 
 # IMPORT ----------------------------------------------------------
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+import json
+from typing import Any, cast
+
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from agents.tools.wiki_tools import wikipedia_search
+from api.modules.chat_service import run_agent, run_agent_stream, run_agent_stream_final
 
 from database.connection import get_db
 from database.queries import get_film_details_by_id, get_all_directors, get_all_genres
+
+from api.schemas import AgentStep, AgentState
 
 from api.schemas import (
     HealthResponse,
@@ -135,23 +142,144 @@ async def get_film_detail(tmdb_id: int, session: Session = Depends(get_db)):
 
 
 # CHAT ----------------------------------------------------------
-@router.post("/chat", response_model=ChatResponse, tags=["Agent"])
+@router.post("/chat/response", response_model=ChatResponse, responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse},},
+    tags=["Agent"])
 async def chat(request: ChatRequest):
-    """ Main endpoint for ReAct agent interaction."""
-    # TODO: replace with LangGraph call
-    return ChatResponse(
-        answer=f"Received: {request.message}",
-        steps=[],
-        recommendations=[
-            FilmShort(
-                tmdb_id=603,
-                title="The Matrix",
-                release_date=None,
-                genres=["Sci-Fi"],
-                tmdb_score=8.7
+    """Main endpoint for ReAct agent interaction."""
+
+    try:
+        result = run_agent(request)
+
+        return ChatResponse(
+            answer=result.get("answer") or "No answer generated",
+
+            steps=[
+                s if isinstance(s, AgentStep)
+                else AgentStep(**s) if isinstance(s, dict)
+                else AgentStep.model_validate(s)
+                for s in (result.get("steps") or [])
+            ],
+
+            recommendations = [
+                FilmShort.model_validate(r) if isinstance(r, dict) else r
+                for r in result.get("retrieved_movies") or []
+            ]
+        )
+
+    except Exception as e:
+        logger.exception("Failed to get response from agent")
+        raise HTTPException( status_code=500, detail=f"Failed to get response from agent: {str(e)}")
+    
+
+@router.post("/chat/stream",responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse},}, tags=["Agent"])
+async def chat_stream(request: ChatRequest):
+
+    stream = run_agent_stream(request)
+
+    async def event_generator():
+
+        for event in stream:
+            if not isinstance(event, dict):
+                continue
+
+            for node_name, state in event.items():
+                # безопасное извлечение steps
+                if isinstance(state, dict):
+                    steps = state.get("steps", [])
+                else:
+                    steps = getattr(state, "steps", [])
+
+                if not steps:
+                    continue
+
+                last_step = steps[-1]
+
+                payload = {
+                    "node": node_name,
+                    "step": (
+                        last_step.model_dump()
+                        if hasattr(last_step, "model_dump")
+                        else (
+                            last_step.dict()
+                            if hasattr(last_step, "dict")
+                            else str(last_step)
+                        )
+                    )
+                }
+
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+        yield f"data: {json.dumps({'status': 'done'})}\n\n"
+
+    return StreamingResponse( event_generator(), media_type="text/event-stream")
+
+@router.post("/chat/response_stream", tags=["Agent"])
+async def chat_stream_final(request: ChatRequest):
+
+    stream = run_agent_stream_final(request)
+
+    async def event_generator():
+
+        final_state: Any = None
+
+        for event in stream:
+            if not isinstance(event, dict):
+                continue
+
+            for node_name, state in event.items():
+
+                # сохраняем финальный state
+                final_state = state
+
+                # STREAM STEPS
+                steps = state.get("steps", []) if isinstance(state, dict) else getattr(state, "steps", [])
+
+                if steps:
+                    last_step = steps[-1]
+
+                    payload = {
+                        "node": node_name,
+                        "step": (
+                            last_step.model_dump()
+                            if hasattr(last_step, "model_dump")
+                            else (
+                                last_step.dict()
+                                if hasattr(last_step, "dict")
+                                else str(last_step)
+                            )
+                        )
+                    }
+
+                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+        # FINAL RESPONSE (ChatResponse)
+        if final_state:
+
+            if hasattr(final_state, "model_dump"):
+                final_state = final_state.model_dump()
+
+            response = ChatResponse(
+                answer=final_state.get("answer") or "No answer generated",
+
+                steps=[
+                    s if isinstance(s, AgentStep)
+                    else AgentStep(**s) if isinstance(s, dict)
+                    else AgentStep.model_validate(s)
+                    for s in (final_state.get("steps") or [])
+                ],
+
+                recommendations=[
+                    FilmShort.model_validate(r) if isinstance(r, dict) else r
+                    for r in (final_state.get("retrieved_movies") or [])
+                ]
             )
-        ]
-    )
+
+            yield f"data: {response.model_dump_json()}\n\n"
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 
 # WIKIPEDIA ----------------------------------------------------
 @router.get("/wikipedia/{tmdb_id}", response_model=WikipediaResponse, responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}, tags=["Wikipedia"])
