@@ -21,9 +21,17 @@ Endpoints disponibles :
     - GET /list_genre
         Retourne la liste des genres disponibles.
 
-    - POST /chat
-        Traite une requête utilisateur et déclenche le workflow
-        de l'agent conversationnel.
+    - POST /chat/response
+        Exécute l'agent conversationnel et retourne la réponse finale,
+        les étapes d'exécution et les recommandations de films.
+
+    - POST /chat/stream
+        Diffuse en temps réel les étapes d'exécution de l'agent
+        via Server-Sent Events (SSE).
+
+    - POST /chat/response_stream
+        Diffuse les étapes intermédiaires de l'agent puis la réponse
+        finale complète via Server-Sent Events (SSE).
 
     - GET /wikipedia
         Récupère des informations complémentaires depuis Wikipédia.
@@ -145,7 +153,22 @@ async def get_film_detail(tmdb_id: int, session: Session = Depends(get_db)):
 @router.post("/chat/response", response_model=ChatResponse, responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse},},
     tags=["Agent"])
 async def chat(request: ChatRequest):
-    """Main endpoint for ReAct agent interaction."""
+    """
+    Execute the agent and return the final response.
+
+    Args:
+        request: User query and conversation context.
+
+    Returns:
+        ChatResponse containing:
+        - generated answer
+        - execution steps
+        - movie recommendations
+
+    Raises:
+        HTTPException:
+            500 if the agent execution fails.
+    """
 
     try:
         result = run_agent(request)
@@ -173,68 +196,33 @@ async def chat(request: ChatRequest):
 
 @router.post("/chat/stream",responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse},}, tags=["Agent"])
 async def chat_stream(request: ChatRequest):
+    """
+    Stream agent execution steps using Server-Sent Events (SSE).
 
-    stream = run_agent_stream(request)
+    Each event contains:
+    - node: current graph node
+    - step: latest execution step
 
+    Returns:
+        StreamingResponse with media type `text/event-stream`.
+    """
     async def event_generator():
-
-        for event in stream:
-            if not isinstance(event, dict):
-                continue
-
-            for node_name, state in event.items():
-                # безопасное извлечение steps
-                if isinstance(state, dict):
-                    steps = state.get("steps", [])
-                else:
-                    steps = getattr(state, "steps", [])
-
-                if not steps:
+        try:
+            stream = run_agent_stream(request)
+            for event in stream:
+                if not isinstance(event, dict):
                     continue
 
-                last_step = steps[-1]
+                for node_name, state in event.items():
 
-                payload = {
-                    "node": node_name,
-                    "step": (
-                        last_step.model_dump()
-                        if hasattr(last_step, "model_dump")
-                        else (
-                            last_step.dict()
-                            if hasattr(last_step, "dict")
-                            else str(last_step)
-                        )
-                    )
-                }
+                    if isinstance(state, dict):
+                        steps = state.get("steps", [])
+                    else:
+                        steps = getattr(state, "steps", [])
 
-                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                    if not steps:
+                        continue
 
-        yield f"data: {json.dumps({'status': 'done'})}\n\n"
-
-    return StreamingResponse( event_generator(), media_type="text/event-stream")
-
-@router.post("/chat/response_stream", tags=["Agent"])
-async def chat_stream_final(request: ChatRequest):
-
-    stream = run_agent_stream_final(request)
-
-    async def event_generator():
-
-        final_state: Any = None
-
-        for event in stream:
-            if not isinstance(event, dict):
-                continue
-
-            for node_name, state in event.items():
-
-                # сохраняем финальный state
-                final_state = state
-
-                # STREAM STEPS
-                steps = state.get("steps", []) if isinstance(state, dict) else getattr(state, "steps", [])
-
-                if steps:
                     last_step = steps[-1]
 
                     payload = {
@@ -252,34 +240,91 @@ async def chat_stream_final(request: ChatRequest):
 
                     yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
-        # FINAL RESPONSE (ChatResponse)
-        if final_state:
+            yield f"data: {json.dumps({'status': 'done'})}\n\n"
+        except Exception as e:
+            logger.exception("Streaming failed")
 
-            if hasattr(final_state, "model_dump"):
-                final_state = final_state.model_dump()
-
-            response = ChatResponse(
-                answer=final_state.get("answer") or "No answer generated",
-
-                steps=[
-                    s if isinstance(s, AgentStep)
-                    else AgentStep(**s) if isinstance(s, dict)
-                    else AgentStep.model_validate(s)
-                    for s in (final_state.get("steps") or [])
-                ],
-
-                recommendations=[
-                    FilmShort.model_validate(r) if isinstance(r, dict) else r
-                    for r in (final_state.get("retrieved_movies") or [])
-                ]
+            yield (
+                f"data: "
+                f"{json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
             )
+    return StreamingResponse( event_generator(), media_type="text/event-stream")
 
-            yield f"data: {response.model_dump_json()}\n\n"
+@router.post("/chat/response_stream", tags=["Agent"])
+async def chat_stream_final(request: ChatRequest):
+    """
+    Stream agent execution steps and final response.
 
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+    SSE event types:
+    - step: intermediate execution state
+    - final: final ChatResponse
+    - done: stream completion
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    Returns:
+        StreamingResponse with incremental updates and
+        the final validated ChatResponse.
+    """
+    
 
+    async def event_generator():
+        try:
+            stream = run_agent_stream_final(request)
+            for event in stream:
+
+                # STEP EVENTS
+                if event["type"] == "step":
+
+                    steps = event["step"]["steps"]
+
+                    if not steps:
+                        continue
+
+                    last_step = steps[-1]
+
+                    payload = {
+                        "node": event["node"],
+                        "step": last_step
+                    }
+
+                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+                # FINAL RESPONSE
+                elif event["type"] == "final":
+
+                    result = event["result"]
+
+                    response = ChatResponse(
+                        answer=result.get("answer") or "No answer generated",
+
+                        steps=[
+                            s if isinstance(s, AgentStep)
+                            else AgentStep(**s)
+                            if isinstance(s, dict)
+                            else AgentStep.model_validate(s)
+                            for s in (result.get("steps") or [])
+                        ],
+
+                        recommendations=[
+                            FilmShort.model_validate(r)
+                            if isinstance(r, dict)
+                            else r
+                            for r in (
+                                result.get("retrieved_movies") or []
+                            )
+                        ]
+                    )
+
+                    payload = json.loads(response.model_dump_json())
+
+                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        except Exception as e:
+            logger.exception("Streaming final response failed")
+            yield (f"data: "f"{json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream"
+    )
 
 # WIKIPEDIA ----------------------------------------------------
 @router.get("/wikipedia/{tmdb_id}", response_model=WikipediaResponse, responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}, tags=["Wikipedia"])
