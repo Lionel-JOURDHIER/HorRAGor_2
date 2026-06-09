@@ -26,6 +26,13 @@ from fastapi import FastAPI
 
 from api.routes import router
 
+# LOGGER ------------------------------------------------------
+from logger import get_logger, setup_logger
+
+setup_logger()
+
+logger = get_logger("MAIN")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,22 +47,26 @@ async def lifespan(app: FastAPI):
     index_path = os.getenv("FAISS_INDEX_PATH", "faiss_data/horragor.index")
     mapping_path = os.getenv("FAISS_MAPPING_PATH", "faiss_data/horragor_mapping.json")
 
-    # Tentative de chargement depuis le volume persisté
+    logger.info(
+        f"🚀 [LIFESPAN] Chargement de l'index FAISS... (ID: {id(faiss_global_service)})"
+    )
     loaded = faiss_global_service.load_index(index_path, mapping_path)
 
-    if not loaded:
-        # Premier démarrage ou volume réinitialisé → build depuis Supabase
-        print("🔧 Construction de l'index FAISS depuis Supabase...")
+    # Si le fichier n'a pas pu être chargé ou s'il a chargé 0 élément
+    if not loaded or faiss_global_service.index.ntotal == 0:
+        logger.info(
+            "🔧 Index absent ou vide en RAM. Reconstruction immédiate depuis Supabase..."
+        )
         with db_session() as session:
             faiss_global_service.build_index(session)
         faiss_global_service.save_index(index_path, mapping_path)
-        print("✅ Index FAISS sauvegardé pour les prochains démarrages.")
 
+    logger.info(
+        f"✅ [LIFESPAN] Index prêt. Films en RAM : {faiss_global_service.index.ntotal}"
+    )
     yield
 
-    print("👋 Shutdown HorRAGor API.")
 
-
-app = FastAPI(title="HorRAGor API", version="0.1.0")
+app = FastAPI(title="HorRAGor API", version="0.1.0", lifespan=lifespan)
 
 app.include_router(router)

@@ -79,7 +79,8 @@ Puisque Ollama s'exécute désormais directement sur votre machine hôte, la ges
 Si vous n'avez pas encore téléchargé les modèles nécessaires, exécutez simplement les commandes suivantes directement dans votre terminal (sans passer par Docker) :
 ```bash
 # Téléchargement du modèle de langage
-ollama pull granite4.1:8b
+# ollama pull granite4.1:8b
+ollama pull granite4.1:3b
 
 # Téléchargement du modèle d'embedding
 ollama pull qwen3-embedding:0.6b

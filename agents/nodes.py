@@ -39,13 +39,14 @@ if str(root_path) not in sys.path:  # pragma: no cover
 
 from agents.config import llm, structured_llm
 from agents.prompts import GENERATOR_PROMPT, ROUTER_PROMPT, TITLE_DETECTOR_PROMPT
+
 # from agents.state import AgentState, AgentStep
 from agents.tools.sql_tools import filter_films_by_criteria
 from agents.tools.vector_tools import search_vector_catalog
 from agents.tools.wiki_tools import (
     wikipedia_search,
 )
-from api.schemas import ChatFilters, AgentState, AgentStep
+from api.schemas import AgentState, AgentStep, ChatFilters
 from database.connection import db_session
 from database.queries import get_film_details_by_id
 
@@ -55,6 +56,11 @@ from logger import get_logger, setup_logger
 setup_logger()
 
 logger = get_logger("NODES")
+
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+FAISS_INDEX_PATH = str(BASE_DIR / "data" / "faiss_index")
 
 # ==============================================================================
 # ROUTING LOGIC

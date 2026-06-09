@@ -59,6 +59,13 @@ def _convert_distance_to_similarity_score(distance: float) -> int:
 # Seuil empirique : en dessous, sous-index FAISS ; au dessus, post-filtre oversample
 SMALL_POOL_THRESHOLD = 500
 
+# LOGGER ------------------------------------------------------
+from logger import get_logger, setup_logger
+
+setup_logger()
+
+logger = get_logger("VECTOR_TOOLS")
+
 
 def _search_in_pool(
     query_vector: list,
@@ -136,9 +143,15 @@ def search_vector_catalog(
     la recherche FAISS est restreinte à ce pool via stratégie adaptive.
     Sinon, recherche sur le catalogue complet.
     """
+    logger.debug(
+        f"🔥 [DEBUG API] ID Instance au runtime : {id(faiss_global_service)} | Nombre de films : {faiss_global_service.index.ntotal}"
+    )
+
     try:
         if candidate_ids is not None and len(candidate_ids) == 0:
-            print("🔍 Pool vide reçu ([]). Aucun scan FAISS requis. Retour immédiat.")
+            logger.info(
+                "🔍 Pool vide reçu ([]). Aucun scan FAISS requis. Retour immédiat."
+            )
             return []
 
         query_vector = OLLAMA_CLIENT_EMBEDD.embed_query(query)
@@ -171,7 +184,7 @@ def search_vector_catalog(
         return films
 
     except Exception as e:
-        print(f"DEBUG: Erreur dans search_vector_catalog : {e}")
+        logger.error(f"DEBUG: Erreur dans search_vector_catalog : {e}")
         return []
 
 
@@ -220,7 +233,7 @@ def search_similar_movies_by_id(
         return films
 
     except Exception as e:
-        print(f"DEBUG: Erreur dans search_similar_movies_by_id : {e}")
+        logger.error(f"DEBUG: Erreur dans search_similar_movies_by_id : {e}")
         return []
 
 
