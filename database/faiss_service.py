@@ -25,12 +25,19 @@ Auteur/Responsable : Lionel (Epic 1 & 2)
 
 import json
 import os
+from pathlib import Path
 
 import faiss
 import numpy as np
 from sqlalchemy.orm import Session
 
 from database.models import FilmEmbedding
+
+# --- CONFIGURATION DES CHEMINS ABSOLUS (DRY) ---
+BASE_DIR = Path(__file__).resolve().parent.parent  # Racine du projet HorRAGor
+FAISS_DIR = BASE_DIR / "data" / "faiss_index"
+INDEX_PATH = str(FAISS_DIR / "faiss.index")
+MAPPING_PATH = str(FAISS_DIR / "mapping.json")
 
 
 class FaissService:
@@ -106,6 +113,18 @@ class FaissService:
                 results.append((tmdb_id, float(distance)))
 
         return results
+
+    def load_or_build(self, session: Session) -> None:
+        """Tente de charger l'index depuis le disque, sinon le construit depuis SQL."""
+        # Utilise les chemins absolus centralisés du module
+        if self.load_index(INDEX_PATH, MAPPING_PATH):
+            return
+
+        print("ℹ️ Index introuvable sur le disque. Construction depuis Supabase...")
+        self.build_index(session)
+
+        print("💾 Persistance automatique de l'index sur le disque...")
+        self.save_index(INDEX_PATH, MAPPING_PATH)
 
     def get_vector_by_id(self, movie_id: int) -> list[float] | None:
         """

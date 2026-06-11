@@ -68,6 +68,7 @@ services:
       - FAISS_MAPPING_PATH=faiss_data/horragor_mapping.json
     volumes:
       - faiss_data:/app/faiss_data
+      - ./faiss_data:/app/faiss_data
     ports:
       - "8000:8000"
     healthcheck:
