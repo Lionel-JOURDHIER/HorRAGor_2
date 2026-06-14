@@ -1,0 +1,26 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	title_router(title_router)
+	direct_movie_detail(direct_movie_detail)
+	filter_and_search_hybrid(filter_and_search_hybrid)
+	validator(validator)
+	wikipedia_enrich(wikipedia_enrich)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> title_router;
+	direct_movie_detail --> validator;
+	filter_and_search_hybrid --> validator;
+	title_router -.-> direct_movie_detail;
+	title_router -.-> filter_and_search_hybrid;
+	validator -. &nbsp;go_to_end&nbsp; .-> __end__;
+	validator -. &nbsp;retry_direct&nbsp; .-> direct_movie_detail;
+	validator -. &nbsp;retry_hybrid&nbsp; .-> filter_and_search_hybrid;
+	validator -. &nbsp;enrich_with_wiki&nbsp; .-> wikipedia_enrich;
+	wikipedia_enrich --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
