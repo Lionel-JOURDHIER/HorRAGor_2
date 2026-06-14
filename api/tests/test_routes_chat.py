@@ -12,8 +12,18 @@ from api.main import app
 def test_chat_response(mock_run_agent, client):
     mock_run_agent.return_value = {
         "answer": "hello",
-        "steps": [{"step": "s1"}],
-        "retrieved_movies": [{"tmdb_id": 1, "title": "Film"}]
+        "steps": [
+            {
+                "step": "s1",
+                "status": "completed"
+            }
+        ],
+        "retrieved_movies": [
+            {
+                "tmdb_id": 898555,
+                "title": "Film"
+            }
+        ]
     }
 
     payload = {
@@ -71,7 +81,7 @@ def test_chat_stream(mock_stream, client):
 # ----------------------------
 
 @patch("api.routes.run_agent_stream_final")
-def test_chat_response_stream(mock_stream):
+def test_chat_response_stream(mock_stream, client):
     mock_stream.return_value = iter([
         {
             "type": "step",
