@@ -25,13 +25,16 @@ Auteur/Responsable : Lionel (Epic 1 & 2)
 
 import os
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Generator
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-load_dotenv()
+# Charger le .env depuis le répertoire parent (racine du projet)
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 
 # 1. Construction dynamique de l'URL de connexion à partir du .env

@@ -26,8 +26,8 @@ Functions:
 """
 from typing import Any
 from agents.graph import graph
-from api.schemas import ChatFilters
-from api.schemas import AgentState as GraphState
+from schemas import ChatFilters
+from schemas import AgentState as GraphState
 from typing import Any, cast
 
 def normalize_steps(steps: list[Any] | None) -> list[dict]:

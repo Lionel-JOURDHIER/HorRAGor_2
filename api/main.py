@@ -20,11 +20,17 @@ Auteur/Responsable : Hanna (Epic 3)
 """
 
 import os
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Ajouter le répertoire parent au sys.path pour trouver agents/ et database/
+parent_dir = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(parent_dir))
 
 from fastapi import FastAPI
 
-from api.routes import router
+from routes import router
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger

@@ -61,8 +61,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from agents.tools.wiki_tools import wikipedia_search
-from api.modules.chat_service import run_agent, run_agent_stream, run_agent_stream_final
-from api.schemas import (
+from modules.chat_service import run_agent, run_agent_stream, run_agent_stream_final
+from schemas import (
     AgentStep,
     ChatRequest,
     ChatResponse,

@@ -174,7 +174,7 @@ def send_chat_query(prompt: str, filters: Optional[Dict[str, Any]] = None) -> Op
     
     try:
         response = requests.post(
-            f"{api_url}/chat",
+            f"{api_url}/chat/response",
             json=payload,
             timeout=60  # Timeout plus long pour l'agent
         )
@@ -214,14 +214,29 @@ def send_chat_query_streaming(prompt: str, filters: Optional[Dict[str, Any]] = N
     """
     api_url = get_api_url()
     
+    # Adapter les filtres au format API (même format que send_chat_query)
+    api_filters = None
+    if filters:
+        api_filters = {
+            "realisateur": filters.get("realisateur"),
+            "genres_included": filters.get("genres_inclus", []),
+            "genres_excluded": filters.get("genres_exclus", []),
+            "release_year_min": filters.get("date_sortie_min"),
+            "release_year_max": filters.get("date_sortie_max"),
+            "tmdb_score_min": filters.get("score_tmdb_min"),
+            "runtime_min": filters.get("duree_min"),
+            "runtime_max": filters.get("duree_max")
+        }
+        api_filters = {k: v for k, v in api_filters.items() if v is not None}
+    
     payload = {
-        "prompt": prompt,
-        "filters": filters or {}
+        "message": prompt,
+        "filters": api_filters
     }
     
     try:
         response = requests.post(
-            f"{api_url}/chat",
+            f"{api_url}/chat/stream",
             json=payload,
             stream=True,
             timeout=120
