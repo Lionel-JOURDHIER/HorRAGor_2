@@ -222,7 +222,19 @@ Ces endpoints nécessitent aussi Supabase mais ne bloquent pas le démarrage :
 
 ## 🎯 Action Recommandée pour l'Équipe
 
-### ⭐ Option 1 : Modifier `/health` (RECOMMANDÉ - 5 minutes)
+### ⭐ Vérifier d'abord : L'instance Supabase est-elle éteinte ?
+
+**Avant toute modification de code**, vérifiez si l'instance Supabase n'est pas simplement arrêtée :
+- 🔍 **Instance :** aws-1-eu-west-3.pooler.supabase.com (port 6543)
+- 🔍 **Symptôme :** "Connection timed out" dans les logs
+
+**Si Supabase est éteinte :** Rallumez-la (voir **Option 2** ci-dessous) - c'est la solution la plus propre !
+
+**Si Supabase doit rester éteinte :** Utilisez l'Option 1 pour un mode dégradé fonctionnel.
+
+---
+
+### Option 1 : Modifier `/health` pour Mode Sans Supabase (5 minutes)
 
 **Impact :** Frontend fonctionnel immédiatement, chat opérationnel avec FAISS.
 
@@ -260,7 +272,7 @@ async def health():
 
 ---
 
-### Option 2 : Rallumer Supabase
+### Option 2 : Rallumer Supabase (⭐ SOLUTION RECOMMANDÉE)
 
 **Impact :** Toutes les fonctionnalités opérationnelles sans modification de code.
 
@@ -268,11 +280,13 @@ async def health():
 
 **Avantages :**
 - ✅ Aucune modification de code nécessaire
-- ✅ Toutes les fonctionnalités disponibles
+- ✅ Toutes les fonctionnalités disponibles (filtres réalisateurs/genres)
+- ✅ Solution la plus propre et maintenable
+- ✅ Comportement original du système préservé
 
 **Inconvénients :**
-- ⚠️ Dépend de la disponibilité Supabase
-- ⚠️ Coûts d'hébergement
+- ⚠️ Nécessite accès à l'infrastructure Supabase
+- ⚠️ Coûts d'hébergement (si applicable)
 
 ---
 
@@ -372,12 +386,18 @@ Cette modification :
 
 ## 💡 Recommandation Finale
 
-**Pour l'équipe :** Implémenter **Option 1** (modifier `/health`) pour :
-1. ✅ Débloquer le frontend immédiatement
-2. ✅ Tester le nouveau design modernisé
-3. ✅ Valider les fonctionnalités de chat/recommandation
-4. ✅ Décider plus tard si Supabase est nécessaire pour les filtres
+**Pour l'équipe :** 
 
-**Temps total :** 5 minutes de modification + redémarrage API.
+1. **🔍 Vérifier d'abord :** L'instance Supabase (aws-1-eu-west-3.pooler.supabase.com) est-elle simplement éteinte ?
+   - Si **OUI** → Rallumez-la (**Option 2**) - c'est la meilleure solution !
+   - Si **NON** ou si Supabase doit rester éteinte → Passez à l'Option 1
 
-**Alternative :** Attendre que Supabase soit disponible (Option 2), mais cela bloque les tests du frontend.
+2. **Si Supabase ne peut pas être rallumée :** Implémenter **Option 1** (modifier `/health`) pour :
+   - ✅ Débloquer le frontend immédiatement
+   - ✅ Tester le nouveau design modernisé
+   - ✅ Valider les fonctionnalités de chat/recommandation avec FAISS (63 325 films en mémoire)
+   - ⚠️ Les filtres réalisateurs/genres ne seront pas disponibles
+
+**Temps estimé :**
+- Option 2 (rallumer Supabase) : Variable selon infrastructure
+- Option 1 (modifier code) : 5 minutes de modification + redémarrage API
