@@ -10,7 +10,8 @@ Fonctions disponibles :
     - get_film_by_id : Récupère les détails d'un film par son ID
     - get_realisateurs : Récupère la liste des réalisateurs
     - get_genres : Récupère la liste des genres
-    - send_chat_query : Envoie une requête au chatbot avec filtres
+    - send_chat_query : Envoie une requête au chatbot avec filtres (synchrone)
+    - send_chat_query_streaming : Envoie une requête au chatbot en mode streaming SSE
     - get_wikipedia_info : Récupère des informations depuis Wikipedia
 
 Auteur : Flavie (Epic 7)
@@ -20,6 +21,7 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
+import httpx
 import requests
 from dotenv import load_dotenv
 
@@ -49,7 +51,8 @@ def check_health() -> Dict[str, Any]:
     """
     api_url = get_api_url()
     try:
-        response = requests.get(f"{api_url}/health", timeout=5)
+        # Timeout augmenté à 30s pour permettre le chargement FAISS au démarrage
+        response = requests.get(f"{api_url}/health", timeout=30)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -204,7 +207,13 @@ def send_chat_query(
 def send_chat_query_streaming(prompt: str, filters: Optional[Dict[str, Any]] = None):
     """
     Envoie une requête au chatbot en mode streaming pour recevoir les mises à jour
-    de l'état de réflexion de l'agent en temps réel.
+    de l'état de réflexion de l'agent en temps réel via Server-Sent Events (SSE).
+
+    Cette fonction utilise httpx pour consommer l'endpoint /chat/response_stream.
+    Elle yield progressivement :
+    - Les étapes intermédiaires avec {"node": ..., "step": {...}}
+    - La réponse finale avec {"answer": ..., "steps": [...], "recommendations": [...]}
+    - L'événement de fin {"type": "done"}
 
     Args:
         prompt: Question ou requête de l'utilisateur
@@ -212,6 +221,15 @@ def send_chat_query_streaming(prompt: str, filters: Optional[Dict[str, Any]] = N
 
     Yields:
         Dictionnaires contenant les états intermédiaires et la réponse finale
+
+    Exemple d'utilisation:
+        for event in send_chat_query_streaming("Film d'horreur", filters):
+            if "step" in event:
+                print(f"Étape: {event['step']}")
+            elif "answer" in event:
+                print(f"Réponse: {event['answer']}")
+            elif event.get("type") == "done":
+                break
     """
     api_url = get_api_url()
 
@@ -233,21 +251,27 @@ def send_chat_query_streaming(prompt: str, filters: Optional[Dict[str, Any]] = N
     payload = {"message": prompt, "filters": api_filters}
 
     try:
-        response = requests.post(
-            f"{api_url}/chat/response_stream", json=payload, stream=True, timeout=120
-        )
-        response.raise_for_status()
+        # Utiliser httpx pour le streaming SSE (plus robuste que requests)
+        with httpx.Client(timeout=None) as client:
+            with client.stream("POST", f"{api_url}/chat/response_stream", json=payload) as response:
+                response.raise_for_status()
+                
+                for line in response.iter_lines():
+                    # Ignorer les lignes vides ou sans préfixe "data: "
+                    if not line or not line.startswith("data: "):
+                        continue
 
-        for line in response.iter_lines():
-            if line:
-                # Parser les événements SSE (Server-Sent Events)
-                line_str = line.decode("utf-8")
-                if line_str.startswith("data: "):
-                    json_str = line_str[6:].strip()
-                    if json_str:
-                        yield json.loads(json_str)
+                    # Parser l'événement SSE
+                    event = json.loads(line[6:])
+                    yield event
+                    
+                    # Arrêter si c'est l'événement de fin
+                    if event.get("type") == "done":
+                        break
 
-    except requests.exceptions.RequestException as e:
+    except httpx.RequestError as e:
+        yield {"error": f"Erreur de connexion: {str(e)}"}
+    except Exception as e:
         yield {"error": f"Erreur de streaming: {str(e)}"}
 
 

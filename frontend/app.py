@@ -27,7 +27,12 @@ from components.components import (
     display_chat_message,
     display_movie_list,
 )
-from utils.api_client import check_health, get_api_url, send_chat_query
+from utils.api_client import (
+    check_health,
+    get_api_url,
+    send_chat_query,
+    send_chat_query_streaming,
+)
 
 # Configuration de la page
 st.set_page_config(
@@ -452,16 +457,20 @@ def display_chat_interface(filters: dict):
         st.session_state.messages.append({"role": "user", "content": user_input})
         display_chat_message("user", user_input, avatar="👤")
 
-        # Afficher l'indicateur de chargement avec animation
-        with st.spinner("🧠 L'agent HorRAGor réfléchit..."):
-            # Conteneur pour les états de l'agent
-            status_container = st.empty()
-            progress_bar = st.progress(0)
+        # Conteneur pour afficher les étapes en temps réel
+        status_container = st.empty()
+        steps_container = st.container()
+        
+        # Variables pour stocker les données reçues
+        all_steps = []
+        final_answer = None
+        final_recommendations = []
+        error_occurred = False
 
-            # Animation de progression
-            with status_container:
-                st.markdown(
-                    """
+        # Afficher le message de démarrage
+        with status_container:
+            st.markdown(
+                """
                 <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2)); 
                             padding: 25px; border-radius: 20px; border-left: 5px solid #ff4757;
                             box-shadow: 0 8px 30px rgba(255, 71, 87, 0.3);">
@@ -469,83 +478,87 @@ def display_chat_interface(filters: dict):
                     <p style="margin: 8px 0 0 0; opacity: 0.9; color: #ffffff; font-weight: 600;">L'agent analyse votre requête et recherche les meilleurs films</p>
                 </div>
                 """,
-                    unsafe_allow_html=True,
-                )
+                unsafe_allow_html=True,
+            )
 
-            # Simuler une progression
-            for i in range(0, 30, 10):
-                progress_bar.progress(i)
-                time.sleep(0.1)
+        # Consommer le flux SSE avec affichage en temps réel
+        try:
+            for event in send_chat_query_streaming(user_input, filters):
+                # Gestion des erreurs
+                if "error" in event:
+                    error_occurred = True
+                    status_container.empty()
+                    st.error(f"❌ {event['error']}")
+                    break
 
-            # Envoyer la requête à l'API
-            response = send_chat_query(user_input, filters)
+                # Événement d'étape intermédiaire
+                if "step" in event:
+                    step_data = event["step"]
+                    all_steps.append(step_data)
+                    
+                    # Afficher l'étape en temps réel dans l'expander
+                    with steps_container:
+                        with st.expander(
+                            f"🔍 Étape {len(all_steps)}: {step_data.get('step', 'En cours...')}",
+                            expanded=True,
+                        ):
+                            st.markdown(
+                                f"""
+                                <div style="background: rgba(255, 71, 87, 0.1); padding: 18px; border-radius: 15px; 
+                                            border-left: 4px solid #ff4757; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.2);">
+                                    <p style="margin: 0; color: #ffffff; font-weight: 600;">
+                                        <strong>État:</strong> {step_data.get('status', 'En cours...')}
+                                    </p>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
 
-            # Compléter la progression
-            progress_bar.progress(100)
-            time.sleep(0.2)
+                # Réponse finale complète
+                elif "answer" in event:
+                    final_answer = event.get("answer", "Aucune réponse générée")
+                    final_recommendations = event.get("recommendations", [])
+                    # Mettre à jour all_steps avec les étapes complètes si disponibles
+                    if "steps" in event:
+                        all_steps = event["steps"]
 
-            # Effacer les conteneurs de statut
+                # Événement de fin
+                elif event.get("type") == "done":
+                    break
+
+        except Exception as e:
+            error_occurred = True
             status_container.empty()
-            progress_bar.empty()
+            st.error(f"❌ Erreur lors du streaming: {str(e)}")
 
-        # Traiter la réponse
-        if response.get("status") == "error":
-            error_msg = response.get("message_erreur", "Une erreur s'est produite")
-            st.error(f"❌ {error_msg}")
+        # Effacer le message de chargement
+        status_container.empty()
+
+        # Traiter la réponse finale
+        if error_occurred:
             st.session_state.messages.append(
                 {
                     "role": "assistant",
-                    "content": f"Désolé, une erreur s'est produite : {error_msg}",
+                    "content": "Désolé, une erreur s'est produite lors du traitement de votre requête.",
                 }
             )
-        else:
-            # Afficher la réponse texte du LLM avec animation
-            reponse_texte = response.get("reponse_texte", "Aucune réponse générée")
-
-            # Message de succès avec animation
+        elif final_answer:
+            # Message de succès
             st.success("✅ Réponse générée avec succès !")
 
-            display_chat_message("assistant", reponse_texte, avatar="🤖")
+            # Afficher la réponse de l'assistant
+            display_chat_message("assistant", final_answer, avatar="🤖")
 
-            # Afficher les états de l'agent si disponibles avec design amélioré
-            if "etats_agent" in response and response["etats_agent"]:
-                with st.expander(
-                    "🔍 Détails de réflexion de l'agent (cliquez pour voir)",
-                    expanded=False,
-                ):
-                    st.markdown(
-                        """
-                    <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.15), rgba(255, 0, 110, 0.15)); 
-                                padding: 20px; border-radius: 15px; margin-bottom: 20px;
-                                border: 2px solid rgba(255, 71, 87, 0.3);">
-                        <h4 style="margin: 0; color: #ff4757; font-weight: 800;">📊 Processus de réflexion de l'agent</h4>
-                        <p style="margin: 8px 0 0 0; opacity: 0.9; color: #ffffff; font-weight: 600;">Découvrez comment l'agent a traité votre requête</p>
-                    </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-
-                    for idx, etat in enumerate(response["etats_agent"], 1):
-                        st.markdown(
-                            f"""
-                        <div style="background: rgba(255, 71, 87, 0.1); padding: 18px; border-radius: 15px; margin: 15px 0; 
-                                    border-left: 4px solid #ff4757; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.2);">
-                            <h5 style="margin: 0; color: #ff4757; font-weight: 700;">Étape {idx}</h5>
-                        </div>
-                        """,
-                            unsafe_allow_html=True,
-                        )
-                        display_agent_status(etat)
-
-            # Récupérer et afficher les films recommandés
-            films = response.get("films_recommandes", [])
+            # Les recommandations sont déjà au format API correct
+            # normalize_movie_data() s'occupera de la conversion dans display_movie_card
+            films = final_recommendations
 
             # Mettre à jour les statistiques
             st.session_state.total_films_recommended += len(films)
 
             # Ajouter le message assistant avec les films
             st.session_state.messages.append(
-                {"role": "assistant", "content": reponse_texte, "films": films}
+                {"role": "assistant", "content": final_answer, "films": films}
             )
 
             # Afficher les films avec compteur
@@ -569,6 +582,15 @@ def display_chat_interface(filters: dict):
 
             # Forcer le rafraîchissement pour afficher immédiatement
             st.rerun()
+        else:
+            # Cas où aucune réponse finale n'a été reçue
+            st.warning("⚠️ Aucune réponse reçue de l'agent.")
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": "Je n'ai pas pu générer de réponse. Veuillez réessayer.",
+                }
+            )
 
 
 def main():
@@ -576,11 +598,11 @@ def main():
     # Initialisation
     init_session_state()
 
-    # En-tête
-    display_header()
-
-    # Vérification de l'API
+    # Vérification de l'API (DOIT être appelé AVANT display_header pour mettre à jour api_status)
     check_api_status()
+
+    # En-tête avec métriques (utilise api_status mis à jour par check_api_status)
+    display_header()
 
     # Barre latérale avec filtres
     api_url = get_api_url()
