@@ -677,68 +677,50 @@ def main():
 
     # Section d'aide en bas de page
     with st.expander("ℹ️ Comment utiliser HorRAGor ?", expanded=False):
-        st.markdown(
-            """
-        <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.1), rgba(255, 0, 110, 0.1)); 
-                    padding: 25px; border-radius: 15px;">
-            <h3 style="color: #ff4757; font-weight: 800;">📖 Guide d'utilisation</h3>
-            
-            <div style="margin: 20px 0;">
-                <h4 style="color: #ff4757; font-weight: 700;">1️⃣ Configurez vos filtres</h4>
-                <p style="color: #ffffff; font-weight: 500;">Utilisez la barre latérale pour affiner vos préférences :</p>
-                <ul style="color: #ffffff;">
-                    <li><strong>Réalisateur</strong> : Sélectionnez votre réalisateur préféré</li>
-                    <li><strong>Genres</strong> : Choisissez les genres à inclure ou exclure</li>
-                    <li><strong>Date</strong> : Définissez la période de sortie</li>
-                    <li><strong>Score</strong> : Fixez un score minimum sur TMDB</li>
-                    <li><strong>Durée</strong> : Sélectionnez la durée souhaitée</li>
-                </ul>
-            </div>
-            
-            <div style="margin: 20px 0;">
-                <h4 style="color: #ff4757; font-weight: 700;">2️⃣ Posez votre question</h4>
-                <p style="color: #ffffff; font-weight: 500;">Dans la zone de chat, décrivez ce que vous recherchez. L'agent comprend :</p>
-                <ul style="color: #ffffff;">
-                    <li>Les demandes de recommandations spécifiques</li>
-                    <li>Les recherches par réalisateur ou acteur</li>
-                    <li>Les demandes de films similaires</li>
-                    <li>Les questions sur les caractéristiques des films</li>
-                </ul>
-            </div>
-            
-            <div style="margin: 20px 0;">
-                <h4 style="color: #ff4757; font-weight: 700;">3️⃣ L'agent ReAct travaille pour vous</h4>
-                <p style="color: #ffffff; font-weight: 500;">L'agent utilise plusieurs outils intelligents :</p>
-                <ul style="color: #ffffff;">
-                    <li><strong>🔍 Recherche SQL</strong> : Pour filtrer par métadonnées</li>
-                    <li><strong>🧠 Recherche vectorielle</strong> : Pour trouver des films similaires</li>
-                    <li><strong>📚 Wikipedia</strong> : Pour enrichir les informations</li>
-                </ul>
-            </div>
-            
-            <div style="margin: 20px 0;">
-                <h4 style="color: #ff4757; font-weight: 700;">4️⃣ Recevez vos recommandations</h4>
-                <p style="color: #ffffff; font-weight: 500;">L'agent vous présente :</p>
-                <ul style="color: #ffffff;">
-                    <li>Une réponse détaillée et personnalisée</li>
-                    <li>Les étapes de sa réflexion (optionnel)</li>
-                    <li>Une liste de films recommandés avec toutes les infos</li>
-                </ul>
-            </div>
-            
-            <div style="background: linear-gradient(135deg, #ff4757 0%, #ff006e 100%); 
-                        padding: 20px; border-radius: 15px; color: white; margin-top: 20px;
-                        box-shadow: 0 5px 25px rgba(255, 71, 87, 0.4);">
-                <h4 style="margin: 0; font-weight: 800;">💡 Astuce</h4>
-                <p style="margin: 12px 0 0 0; font-weight: 600;">
-                    Plus votre question est précise et vos filtres définis, 
-                    plus les recommandations seront pertinentes !
-                </p>
-            </div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        st.markdown("### 📖 Guide d'utilisation")
+        st.markdown("---")
+        
+        st.markdown("#### 1️⃣ Configurez vos filtres")
+        st.markdown("""
+        Utilisez la **barre latérale** pour affiner vos préférences :
+        - 🎬 **Réalisateur** : Sélectionnez votre réalisateur préféré
+        - 🎭 **Genres** : Choisissez les genres à inclure ou exclure
+        - 📅 **Date** : Définissez la période de sortie
+        - ⭐ **Score** : Fixez un score minimum sur TMDB
+        - ⏱️ **Durée** : Sélectionnez la durée souhaitée
+        """)
+        
+        st.markdown("---")
+        st.markdown("#### 2️⃣ Posez votre question")
+        st.markdown("""
+        Dans la **zone de chat**, décrivez ce que vous recherchez. L'agent comprend :
+        - ✅ Les demandes de recommandations spécifiques
+        - ✅ Les recherches par réalisateur ou acteur
+        - ✅ Les demandes de films similaires
+        - ✅ Les questions sur les caractéristiques des films
+        """)
+        
+        st.markdown("---")
+        st.markdown("#### 3️⃣ L'agent ReAct travaille pour vous")
+        st.markdown("""
+        L'agent utilise plusieurs **outils intelligents** :
+        - 🔍 **Recherche SQL** : Pour filtrer par métadonnées
+        - 🧠 **Recherche vectorielle** : Pour trouver des films similaires
+        - 📚 **Wikipedia** : Pour enrichir les informations
+        """)
+        
+        st.markdown("---")
+        st.markdown("#### 4️⃣ Recevez vos recommandations")
+        st.markdown("""
+        L'agent vous présente :
+        - 🎬 Une réponse détaillée et personnalisée
+        - 🔍 Les étapes de sa réflexion (optionnel)
+        - 📋 Une liste de films recommandés avec toutes les infos
+        """)
+        
+        st.markdown("---")
+        st.info("💡 **Astuce** : Plus votre question est précise et vos filtres définis, plus les recommandations seront pertinentes !")
+
 
     # Footer
     st.markdown("---")
