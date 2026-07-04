@@ -163,6 +163,7 @@ class AgentState(BaseModel):
         default_factory=list
     )  # Contiendra FilmShort ou FilmDetail
     answer: Optional[str] = None
+    retry_count: int = 0
 
 
 # CHAT REQUESTS RESPONSE --------------------------------------------------

@@ -23,14 +23,12 @@ Auteur : Flavie (Epic 7)
 import streamlit as st
 from components.components import (
     create_filters_sidebar,
-    display_agent_status,
     display_chat_message,
     display_movie_list,
 )
 from utils.api_client import (
     check_health,
     get_api_url,
-    send_chat_query,
     send_chat_query_streaming,
 )
 
@@ -443,7 +441,6 @@ def display_chat_interface(filters: dict):
     # Traiter la question (qu'elle soit préenregistrée ou saisie)
     if user_input or process_preset_question:
         import datetime
-        import time
 
         # Utiliser la question préenregistrée si disponible
         if process_preset_question:
@@ -460,7 +457,7 @@ def display_chat_interface(filters: dict):
         # Conteneur pour afficher les étapes en temps réel
         status_container = st.empty()
         steps_container = st.container()
-        
+
         # Variables pour stocker les données reçues
         all_steps = []
         final_answer = None
@@ -495,7 +492,7 @@ def display_chat_interface(filters: dict):
                 if "step" in event:
                     step_data = event["step"]
                     all_steps.append(step_data)
-                    
+
                     # Afficher l'étape en temps réel dans l'expander
                     with steps_container:
                         with st.expander(
@@ -507,7 +504,7 @@ def display_chat_interface(filters: dict):
                                 <div style="background: rgba(255, 71, 87, 0.1); padding: 18px; border-radius: 15px; 
                                             border-left: 4px solid #ff4757; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.2);">
                                     <p style="margin: 0; color: #ffffff; font-weight: 600;">
-                                        <strong>État:</strong> {step_data.get('status', 'En cours...')}
+                                        <strong>État:</strong> {step_data.get("status", "En cours...")}
                                     </p>
                                 </div>
                                 """,
@@ -640,11 +637,11 @@ def main():
 
         with col1:
             if st.button(
-                "🎭 Films d'horreur psychologique des années 80",
+                "🛸 Science-fiction bien notée des années 90",
                 use_container_width=True,
             ):
                 st.session_state.preset_question = (
-                    "Recommande-moi des films d'horreur psychologique des années 80"
+                    "Montre-moi des films de science-fiction bien notés des années 90"
                 )
                 st.rerun()
 
@@ -657,9 +654,11 @@ def main():
                 st.rerun()
 
         with col2:
-            if st.button("👻 Films similaires à The Shining", use_container_width=True):
+            if st.button(
+                "👻 Film de Stanley Kubrick dans un Hotel", use_container_width=True
+            ):
                 st.session_state.preset_question = (
-                    "Je cherche des films similaires à The Shining"
+                    "Je cherche le film de Stanlley Kubrick qui se passe dans un hotel."
                 )
                 st.rerun()
 
@@ -679,7 +678,7 @@ def main():
     with st.expander("ℹ️ Comment utiliser HorRAGor ?", expanded=False):
         st.markdown("### 📖 Guide d'utilisation")
         st.markdown("---")
-        
+
         st.markdown("#### 1️⃣ Configurez vos filtres")
         st.markdown("""
         Utilisez la **barre latérale** pour affiner vos préférences :
@@ -689,7 +688,7 @@ def main():
         - ⭐ **Score** : Fixez un score minimum sur TMDB
         - ⏱️ **Durée** : Sélectionnez la durée souhaitée
         """)
-        
+
         st.markdown("---")
         st.markdown("#### 2️⃣ Posez votre question")
         st.markdown("""
@@ -699,7 +698,7 @@ def main():
         - ✅ Les demandes de films similaires
         - ✅ Les questions sur les caractéristiques des films
         """)
-        
+
         st.markdown("---")
         st.markdown("#### 3️⃣ L'agent ReAct travaille pour vous")
         st.markdown("""
@@ -708,7 +707,7 @@ def main():
         - 🧠 **Recherche vectorielle** : Pour trouver des films similaires
         - 📚 **Wikipedia** : Pour enrichir les informations
         """)
-        
+
         st.markdown("---")
         st.markdown("#### 4️⃣ Recevez vos recommandations")
         st.markdown("""
@@ -717,10 +716,11 @@ def main():
         - 🔍 Les étapes de sa réflexion (optionnel)
         - 📋 Une liste de films recommandés avec toutes les infos
         """)
-        
-        st.markdown("---")
-        st.info("💡 **Astuce** : Plus votre question est précise et vos filtres définis, plus les recommandations seront pertinentes !")
 
+        st.markdown("---")
+        st.info(
+            "💡 **Astuce** : Plus votre question est précise et vos filtres définis, plus les recommandations seront pertinentes !"
+        )
 
     # Footer
     st.markdown("---")

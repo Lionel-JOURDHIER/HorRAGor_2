@@ -61,6 +61,28 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FAISS_INDEX_PATH = str(BASE_DIR / "data" / "faiss_index")
+CATALOG_GENRES = {
+    "Action",
+    "Adventure",
+    "Animation",
+    "Comedy",
+    "Crime",
+    "Documentary",
+    "Drama",
+    "Family",
+    "Fantasy",
+    "History",
+    "Horror",
+    "Music",
+    "Mystery",
+    "Romance",
+    "Science Fiction",
+    "Thriller",
+    "TV Movie",
+    "War",
+    "Western",
+}
+MAX_HYBRID_RETRIES = 1
 
 # ==============================================================================
 # ROUTING LOGIC
@@ -248,7 +270,16 @@ def filter_and_search_hybrid_node(state: AgentState) -> Dict[str, Any]:
     logger.info(
         f"Filtres extraits par le LLM : {extracted_filters.model_dump(exclude_none=True)}"
     )
-
+    if (
+        extracted_filters.genres_excluded
+        and set(extracted_filters.genres_excluded) >= CATALOG_GENRES
+    ):
+        logger.warning(
+            "⚠️ Le LLM a tenté d'exclure l'intégralité des genres du catalogue "
+            "(hallucination probable sur un critère hors périmètre, ex: nationalité). "
+            "Filtre genres_excluded ignoré."
+        )
+        extracted_filters.genres_excluded = []
     # 2. Merge : le prompt écrase le front uniquement si valeur active
     logger.info(
         "Étape 2/7 : Fusion des filtres de l'interface graphique (front-end) et du LLM."
@@ -447,7 +478,22 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
         )
         return {"current_step": "enrich_with_wiki", "steps": steps}
 
-    # RÈGLES 1 & 2 : La réponse est KO. On vérifie la branche d'origine pour boucler localement
+    # RÈGLES 1 & 2 : La réponse est KO. On vérifie la branche d'origine pour boucler localement,
+    # sauf si le nombre max de ré-essais est déjà atteint (pipeline déterministe = boucle inutile)
+    if state.retry_count >= MAX_HYBRID_RETRIES:
+        logger.warning(
+            f"Validation Échouée ({evaluation.feedback}) mais nombre max de ré-essais "
+            f"({MAX_HYBRID_RETRIES}) atteint. Le pipeline étant déterministe, un nouvel "
+            "essai identique ne changerait rien : réponse retenue telle quelle."
+        )
+        steps.append(
+            AgentStep(
+                step="validation",
+                status=f"Réponse imparfaite mais retenue après {MAX_HYBRID_RETRIES} ré-essai(s). Motif : {evaluation.feedback}",
+            )
+        )
+        return {"current_step": "go_to_end", "steps": steps}
+
     if state.current_step == "has_title":
         logger.warning(
             f"Validation Échouée ({evaluation.feedback}). Ré-essai sur direct_movie_detail."
@@ -458,7 +504,11 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
                 status=f"Réponse KO. Ré-essai de la branche directe. Motif : {evaluation.feedback}",
             )
         )
-        return {"current_step": "retry_direct", "steps": steps}
+        return {
+            "current_step": "retry_direct",
+            "steps": steps,
+            "retry_count": state.retry_count + 1,
+        }
     else:
         logger.warning(
             f"Validation Échouée ({evaluation.feedback}). Ré-essai sur filter_and_search_hybrid."
@@ -469,7 +519,11 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
                 status=f"Réponse KO. Ré-essai de la branche hybride. Motif : {evaluation.feedback}",
             )
         )
-        return {"current_step": "retry_hybrid", "steps": steps}
+        return {
+            "current_step": "retry_hybrid",
+            "steps": steps,
+            "retry_count": state.retry_count + 1,
+        }
 
 
 def route_after_validation(state: AgentState) -> str:

@@ -57,7 +57,7 @@ def _convert_distance_to_similarity_score(distance: float) -> int:
 
 
 # Seuil empirique : en dessous, sous-index FAISS ; au dessus, post-filtre oversample
-SMALL_POOL_THRESHOLD = 500
+SMALL_POOL_THRESHOLD = 2000
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
