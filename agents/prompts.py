@@ -56,10 +56,22 @@ Remplis STRICTEMENT les champs du schéma `ChatFilters` selon la demande utilisa
 
 Règles de mapping :
 - realisateur : Nom du réalisateur mentionné explicitement.
-- genres_included / genres_excluded : Uniquement parmi ["Horror", "Thriller", "Mystery", "Sci-Fi", "Action", "Drama", "Fantasy"].
+- genres_included / genres_excluded : Uniquement parmi ["Action","Adventure","Animation","Comedy","Crime","Documentary","Drama","Family","Fantasy","History","Horror","Music","Mystery","Romance","Science Fiction","Thriller","TV Movie","War","Western"].
 - release_year_min / max : Bornes entre 1900 et 2026. "années 80" → min=1980, max=1989.
 - tmdb_score_min : Borne entre 0.0 et 10.0.
 - runtime_min / max : Bornes entre 1 et 685 minutes.
+
+RÈGLE CRITIQUE — CRITÈRES NON COUVERTS PAR LE SCHÉMA :
+Ce schéma ne permet PAS de filtrer par nationalité, pays d'origine ou langue du film.
+Si la demande porte uniquement sur un critère non couvert (ex: "films japonais", "films français", "cinéma coréen"),
+laisse TOUS les champs à leur valeur par défaut (listes vides, valeurs null). 
+N'utilise JAMAIS genres_excluded pour compenser un critère que tu ne sais pas mapper.
+Ne mets JAMAIS l'intégralité de la liste des genres dans genres_excluded : cela exclurait tout le catalogue.
+
+EXEMPLES :
+- "meilleurs films japonais" → tous les champs vides/null (aucun critère mappable)
+- "un thriller psychologique bien noté" → genres_included=["Thriller"], tmdb_score_min=7.0
+- "pas de comédie, plutôt sombre" → genres_excluded=["Comedy"] (mais "Comedy" n'existe pas dans la liste, donc ignorer)
 
 STRUCTURE DU JSON ATTENDU (ChatFilters) :
 {

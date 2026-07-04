@@ -102,16 +102,20 @@ def _build_filtered_ids(
         )
         conditions.append(Realisateur.name.ilike(f"%{realisateur}%"))
 
-    # --- Genres inclus : un JOIN par genre pour forcer le AND sémantique ---
-    # (un film doit avoir TOUS les genres demandés, pas seulement l'un d'eux)
+    # --- Genres inclus : OR sémantique via EXISTS ---
+    # (un film correspond dès qu'il a AU MOINS UN des genres demandés)
     if genres_included:
-        for i, genre in enumerate(genres_included):
-            fg_alias = FilmGenre.__table__.alias(f"fg_inc_{i}")
-            g_alias = Genre.__table__.alias(f"g_inc_{i}")
-            statement = statement.join(
-                fg_alias, Film.tmdb_id == fg_alias.c.tmdb_id
-            ).join(g_alias, fg_alias.c.id_genre == g_alias.c.id_genre)
-            conditions.append(g_alias.c.genre_name == genre)
+        genres_included_subq = (
+            select(FilmGenre.tmdb_id)
+            .join(Genre, FilmGenre.id_genre == Genre.id_genre)
+            .where(
+                and_(
+                    FilmGenre.tmdb_id == Film.tmdb_id,
+                    Genre.genre_name.in_(genres_included),
+                )
+            )
+        )
+        conditions.append(exists(genres_included_subq))
 
     # --- Genres exclus : NOT EXISTS pour chaque genre à exclure ---
     if genres_excluded:
