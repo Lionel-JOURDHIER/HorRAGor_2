@@ -30,7 +30,7 @@ Auteur/Responsable : Hanna (Epic 3)
 
 # IMPORT
 from datetime import date
-from typing import List, Optional, Any
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -73,6 +73,7 @@ class FilmShort(BaseModel):
     genres: List[str] = Field(default_factory=list)
     tmdb_score: Optional[float] = None
     similarity_score: Optional[float] = None
+    poster_url: Optional[str] = None
 
 
 class FilmSearchResponse(BaseModel):

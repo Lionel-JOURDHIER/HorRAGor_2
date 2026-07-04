@@ -62,6 +62,9 @@ def normalize_movie_data(movie: Dict[str, Any]) -> Dict[str, Any]:
     if "director" in normalized and not normalized.get("realisateur"):
         normalized["realisateur"] = normalized.pop("director")
 
+    if "tmdb_score" in normalized:
+        normalized["score_tmdb"] = normalized.pop("tmdb_score")
+
     return normalized
 
 

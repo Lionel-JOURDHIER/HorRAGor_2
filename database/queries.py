@@ -202,6 +202,7 @@ def get_films_short_by_ids(session: Session, tmdb_ids: List[int]) -> List[FilmSh
             tmdb_score=float(score_tmdb.vote_average)
             if score_tmdb and score_tmdb.vote_average
             else None,
+            poster_url=f"{film.poster_path}" if film.poster_path else None,
         )
 
     # On réordonne pour respecter scrupuleusement le classement de FAISS
