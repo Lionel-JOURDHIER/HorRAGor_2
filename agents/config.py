@@ -14,7 +14,7 @@ _OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
 # LLM Principal pour la génération de texte et l'analyse sémantique
 llm = ChatOllama(
     # model="granite4.1:8b",   # TOO HEAVY
-    model="granite4.1:3b",
+    model="granite4.1:8b",
     base_url=_OLLAMA_URL,
     temperature=0,  # Température basse pour privilégier la fidélité au contexte RAG
 )

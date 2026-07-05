@@ -638,9 +638,7 @@ def main():
                 "🛸 Science-fiction bien notée des années 90",
                 use_container_width=True,
             ):
-                st.session_state.preset_question = (
-                    "Montre-moi des films de science-fiction bien notés des années 90"
-                )
+                st.session_state.preset_question = "Montre-moi des films de science-fiction avec une note supérieure à 7 sorti entre 1990 et 2000"
                 st.rerun()
 
             if st.button(
@@ -664,7 +662,7 @@ def main():
                 "🇯🇵 Films d'horreur japonais bien notés", use_container_width=True
             ):
                 st.session_state.preset_question = (
-                    "Montre-moi des films d'horreur japonais bien notés"
+                    "Films japonais avec une note supérieure à 8"
                 )
                 st.rerun()
 
