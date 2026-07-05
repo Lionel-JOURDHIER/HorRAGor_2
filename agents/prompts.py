@@ -73,6 +73,11 @@ EXEMPLES :
 - "un thriller psychologique bien noté" → genres_included=["Thriller"], tmdb_score_min=7.0
 - "pas de comédie, plutôt sombre" → genres_excluded=["Comedy"] (mais "Comedy" n'existe pas dans la liste, donc ignorer)
 
+EXEMPLES D'EXTRACTION RÉALISATEUR (pour bien distinguer nom propre vs genre) :
+- "film de Jordan Peele" → {"realisateur": "Jordan Peele", "genres_included": []}
+- "un Kubrick des années 70" → {"realisateur": "Kubrick", "genres_included": []}
+- "un film d'horreur comique" → {"realisateur": null, "genres_included": ["Horror", "Comedy"]}
+
 STRUCTURE DU JSON ATTENDU (ChatFilters) :
 {
   "realisateur": string ou null,

@@ -163,6 +163,7 @@ class AgentState(BaseModel):
         default_factory=list
     )  # Contiendra FilmShort ou FilmDetail
     answer: Optional[str] = None
+    search_branch: Optional[str] = None
     retry_count: int = 0
 
 

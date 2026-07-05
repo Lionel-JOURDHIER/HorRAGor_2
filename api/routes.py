@@ -287,7 +287,7 @@ async def chat_stream(request: ChatRequest):
 
 
 @router.post("/chat/response_stream", tags=["Agent"])
-async def chat_stream_final(request: ChatRequest):
+def chat_stream_final(request: ChatRequest):
     """
     Stream agent execution steps and final response.
 
@@ -301,7 +301,7 @@ async def chat_stream_final(request: ChatRequest):
         the final validated ChatResponse.
     """
 
-    async def event_generator():
+    def event_generator():
         try:
             stream = run_agent_stream_final(request)
             for event in stream:

@@ -28,7 +28,7 @@ Auteur/Responsable : Équipe Agents
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -134,6 +134,7 @@ def title_router_node(state: AgentState) -> Dict[str, Any]:
         )
         return {
             "current_step": "has_title",
+            "search_branch": "direct",
             "steps": steps,
             "answer": detected_title,  # Stockage temporaire du titre pour direct_movie_detail
         }
@@ -146,7 +147,7 @@ def title_router_node(state: AgentState) -> Dict[str, Any]:
             status="Aucun titre détecté. Passage au mode critères.",
         )
     )
-    return {"current_step": "no_title", "steps": steps}
+    return {"current_step": "no_title", "search_branch": "hybrid", "steps": steps}
 
 
 def direct_movie_detail_node(state: AgentState) -> Dict[str, Any]:
@@ -404,6 +405,14 @@ class ValidationResult(BaseModel):
     feedback: str = Field(
         description="Explication concise du choix de validation ou de ce qui fait défaut."
     )
+    corrected_title: Optional[str] = Field(
+        default=None,
+        description=(
+            "Si tu identifies avec certitude le titre exact du film qui aurait dû être "
+            "recherché pour répondre à la requête utilisateur, indique-le ici précisément "
+            "(ex: 'The Shining'). Laisse vide si tu n'as pas de certitude suffisante."
+        ),
+    )
 
 
 # ==============================================================================
@@ -446,6 +455,11 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
     Requête Utilisateur : {state.user_query}
     Films trouvés (Contexte) : {[m.title for m in state.retrieved_movies]}
     Réponse générée par le LLM : {state.answer}
+
+    Si la réponse est incorrecte ET que tu peux identifier avec certitude le titre exact
+    du film qui aurait dû être recherché (ex: la requête décrit clairement un film connu
+    par son réalisateur/synopsis mais le mauvais film a été renvoyé), indique ce titre
+    dans corrected_title pour permettre une nouvelle recherche ciblée.
     """
 
     try:
@@ -478,13 +492,13 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
         )
         return {"current_step": "enrich_with_wiki", "steps": steps}
 
-    # RÈGLES 1 & 2 : La réponse est KO. On vérifie la branche d'origine pour boucler localement,
-    # sauf si le nombre max de ré-essais est déjà atteint (pipeline déterministe = boucle inutile)
+    # RÈGLES 1 & 2 : La réponse est KO.
+
+    # Garde-fou : pipeline déterministe, un ré-essai au-delà de la limite ne changera rien
     if state.retry_count >= MAX_HYBRID_RETRIES:
         logger.warning(
             f"Validation Échouée ({evaluation.feedback}) mais nombre max de ré-essais "
-            f"({MAX_HYBRID_RETRIES}) atteint. Le pipeline étant déterministe, un nouvel "
-            "essai identique ne changerait rien : réponse retenue telle quelle."
+            f"({MAX_HYBRID_RETRIES}) atteint. Réponse retenue telle quelle."
         )
         steps.append(
             AgentStep(
@@ -493,6 +507,63 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
             )
         )
         return {"current_step": "go_to_end", "steps": steps}
+
+    # Priorité au titre corrigé : si le validateur a identifié avec certitude le bon film,
+    # on relance une recherche directe ciblée plutôt que de boucler sur la même branche.
+    if evaluation.corrected_title:
+        logger.warning(
+            f"Validation Échouée. Titre corrigé identifié par le validateur : "
+            f"'{evaluation.corrected_title}'. Nouvelle recherche directe ciblée."
+        )
+        steps.append(
+            AgentStep(
+                step="validation",
+                status=(
+                    f"Réponse KO. Nouvelle recherche directe pour "
+                    f"'{evaluation.corrected_title}'. Motif : {evaluation.feedback}"
+                ),
+            )
+        )
+        return {
+            "current_step": "retry_direct",
+            "search_branch": "direct",
+            "answer": evaluation.corrected_title,
+            "steps": steps,
+            "retry_count": state.retry_count + 1,
+        }
+
+    # Sinon, on boucle localement sur la branche d'origine réelle (search_branch,
+    # fiable contrairement à current_step qui est écrasé par les nœuds de recherche)
+    if state.search_branch == "direct":
+        logger.warning(
+            f"Validation Échouée ({evaluation.feedback}). Ré-essai sur direct_movie_detail."
+        )
+        steps.append(
+            AgentStep(
+                step="validation",
+                status=f"Réponse KO. Ré-essai de la branche directe. Motif : {evaluation.feedback}",
+            )
+        )
+        return {
+            "current_step": "retry_direct",
+            "steps": steps,
+            "retry_count": state.retry_count + 1,
+        }
+    else:
+        logger.warning(
+            f"Validation Échouée ({evaluation.feedback}). Ré-essai sur filter_and_search_hybrid."
+        )
+        steps.append(
+            AgentStep(
+                step="validation",
+                status=f"Réponse KO. Ré-essai de la branche hybride. Motif : {evaluation.feedback}",
+            )
+        )
+        return {
+            "current_step": "retry_hybrid",
+            "steps": steps,
+            "retry_count": state.retry_count + 1,
+        }
 
     if state.current_step == "has_title":
         logger.warning(
