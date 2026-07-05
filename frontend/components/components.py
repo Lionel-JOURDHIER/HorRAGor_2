@@ -597,9 +597,11 @@ def display_agent_status(status: Dict[str, Any]) -> None:
     if not status:
         return
 
-    # Container avec style
+    # Container avec style (aligné sur le motif de carte utilisé partout ailleurs dans l'app :
+    # fond teinté corail, bordure gauche, halo lumineux)
     st.markdown(
-        '<div style="background: rgba(255, 107, 107, 0.05); padding: 15px; border-radius: 10px; margin: 10px 0;">',
+        '<div style="background: rgba(255, 71, 87, 0.1); padding: 18px; border-radius: 15px; '
+        'border-left: 4px solid #ff4757; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.2); margin: 10px 0;">',
         unsafe_allow_html=True,
     )
 

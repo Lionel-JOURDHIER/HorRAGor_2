@@ -23,6 +23,7 @@ Auteur : Flavie (Epic 7)
 import streamlit as st
 from components.components import (
     create_filters_sidebar,
+    display_agent_status,
     display_chat_message,
     display_movie_list,
 )
@@ -431,6 +432,12 @@ def display_chat_interface(filters: dict):
         else:
             display_chat_message("assistant", content, avatar="🤖")
 
+            # Restauration des états de réflexion archivés ---
+            if "etats_agent" in message and message["etats_agent"]:
+                with st.expander("🔍 Détails de réflexion archivés", expanded=False):
+                    for etat in message["etats_agent"]:
+                        display_agent_status(etat)
+
             # Afficher les films si disponibles
             if "films" in message and message["films"]:
                 display_movie_list(message["films"], title="")
@@ -481,10 +488,10 @@ def display_chat_interface(filters: dict):
         # Consommer le flux SSE avec affichage en temps réel
         try:
             for event in send_chat_query_streaming(user_input, filters):
+                status_container.empty()
                 # Gestion des erreurs
                 if "error" in event:
                     error_occurred = True
-                    status_container.empty()
                     st.error(f"❌ {event['error']}")
                     break
 
@@ -494,22 +501,8 @@ def display_chat_interface(filters: dict):
                     all_steps.append(step_data)
 
                     # Afficher l'étape en temps réel dans l'expander
-                    with steps_container:
-                        with st.expander(
-                            f"🔍 Étape {len(all_steps)}: {step_data.get('step', 'En cours...')}",
-                            expanded=True,
-                        ):
-                            st.markdown(
-                                f"""
-                                <div style="background: rgba(255, 71, 87, 0.1); padding: 18px; border-radius: 15px; 
-                                            border-left: 4px solid #ff4757; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.2);">
-                                    <p style="margin: 0; color: #ffffff; font-weight: 600;">
-                                        <strong>État:</strong> {step_data.get("status", "En cours...")}
-                                    </p>
-                                </div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
+                    with status_container.container():
+                        display_agent_status(step_data)
 
                 # Réponse finale complète
                 elif "answer" in event:
@@ -555,7 +548,12 @@ def display_chat_interface(filters: dict):
 
             # Ajouter le message assistant avec les films
             st.session_state.messages.append(
-                {"role": "assistant", "content": final_answer, "films": films}
+                {
+                    "role": "assistant",
+                    "content": final_answer,
+                    "films": final_recommendations,
+                    "etats_agent": all_steps,
+                }
             )
 
             # Afficher les films avec compteur
