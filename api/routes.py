@@ -312,11 +312,16 @@ def chat_stream_final(request: ChatRequest):
                     if not steps:
                         continue
 
-                    last_step = steps[-1]
+                    for step in steps:
+                        payload = {
+                            "node": event["node"],
+                            "step": step
+                        }
+                        yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
-                    payload = {"node": event["node"], "step": last_step}
-
-                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                    # last_step = steps[-1]
+                    # payload = {"node": event["node"], "step": last_step}
+                    # yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
                 # FINAL RESPONSE
                 elif event["type"] == "final":
