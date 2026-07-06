@@ -486,7 +486,7 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
         )
         steps.append(
             AgentStep(
-                step="validation",
+                step="enrich_with_wiki",
                 status="Synopsis manquant. Redirection vers l'enrichissement Wikipédia.",
             )
         )
