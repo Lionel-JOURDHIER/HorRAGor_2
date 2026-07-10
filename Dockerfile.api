@@ -10,10 +10,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Installation des dépendances système (curl pour healthcheck, build-essential pour faiss)
+# Installation des dépendances système (curl pour healthcheck, build-essential pour faiss et bcrypt)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
+    libffi-dev \
+    libssl-dev \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Installation de uv (gestionnaire de paquets)
@@ -27,7 +30,9 @@ COPY api/pyproject.toml api/uv.lock ./api/
 
 # Installation des dépendances (merge des trois packages)
 # faiss-cpu est requis dans l'image — faiss-gpu nécessite une image cuda de base
-RUN uv pip install --system --no-cache \
+# bcrypt 4.1.x est compatible avec passlib (pas la version 5.x)
+RUN uv pip install --system --no-cache "bcrypt<5.0" && \
+    uv pip install --system --no-cache \
     fastapi \
     uvicorn[standard] \
     sqlalchemy \
@@ -42,7 +47,9 @@ RUN uv pip install --system --no-cache \
     pydantic \
     requests \
     wikipedia \
-    loguru
+    loguru \
+    "passlib[bcrypt]" \
+    "python-jose[cryptography]"
 
 # Copie du code source complet
 COPY . .
