@@ -30,6 +30,8 @@ from api.schemas import ChatFilters
 from api.schemas import AgentState as GraphState
 from typing import Any, cast
 
+from api.monitoring.langfuse_callback import langfuse_handler
+
 def normalize_steps(steps: list[Any] | None) -> list[dict]:
     """
     Normalize agent execution steps.
@@ -92,7 +94,14 @@ def run_agent(chat_request):
         answer=None
     )
 
-    final_state = graph.invoke(initial_state, config={"recursion_limit": 10})
+    final_state = graph.invoke(initial_state, config={
+        "recursion_limit": 10,
+        "callbacks": [langfuse_handler],
+        "metadata": {
+                    "application": "HorRAGor",
+                    "environment": "development"
+                }
+        })
 
     return {
         **final_state,
@@ -125,7 +134,17 @@ def run_agent_stream(chat_request):
         answer=None
     )
 
-    return graph.stream(initial_state, config={"recursion_limit": 10}, stream_mode="updates")
+    return graph.stream(initial_state,
+                        config={
+                            "recursion_limit": 10,
+                            "callbacks": [langfuse_handler],
+                            "metadata": {
+                                "application": "HorRAGor",
+                                "environment": "development"
+                            }
+                            },
+                        stream_mode="updates",
+                        )
 
 
 
@@ -164,7 +183,12 @@ def run_agent_stream_final(chat_request):
 
     stream = graph.stream(
         initial_state,
-        config={"recursion_limit": 10},
+        config={"recursion_limit": 10,
+                "callbacks": [langfuse_handler],
+                "metadata": {
+                    "application": "HorRAGor",
+                    "environment": "development"
+                }},
         stream_mode="updates"
     )
 

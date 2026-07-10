@@ -34,6 +34,7 @@ RUN uv pip install --system --no-cache \
     psycopg2-binary \
     pgvector \
     python-dotenv \
+    langchain \
     langchain-core \
     langchain-ollama \
     langgraph \
