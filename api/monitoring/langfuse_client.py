@@ -15,7 +15,7 @@ langfuse = Langfuse(
     public_key=os.getenv(
         "LANGFUSE_PUBLIC_KEY"
     ),
-    host=os.getenv(
+    base_url=os.getenv(
         "LANGFUSE_HOST"
     )
 )

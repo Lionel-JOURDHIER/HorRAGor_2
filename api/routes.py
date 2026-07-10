@@ -202,14 +202,8 @@ async def chat(request: ChatRequest):
 
     try:
 
-        # trace = langfuse.trace(
-        #     name="chat_response",
-        #     input={"message": request.message}
-        # )
-
         result = run_agent(request)
 
-        # trace.update(output={"response": result})
 
         return ChatResponse(
             answer=result.get("answer") or "No answer generated",

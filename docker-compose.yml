@@ -109,4 +109,5 @@ volumes:
 # ─── RÉSEAU ───────────────────────────────────────────────────────────────────
 networks:
   horragor_net:
-    driver: bridge
+    external:
+      name: horragor_2_horragor_net

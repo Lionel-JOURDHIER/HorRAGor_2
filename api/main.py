@@ -23,7 +23,9 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi import Request
 
+from api.monitoring.langfuse_client import langfuse
 from api.routes import router
 
 # LOGGER ------------------------------------------------------
@@ -68,5 +70,73 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="HorRAGor API", version="0.1.0", lifespan=lifespan)
+
+@app.middleware("http")
+async def langfuse_middleware(request: Request, call_next):
+    """
+    Middleware FastAPI pour l'instrumentation Langfuse.
+
+    Crée automatiquement une observation Langfuse pour chaque requête HTTP reçue
+    par l'API. Cette observation permet de tracer le cycle complet d'une requête
+    utilisateur et de mesurer les performances du backend.
+
+    Fonctionnalités :
+        - Création d'un span Langfuse pour chaque endpoint appelé.
+        - Capture des informations HTTP :
+            * méthode HTTP (GET, POST, ...)
+            * URL de la requête.
+        - Enregistrement du statut de réponse HTTP.
+        - Capture des erreurs éventuelles.
+        - Envoi des données vers Langfuse après traitement.
+
+    Cette instrumentation constitue la première couche d'observabilité :
+        HTTP Request
+            ↓
+        FastAPI Middleware
+            ↓
+        Langfuse Observation
+            ↓
+        Endpoint / LangGraph Agent
+
+    Args:
+        request (Request):
+            Objet représentant la requête HTTP entrante.
+
+        call_next (Callable):
+            Fonction FastAPI permettant de transmettre la requête
+            au prochain middleware ou endpoint.
+
+    Returns:
+        Response:
+            Réponse HTTP générée par l'application FastAPI.
+
+    Notes:
+        Le SDK Langfuse v4 utilise une approche basée sur OpenTelemetry.
+        La méthode start_as_current_observation() retourne un context manager,
+        automatiquement fermé à la sortie du bloc `with`.
+    """
+
+    with langfuse.start_as_current_observation(
+        name=f"{request.method} {request.url.path}",
+        as_type="span",
+        input={
+            "method": request.method,
+            "url": str(request.url),
+        },
+    ) as observation:
+
+        try:
+            response = await call_next(request)
+
+            observation.update(output={"status_code": response.status_code})
+
+            return response
+
+        except Exception as e:
+            observation.update(output={"error": str(e)})
+            raise
+
+        finally:
+            langfuse.flush()
 
 app.include_router(router)

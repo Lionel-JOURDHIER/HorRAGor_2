@@ -68,6 +68,8 @@ services:
       REDIS_TLS_KEY: ${REDIS_TLS_KEY:-/certs/redis.key}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-}
       SMTP_CONNECTION_URL: ${SMTP_CONNECTION_URL:-}
+    networks:
+      - horragor_net
 
   langfuse-web:
     image: docker.io/langfuse/langfuse:3
@@ -87,6 +89,8 @@ services:
       LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-}
       LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-}
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-}
+    networks:
+      - horragor_net
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server
@@ -108,6 +112,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 1s
+    networks:
+      - horragor_net
 
   minio:
     image: cgr.dev/chainguard/minio
@@ -129,6 +135,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 1s
+    networks:
+      - horragor_net
 
   redis:
     image: docker.io/redis:7
@@ -146,6 +154,8 @@ services:
       interval: 3s
       timeout: 10s
       retries: 10
+    networks:
+      - horragor_net
 
   postgres:
     image: docker.io/postgres:${POSTGRES_VERSION:-17}
@@ -165,6 +175,8 @@ services:
       - 127.0.0.1:5432:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
+    networks:
+      - horragor_net
 
 volumes:
   langfuse_postgres_data:
@@ -177,3 +189,8 @@ volumes:
     driver: local
   langfuse_redis_data:
     driver: local
+
+networks:
+  horragor_net:
+    external: true
+    name: horragor_2_horragor_net
