@@ -1,4 +1,8 @@
 # monitoring/langfuse_client.py
+"""
+Client Langfuse pour le monitoring HorRAGor.
+Centralise la connexion au serveur Langfuse.
+"""
 
 from langfuse import Langfuse
 import os
