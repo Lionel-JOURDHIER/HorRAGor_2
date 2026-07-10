@@ -597,13 +597,14 @@ def display_agent_status(status: Dict[str, Any]) -> None:
     if not status:
         return
 
-    # Container avec style (aligné sur le motif de carte utilisé partout ailleurs dans l'app :
-    # fond teinté corail, bordure gauche, halo lumineux)
-    st.markdown(
-        '<div style="background: rgba(255, 71, 87, 0.1); padding: 18px; border-radius: 15px; '
-        'border-left: 4px solid #ff4757; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.2); margin: 10px 0;">',
-        unsafe_allow_html=True,
-    )
+    # # Container avec style (aligné sur le motif de carte utilisé partout ailleurs dans l'app :
+    # # fond teinté corail, bordure gauche, halo lumineux)
+    # st.markdown(
+    #     '<div style="background: rgba(255, 71, 87, 0.1); padding: 18px; border-radius: 15px; '
+    #     'border-left: 4px solid #ff4757; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.2); margin: 10px 0;">'
+    #     "</div>",
+    #     unsafe_allow_html=True,
+    # )
 
     # Format API simple
     if "step" in status:
@@ -611,20 +612,35 @@ def display_agent_status(status: Dict[str, Any]) -> None:
 
         # Déterminer l'icône en fonction de l'étape
         icon = "🤔"
-        if "search" in step_text.lower() or "recherche" in step_text.lower():
+        if (
+            "title_detection" in step_text.lower()
+            or "recherche" in step_text.lower()
+            or "filter_extraction" in step_text.lower()
+        ):
             icon = "🔍"
-        elif "sql" in step_text.lower() or "database" in step_text.lower():
+        elif "sql_filtering" in step_text.lower() or "database" in step_text.lower():
             icon = "💾"
-        elif "vector" in step_text.lower() or "similar" in step_text.lower():
+        elif (
+            "vector_search_direct" in step_text.lower()
+            or "vector_recommendations" in step_text.lower()
+        ):
             icon = "🧠"
-        elif "wiki" in step_text.lower():
+        elif "generation" in step_text.lower() or "similar" in step_text.lower():
+            icon = "🔄"
+        elif (
+            "wikipedia_enrich" in step_text.lower()
+            or "enrich" in step_text.lower()
+            or "rewrite" in step_text.lower()
+        ):
             icon = "📚"
-        elif "final" in step_text.lower() or "answer" in step_text.lower():
+        elif "validation" in step_text.lower() or "answer" in step_text.lower():
             icon = "✅"
 
         st.markdown(
             f"""
-        <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2)); 
+                            padding: 5px; border-radius: 20px; border-left: 5px solid #ff4757;
+                            box-shadow: 0 8px 30px rgba(255, 71, 87, 0.3);">
             <span style="font-size: 1.5em;">{icon}</span>
             <strong style="color: #ff4757; font-weight: 700;">Étape :</strong>
             <span>{step_text}</span>
@@ -695,11 +711,33 @@ def display_agent_status(status: Dict[str, Any]) -> None:
         )
         st.info(status["pensee"])
 
-    # Progression
-    if status.get("progression") is not None:
-        progression = status["progression"]
+    # Mapping approximatif nœud LangGraph -> pourcentage de progression
+    NODE_PROGRESS = {
+        "title_detection": 15,
+        "filter_extraction": 30,
+        "sql_filtering": 45,
+        "vector_search_direct": 30,
+        "vector_recommendations": 70,
+        "rewrite": 70,
+        "generation": 85,
+        "wikipedia_enrich": 90,
+        "enrich_with_wiki": 90,
+        "validation": 95,
+    }
+    # Détection de la progression par mot-clé pour éviter le crash du NoneType
+    progression = None
+    for key, value in NODE_PROGRESS.items():
+        if key in step_text.lower():
+            progression = value
+            break
 
-        # Couleur de la barre en fonction de la progression
+    # Valeur de repli si le log contient une phrase complexe non répertoriée
+    if progression is None:
+        progression = 40
+
+    # Rendu de la barre de progression sécurisé
+    try:
+        progression = int(progression)
         if progression < 33:
             color = "#ff4757"
         elif progression < 66:
@@ -709,19 +747,20 @@ def display_agent_status(status: Dict[str, Any]) -> None:
 
         st.markdown(
             f"""
-        <div style="margin: 10px 0;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                <strong style="color: #ff4757; font-weight: 700;">Progression</strong>
-                <strong style="color: {color};">{progression}%</strong>
+            <div style="margin: 10px 0;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <strong style="color: #ff4757; font-weight: 700;">Progression</strong>
+                    <strong style="color: {color};">{progression}%</strong>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.1); height: 10px; border-radius: 10px; overflow: hidden;">
+                    <div style="background: {color}; width: {progression}%; height: 100%; transition: width 0.5s ease;"></div>
+                </div>
             </div>
-            <div style="background: rgba(255, 255, 255, 0.1); height: 10px; border-radius: 10px; overflow: hidden;">
-                <div style="background: {color}; width: {progression}%; height: 100%; 
-                            transition: width 0.5s ease;"></div>
-            </div>
-        </div>
-        """,
+            """,
             unsafe_allow_html=True,
         )
+    except (TypeError, ValueError):
+        pass
 
     # Résultat intermédiaire
     if status.get("resultat"):
