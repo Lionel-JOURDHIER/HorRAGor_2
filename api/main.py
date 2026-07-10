@@ -27,6 +27,7 @@ from fastapi import Request
 
 from api.monitoring.langfuse_client import langfuse
 from api.routes import router
+from api.routes_monitoring import router as monitoring_router
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
@@ -140,3 +141,4 @@ async def langfuse_middleware(request: Request, call_next):
             langfuse.flush()
 
 app.include_router(router)
+app.include_router(monitoring_router)

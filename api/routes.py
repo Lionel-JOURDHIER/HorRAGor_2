@@ -77,8 +77,6 @@ from api.schemas import (
 from database.connection import get_db
 from database.queries import get_all_directors, get_all_genres, get_film_details_by_id
 
-from api.monitoring.langfuse_client import langfuse
-
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
 
