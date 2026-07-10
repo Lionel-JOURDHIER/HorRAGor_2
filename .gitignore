@@ -53,3 +53,6 @@ coverage.xml
 data_backup/
 *.index
 *mapping.json
+
+
+monitoring/langfuse/

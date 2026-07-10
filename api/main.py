@@ -127,6 +127,9 @@ async def langfuse_middleware(request: Request, call_next):
     ) as observation:
 
         try:
+            if request.url.path == "/health":
+                return await call_next(request)
+            
             response = await call_next(request)
 
             observation.update(output={"status_code": response.status_code})
