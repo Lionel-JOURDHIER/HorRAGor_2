@@ -84,22 +84,6 @@ CATALOG_GENRES = {
 }
 MAX_HYBRID_RETRIES = 1
 
-# ==============================================================================
-# ROUTING LOGIC
-# ==============================================================================
-
-
-def route_after_title_check(state: AgentState) -> str:
-    """Aiguille le workflow selon la présence ou non d'un titre de film précis."""
-    logger.info(
-        f"Routage conditionnel invoqué. Étape actuelle détectée : '{state.current_step}'"
-    )
-    if state.current_step == "has_title":
-        logger.info("Aiguillage vers le processus A : 'direct_movie_detail'")
-        return "direct_movie_detail"
-    logger.info("Aiguillage vers le processus B : 'filter_and_search_hybrid'")
-    return "filter_and_search_hybrid"
-
 
 # ==============================================================================
 # NODES
