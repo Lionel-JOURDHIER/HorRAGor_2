@@ -614,6 +614,7 @@ def display_agent_status(status: Dict[str, Any]) -> None:
         icon = "🤔"
         if (
             "title_detection" in step_text.lower()
+            or "recherche" in step_text.lower()
             or "filter_extraction" in step_text.lower()
         ):
             icon = "🔍"
@@ -628,7 +629,8 @@ def display_agent_status(status: Dict[str, Any]) -> None:
             icon = "🔄"
         elif (
             "wikipedia_enrich" in step_text.lower()
-            or "enrich_with_wiki" in step_text.lower()
+            or "enrich" in step_text.lower()
+            or "rewrite" in step_text.lower()
         ):
             icon = "📚"
         elif "validation" in step_text.lower() or "answer" in step_text.lower():
@@ -714,8 +716,9 @@ def display_agent_status(status: Dict[str, Any]) -> None:
         "title_detection": 15,
         "filter_extraction": 30,
         "sql_filtering": 45,
-        "vector_search_direct": 60,
+        "vector_search_direct": 30,
         "vector_recommendations": 70,
+        "rewrite": 70,
         "generation": 85,
         "wikipedia_enrich": 90,
         "enrich_with_wiki": 90,

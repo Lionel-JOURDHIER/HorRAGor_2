@@ -174,6 +174,7 @@ def direct_movie_detail_node(state: AgentState) -> Dict[str, Any]:
     # 1. Recherche vectorielle → FilmShort (tmdb_id uniquement)
     logger.info("Étape 1/4 : Interrogation du catalogue vectoriel FAISS (top_k=1).")
     movies = search_vector_catalog.func(query=title_to_search, top_k=1)
+    steps.append(AgentStep(step="recherche", status="success"))
 
     if not movies:
         logger.warning(
@@ -196,7 +197,9 @@ def direct_movie_detail_node(state: AgentState) -> Dict[str, Any]:
     )
     with db_session() as session:
         film_detail = get_film_details_by_id(session, film_short.tmdb_id)
+    steps.append(AgentStep(step="sql_filtering", status="success"))
 
+    #! Normalement impossible
     if not film_detail:
         logger.error(
             f"Incohérence détectée : Film trouvé dans FAISS mais introuvable dans la table SQL (ID: {film_short.tmdb_id})"
@@ -224,6 +227,7 @@ def direct_movie_detail_node(state: AgentState) -> Dict[str, Any]:
         f"  Score agrégé : {film_detail.aggregated_score}/10\n"
         f"  Collection : {film_detail.collection or 'Aucune'}"
     )
+    steps.append(AgentStep(step="rewrite", status="success"))
 
     # 4. Génération
     logger.info("Étape 4/4 : Envoi du contexte complet au générateur LLM.")
@@ -308,6 +312,7 @@ def filter_and_search_hybrid_node(state: AgentState) -> Dict[str, Any]:
                 merged_filters.release_year_max,
                 merged_filters.release_year_min,
             )
+    #! fin merge_filters_node
 
     # 4. Pré-filtrage SQL
     logger.info("Étape 4/7 : Exécution du pré-filtrage SQL relationnel.")
