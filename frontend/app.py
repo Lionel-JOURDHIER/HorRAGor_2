@@ -4,6 +4,7 @@ Application Web Front-End Streamlit - Interface Utilisateur de HorRAGor.
 Ce module est le point d'entrée de l'interface graphique conçue par Flavie.
 
 Fonctionnalités principales :
+    - Système d'authentification : Connexion et inscription des utilisateurs (Epic 10 - Flavie)
     - Formulaire de Préférences Globales : Implémente les sélections physiques
       pour enrichir toutes les demandes :
         * Sélecteur du Réalisateur (alimenté par '/list_réal').
@@ -17,7 +18,7 @@ Dépendances principales :
     - streamlit (st.sidebar, st.slider, st.multiselect, st.chat_input)
     - requests
 
-Auteur : Flavie (Epic 7)
+Auteurs : Flavie (Epic 7 & Epic 10)
 """
 
 import streamlit as st
@@ -26,6 +27,11 @@ from components.components import (
     display_agent_status,
     display_chat_message,
     display_movie_list,
+)
+from components.auth_components import (
+    check_authentication,
+    logout_button,
+    render_login_page,
 )
 from utils.api_client import (
     check_health,
@@ -593,6 +599,17 @@ def main():
     # Initialisation
     init_session_state()
 
+    # ===== VÉRIFICATION D'AUTHENTIFICATION (EPIC 10) =====
+    if not check_authentication():
+        # Si l'utilisateur n'est pas connecté, afficher la page de login
+        render_login_page()
+        return
+    
+    # Si l'utilisateur est connecté, afficher le bouton de déconnexion
+    logout_button()
+    
+    # ===== APPLICATION PRINCIPALE =====
+    
     # Vérification de l'API (DOIT être appelé AVANT display_header pour mettre à jour api_status)
     check_api_status()
 
