@@ -77,6 +77,8 @@ from api.schemas import (
 from database.connection import get_db
 from database.queries import get_all_directors, get_all_genres, get_film_details_by_id
 
+from monitoring.langfuse_client import langfuse
+
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
 
@@ -199,7 +201,15 @@ async def chat(request: ChatRequest):
     """
 
     try:
+
+        trace = langfuse.trace(
+            name="chat_response",
+            input={"message": request.message}
+        )
+
         result = run_agent(request)
+
+        trace.update(output={"response": result})
 
         return ChatResponse(
             answer=result.get("answer") or "No answer generated",
@@ -375,3 +385,31 @@ async def wikipedia(tmdb_id: int, session: Session = Depends(get_db)):
         raise HTTPException(
             status_code=500, detail=f"Failed to retrieve film: {str(e)}"
         )
+
+# LANGFUUSE ---------------------------------------------------------------
+@app.middleware("http")
+async def langfuse_middleware(
+        request: Request,
+        call_next
+):
+
+    trace = langfuse.trace(
+        name=request.url.path,
+        input={
+            "method": request.method,
+            "path": request.url.path
+        }
+    )
+
+
+    response = await call_next(request)
+
+
+    trace.update(
+        output={
+            "status_code": response.status_code
+        }
+    )
+
+
+    return response
