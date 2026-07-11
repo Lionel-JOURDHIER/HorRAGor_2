@@ -1,23 +1,35 @@
+from pathlib import Path
+
 import pytest
 
 from agents.tools.sql_tools import _build_filtered_ids, filter_films_by_criteria
 from agents.tools.vector_tools import (
     SMALL_POOL_THRESHOLD,
+    faiss_global_service,
     search_similar_movies_by_id,
     search_vector_catalog,
 )
 from api.schemas import FilmShort
 from database.connection import db_session
-from database.faiss_service import faiss_global_service
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_faiss_index():
-    """Initialise l'index FAISS global une seule fois pour ce module de test."""
-    with db_session() as session:
-        faiss_global_service.build_index(session)
-    yield
-    # Optionnel : nettoyage si nécessaire à la fin du module
+    """Hydrate le service FAISS vide avec le fichier d'index physique pour les tests."""
+
+    # 1. Résolution dynamique du chemin vers ton fichier (indépendant du dossier d'où pytest est lancé)
+    project_root = Path(__file__).resolve().parent.parent.parent
+    index_path = project_root / "faiss_data" / "horragor.index"
+    mapping_path = project_root / "faiss_data" / "horragor_mapping.json"
+
+    # Sécurité : on s'assure que le test trouve bien le fichier
+    assert index_path.exists(), f"❌ Fichier index introuvable à : {index_path}"
+
+    # 2. Chargement des données dans ton instance globale
+    # (Remplace "load_index" par le vrai nom de la méthode dans ta classe FaissService)
+    faiss_global_service.load_index(
+        index_path=str(index_path), mapping_path=str(mapping_path)
+    )
 
 
 # ──────────────────────────────────────────────────────────────
@@ -338,3 +350,35 @@ def test_build_filtered_ids_with_release_year_bounds():
 
         # On valide que la requête s'exécute correctement et renvoie une liste
         assert isinstance(result, list)
+
+
+def test_search_in_pool_faiss_id_not_in_sub_mapping():
+    """Couvre la condition de sécurité de la boucle de restitution 'if faiss_id in sub_mapping'."""
+    import numpy as np
+
+    from agents.tools.vector_tools import _search_in_pool
+
+    candidate_ids = [123]
+    dummy_vector = [0.1] * 1024
+    mock_vector = [0.2] * 1024
+
+    # On simule un comportement où FAISS retourne un ID (-1) qui n'est pas dans notre dictionnaire local
+    mock_D = np.array([[0.5]], dtype="float32")
+    mock_I = np.array([[-1]], dtype="int64")  # -1 n'existe pas dans sub_mapping
+
+    with (
+        patch(
+            "database.faiss_service.faiss_global_service.get_vector_by_id",
+            return_value=mock_vector,
+        ),
+        patch("faiss.IndexFlatL2.search", return_value=(mock_D, mock_I)),
+    ):
+        results = _search_in_pool(
+            query_vector=dummy_vector,
+            candidate_ids=candidate_ids,
+            top_k=1,
+            exclude_id=None,
+        )
+
+        # Le résultat doit être vide puisque l'ID -1 a été filtré et ignoré
+        assert results == []

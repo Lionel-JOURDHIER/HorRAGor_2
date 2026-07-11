@@ -132,7 +132,11 @@ def test_get_all_genres(mock_session):
 def test_get_films_short_by_ids(mock_session):
     """Vérifie le mapping compact au format FilmShort (Retour FAISS)."""
     mock_film = MagicMock(
-        tmdb_id=898555, title="Machine Learning", release_date=date(2021, 11, 13)
+        tmdb_id=898555,
+        title="Machine Learning",
+        release_date=date(2021, 11, 13),
+        overview="Un excellent film sur l'IA.",  # <-- Ajoute ceci
+        poster_path="/chemin_vers_poster.jpg",  # <-- Et ceci pour être sûr
     )
     mock_score = MagicMock(vote_average=10.0)
 

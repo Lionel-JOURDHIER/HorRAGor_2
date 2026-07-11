@@ -82,3 +82,98 @@ def test_run_pipeline_batch_recovery(mock_get_db, mock_embed):
     # Vérifie que malgré le crash, le merge du tampon (Film 1 et Film 2) a bien été exécuté
     assert mock_session.merge.called
     assert mock_session.commit.called
+
+
+# --- NOUVEAUX TESTS À AJOUTER À LA FIN DU FICHIER ---
+
+
+def test_save_and_load_index(tmp_path):
+    """Vérifie la persistance sur disque (écriture et lecture) de l'index et du mapping."""
+    # 1. Préparation d'un service avec des données factices
+    service = FaissService(dimension=4)  # Dimension réduite pour le test
+    test_vec = np.array([[0.1, 0.2, 0.3, 0.4]], dtype="float32")
+    service.index.add(test_vec)
+    service.id_mapping = {0: 123}
+
+    # Chemins temporaires gérés par pytest
+    index_file = tmp_path / "test.index"
+    mapping_file = tmp_path / "test.json"
+
+    # 2. Test de la sauvegarde
+    service.save_index(str(index_file), str(mapping_file))
+
+    assert index_file.exists(), "Le fichier .index n'a pas été créé."
+    assert mapping_file.exists(), "Le fichier .json de mapping n'a pas été créé."
+
+    # 3. Test du chargement dans un nouveau service vide
+    new_service = FaissService(dimension=4)
+    success = new_service.load_index(str(index_file), str(mapping_file))
+
+    assert success is True
+    assert new_service.index.ntotal == 1
+    # Vérifie que les clés JSON (str) ont bien été reconverties en int
+    assert new_service.id_mapping == {0: 123}
+
+
+def test_load_index_missing_files(tmp_path):
+    """Vérifie le comportement quand les fichiers d'index sont absents."""
+    service = FaissService(dimension=4)
+    success = service.load_index(
+        str(tmp_path / "none.index"), str(tmp_path / "none.json")
+    )
+
+    assert success is False
+
+
+def test_load_or_build_when_files_exist():
+    """Vérifie que la construction est ignorée si l'index est chargé depuis le disque."""
+    service = FaissService(dimension=4)
+    mock_session = MagicMock()
+
+    # On simule un chargement réussi
+    service.load_index = MagicMock(return_value=True)
+    service.build_index = MagicMock()
+
+    service.load_or_build(mock_session)
+
+    # L'index a été trouvé, build_index ne doit PAS être appelé
+    service.load_index.assert_called_once()
+    service.build_index.assert_not_called()
+
+
+def test_load_or_build_when_files_missing():
+    """Vérifie la construction et la sauvegarde si l'index est introuvable sur le disque."""
+    service = FaissService(dimension=4)
+    mock_session = MagicMock()
+
+    # On simule l'absence de fichiers
+    service.load_index = MagicMock(return_value=False)
+    service.build_index = MagicMock()
+    service.save_index = MagicMock()
+
+    service.load_or_build(mock_session)
+
+    # L'index n'a pas été trouvé, build_index ET save_index doivent être appelés
+    service.load_index.assert_called_once()
+    service.build_index.assert_called_once_with(mock_session)
+    service.save_index.assert_called_once()
+
+
+def test_get_vector_by_id():
+    """Vérifie la récupération d'un vecteur depuis la RAM via l'ID TMDB."""
+    service = FaissService(dimension=2)
+
+    # Cas 1 : Index vide
+    assert service.get_vector_by_id(999) is None
+
+    # Ajout d'un vecteur
+    test_vec = np.array([[0.5, 0.8]], dtype="float32")
+    service.index.add(test_vec)
+    service.id_mapping[0] = 999
+
+    # Cas 2 : Récupération réussie
+    vec = service.get_vector_by_id(999)
+    assert pytest.approx(vec) == [0.5, 0.8]
+
+    # Cas 3 : ID TMDB introuvable dans le mapping
+    assert service.get_vector_by_id(777) is None
