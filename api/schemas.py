@@ -30,7 +30,7 @@ Auteur/Responsable : Hanna (Epic 3)
 
 # IMPORT
 from datetime import date
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -74,6 +74,7 @@ class FilmShort(BaseModel):
     tmdb_score: Optional[float] = None
     similarity_score: Optional[float] = None
     poster_url: Optional[str] = None
+    synopsis: Optional[str] = None
 
 
 class FilmSearchResponse(BaseModel):
@@ -165,6 +166,16 @@ class AgentState(BaseModel):
     answer: Optional[str] = None
     search_branch: Optional[str] = None
     retry_count: int = 0
+    last_displayed_movies_id: Optional[List[int]] = Field(default_factory=list)
+    intent: Optional[str] = None
+    branch_search_wiki: str = Field(
+        default="RAG"
+    )  # posé par search_vector_node / load_film_node
+    enrich_ids: List[int] = Field(default_factory=list)  # posé par verif_film_node
+    data_enrich: Dict[int, Any] = Field(
+        default_factory=dict
+    )  # posé par wikipedia_search_node
+    data_enriched: Optional[str] = None
 
 
 # CHAT REQUESTS RESPONSE --------------------------------------------------
