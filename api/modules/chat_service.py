@@ -24,11 +24,15 @@ Functions:
     run_agent_stream_final:
         Stream execution updates and emit the final aggregated result.
 """
+
 from typing import Any
-from agents.graph import graph
-from api.schemas import ChatFilters
+
+from agents.graph import graph as build_my_graph
 from api.schemas import AgentState as GraphState
-from typing import Any, cast
+from api.schemas import ChatFilters
+
+graph = build_my_graph()
+
 
 def normalize_steps(steps: list[Any] | None) -> list[dict]:
     """
@@ -46,7 +50,6 @@ def normalize_steps(steps: list[Any] | None) -> list[dict]:
     result = []
 
     for s in steps or []:
-
         # already dict → keep
         if isinstance(s, dict):
             result.append(s)
@@ -58,10 +61,12 @@ def normalize_steps(steps: list[Any] | None) -> list[dict]:
             continue
 
         # fallback (safety net)
-        result.append({
-            "step": getattr(s, "step", None),
-            "status": getattr(s, "status", None),
-        })
+        result.append(
+            {
+                "step": getattr(s, "step", None),
+                "status": getattr(s, "status", None),
+            }
+        )
 
     return result
 
@@ -89,15 +94,13 @@ def run_agent(chat_request):
         sql_filters=ChatFilters(),
         candidate_ids=None,
         retrieved_movies=[],
-        answer=None
+        answer=None,
     )
 
     final_state = graph.invoke(initial_state, config={"recursion_limit": 10})
 
-    return {
-        **final_state,
-        "steps": normalize_steps(final_state.get("steps"))
-    }
+    return {**final_state, "steps": normalize_steps(final_state.get("steps"))}
+
 
 def run_agent_stream(chat_request):
     """
@@ -122,11 +125,12 @@ def run_agent_stream(chat_request):
         sql_filters=ChatFilters(),
         candidate_ids=None,
         retrieved_movies=[],
-        answer=None
+        answer=None,
     )
 
-    return graph.stream(initial_state, config={"recursion_limit": 10}, stream_mode="updates")
-
+    return graph.stream(
+        initial_state, config={"recursion_limit": 10}, stream_mode="updates"
+    )
 
 
 def run_agent_stream_final(chat_request):
@@ -159,13 +163,11 @@ def run_agent_stream_final(chat_request):
         sql_filters=ChatFilters(),
         candidate_ids=None,
         retrieved_movies=[],
-        answer=None
+        answer=None,
     )
 
     stream = graph.stream(
-        initial_state,
-        config={"recursion_limit": 10},
-        stream_mode="updates"
+        initial_state, config={"recursion_limit": 10}, stream_mode="updates"
     )
 
     final_state: dict[str, Any] = {}
@@ -175,7 +177,15 @@ def run_agent_stream_final(chat_request):
             continue
 
         for node_name, state in event.items():
-
+            if node_name in ("card_node", "format_cards_node"):
+                payload = {
+                    "type": "card",
+                    "films": [
+                        (f.model_dump() if hasattr(f, "model_dump") else f)
+                        for f in (state.get("retrieved_movies") or [])
+                    ],
+                }
+                yield {"type": "card", "payload": payload}
             # Pydantic -> dict
             if hasattr(state, "model_dump"):
                 state = state.model_dump()
@@ -188,18 +198,14 @@ def run_agent_stream_final(chat_request):
                 "node": node_name,
                 "step": {
                     "current_step": final_state.get("current_step"),
-                    "steps": normalize_steps(
-                        final_state.get("steps", [])
-                    )
-                }
+                    "steps": normalize_steps(final_state.get("steps", [])),
+                },
             }
 
     yield {
         "type": "final",
         "result": {
             **final_state,
-            "steps": normalize_steps(
-                final_state.get("steps", [])
-            )
-        }
+            "steps": normalize_steps(final_state.get("steps", [])),
+        },
     }
