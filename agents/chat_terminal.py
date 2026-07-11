@@ -17,7 +17,7 @@ root_path = Path(__file__).resolve().parents[1]  # agents/ → racine
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))
 
-from agents.graph import graph
+from agents.graph import graph as build_my_graph
 from api.schemas import ChatFilters
 from database.connection import db_session
 from database.faiss_service import faiss_global_service
@@ -45,14 +45,18 @@ def build_faiss():
     print()
 
 
-def chat(user_input: str) -> str:
+_graph = build_my_graph()
+
+
+def chat(user_input: str, thread_id: str = "default") -> str:
+    config = {"configurable": {"thread_id": thread_id}}
     """Envoie une requête à l'agent et retourne la réponse finale."""
     initial_state = {
         "user_query": user_input,
         "initial_filters": ChatFilters(),
     }
 
-    result = graph.invoke(initial_state)
+    result = _graph.invoke(initial_state, config=config)
     return result.get("answer", "⚠️ Aucune réponse générée.")
 
 
