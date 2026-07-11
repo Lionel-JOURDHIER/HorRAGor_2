@@ -38,7 +38,7 @@ database_path = Path(__file__).resolve().parent
 root_path = database_path.parent
 
 if str(root_path) not in sys.path:
-    sys.path.append(str(root_path))
+    sys.path.append(str(root_path))  # pragma: no cover
 
 from api.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
 from database.tables.collections import Collection
@@ -203,6 +203,7 @@ def get_films_short_by_ids(session: Session, tmdb_ids: List[int]) -> List[FilmSh
             if score_tmdb and score_tmdb.vote_average
             else None,
             poster_url=f"{film.poster_path}" if film.poster_path else None,
+            synopsis=film.overview,
         )
 
     # On réordonne pour respecter scrupuleusement le classement de FAISS
