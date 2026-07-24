@@ -44,8 +44,7 @@ from agents.prompts import (
 from agents.tools.sql_tools import filter_films_by_criteria, get_films_details
 from agents.tools.vector_tools import search_vector_catalog
 from shared.schemas import AgentState, AgentStep, ChatFilters
-from database.connection import db_session
-from database.queries import get_films_short_by_ids
+from api.modules.database_client import get_films_short_by_ids
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
@@ -640,7 +639,7 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
             return update
 
 
-def format_cards_node(state: AgentState) -> Dict[str, Any]:
+async def format_cards_node(state: AgentState) -> Dict[str, Any]:
     """
     Branche hybride uniquement.
     Ré-hydrate les FilmShort depuis SQL (synopsis inclus) via get_films_short_by_ids
@@ -660,8 +659,7 @@ def format_cards_node(state: AgentState) -> Dict[str, Any]:
 
     # Appel de la base de donnée pour récupérer toutes les informations SQL pour Film_shorts
     try:
-        with db_session() as session:
-            films = get_films_short_by_ids(session, tmdb_ids)
+        films = await get_films_short_by_ids(tmdb_ids)
         # Cas 2 : Hydratation Réussie
         logger.info(
             f"[format_cards_node] {len(films)} FilmShort hydratés : {[f.title for f in films]}"
