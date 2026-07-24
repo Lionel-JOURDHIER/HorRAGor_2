@@ -11,7 +11,7 @@ from agents.graph import (
     wrapper_route_validation_hybrid,
     wrapper_route_verif_film,
 )
-from api.schemas import AgentState
+from shared.schemas import AgentState
 
 
 def test_graph_compilation_and_nodes():

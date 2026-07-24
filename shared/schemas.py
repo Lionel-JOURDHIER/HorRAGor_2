@@ -117,6 +117,24 @@ class FilmDetail(BaseModel):
     collection: Optional[str] = None
 
 
+class FilmFilterRequest(BaseModel):
+    tmdb_id: int | None = None
+    realisateur: str | None = None
+
+    genres_included: list[str] | None = None
+    genres_excluded: list[str] | None = None
+
+    release_year_min: int | None = None
+    release_year_max: int | None = None
+
+    tmdb_score_min: float | None = None
+
+    runtime_min: int | None = None
+    runtime_max: int | None = None
+
+class FilmIdsRequest(BaseModel):
+    tmdb_ids: list[int]
+
 # FILTERS -----------------------------------------------------------
 class ChatFilters(BaseModel):
     """Optional filters applied to a movie search request."""

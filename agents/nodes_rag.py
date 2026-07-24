@@ -41,9 +41,9 @@ from agents.prompts import (
     ROUTER_PROMPT,
     TITLE_DETECTOR_PROMPT,
 )
-from agents.tools.sql_tools import filter_films_by_criteria, get_films_details_by_ids
+from agents.tools.sql_tools import filter_films_by_criteria, get_films_details
 from agents.tools.vector_tools import search_vector_catalog
-from api.schemas import AgentState, AgentStep, ChatFilters
+from shared.schemas import AgentState, AgentStep, ChatFilters
 from database.connection import db_session
 from database.queries import get_films_short_by_ids
 
@@ -463,7 +463,7 @@ def hydratation_node(state: AgentState) -> Dict[str, Any]:
     logger.info(f"[hydratation_node] Hydratation pour tmdb_id={tmdb_id}")
 
     # Hydratation du film selectionné.
-    details = get_films_details_by_ids([tmdb_id])
+    details = get_films_details([tmdb_id])
 
     # Cas 2 : Hydratation échouée : Film Absent de la table SQL
     if not details:
@@ -835,7 +835,7 @@ def load_film_node(state: AgentState) -> Dict[str, Any]:
 
     # Hydratation des films pour contexte.
     try:
-        details = get_films_details_by_ids(film_ids)
+        details = get_films_details(film_ids)
     except Exception as e:
         logger.error(f"[load_film_node] Erreur SQL : {e}.")
         details = []

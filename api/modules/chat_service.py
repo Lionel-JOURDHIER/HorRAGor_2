@@ -28,8 +28,8 @@ Functions:
 from typing import Any
 
 from agents.graph import graph as build_my_graph
-from api.schemas import AgentState as GraphState
-from api.schemas import ChatFilters
+from shared.schemas import AgentState as GraphState
+from shared.schemas import ChatFilters
 
 graph = build_my_graph()
 

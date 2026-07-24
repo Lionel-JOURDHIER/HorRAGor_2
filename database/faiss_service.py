@@ -29,9 +29,9 @@ from pathlib import Path
 
 import faiss
 import numpy as np
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import Session
 
-from database.models import FilmEmbedding
+# from database.models import FilmEmbedding
 
 # --- CONFIGURATION DES CHEMINS ABSOLUS (DRY) ---
 BASE_DIR = Path(__file__).resolve().parent.parent  # Racine du projet HorRAGor
@@ -46,19 +46,19 @@ class FaissService:
         self.index = faiss.IndexFlatL2(dimension)
         self.id_mapping = {}
 
-    def build_index(self, session: Session):
-        """Charge tous les vecteurs depuis Supabase vers FAISS."""
-        embeddings = session.query(FilmEmbedding).all()
-        vectors = []
-        for i, emb in enumerate(embeddings):
-            vector = np.array(emb.embedd_title, dtype="float32")
-            vectors.append(vector)
-            self.id_mapping[i] = emb.tmdb_id
+    # def build_index(self, session: Session):
+    #     """Charge tous les vecteurs depuis Supabase vers FAISS."""
+    #     embeddings = session.query(FilmEmbedding).all()
+    #     vectors = []
+    #     for i, emb in enumerate(embeddings):
+    #         vector = np.array(emb.embedd_title, dtype="float32")
+    #         vectors.append(vector)
+    #         self.id_mapping[i] = emb.tmdb_id
 
-        if vectors:
-            data = np.array(vectors).astype("float32")
-            self.index.add(data)
-            print(f"✅ Index FAISS construit avec {len(vectors)} films.")
+    #     if vectors:
+    #         data = np.array(vectors).astype("float32")
+    #         self.index.add(data)
+    #         print(f"✅ Index FAISS construit avec {len(vectors)} films.")
 
     def save_index(self, index_path: str, mapping_path: str) -> None:
         """
@@ -114,17 +114,17 @@ class FaissService:
 
         return results
 
-    def load_or_build(self, session: Session) -> None:
-        """Tente de charger l'index depuis le disque, sinon le construit depuis SQL."""
-        # Utilise les chemins absolus centralisés du module
-        if self.load_index(INDEX_PATH, MAPPING_PATH):
-            return
+    # def load_or_build(self, session: Session) -> None:
+    #     """Tente de charger l'index depuis le disque, sinon le construit depuis SQL."""
+    #     # Utilise les chemins absolus centralisés du module
+    #     if self.load_index(INDEX_PATH, MAPPING_PATH):
+    #         return
 
-        print("ℹ️ Index introuvable sur le disque. Construction depuis Supabase...")
-        self.build_index(session)
+    #     print("ℹ️ Index introuvable sur le disque. Construction depuis Supabase...")
+    #     # self.build_index(session)
 
-        print("💾 Persistance automatique de l'index sur le disque...")
-        self.save_index(INDEX_PATH, MAPPING_PATH)
+    #     print("💾 Persistance automatique de l'index sur le disque...")
+    #     self.save_index(INDEX_PATH, MAPPING_PATH)
 
     def get_vector_by_id(self, movie_id: int) -> list[float] | None:
         """
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     try:
         print("🚀 Initialisation du service FAISS pour test...")
         service = FaissService(dimension=1024)
-        service.build_index(session)
+        # service.build_index(session)
 
         if service.index.ntotal > 0:
             # 1. On utilise le même modèle que pour le populate

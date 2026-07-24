@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from api.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
+from shared.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
 from database.queries import (
     get_all_directors,
     get_all_genres,

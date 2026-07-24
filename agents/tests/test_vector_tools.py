@@ -9,7 +9,7 @@ from agents.tools.vector_tools import (
     search_similar_movies_by_id,
     search_vector_catalog,
 )
-from api.schemas import FilmShort
+from shared.schemas import FilmShort
 from database.connection import db_session
 
 

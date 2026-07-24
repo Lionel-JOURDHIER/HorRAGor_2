@@ -18,7 +18,7 @@ from agents.nodes_rag import (
     validation_node,
     verif_film_node,
 )
-from api.schemas import ChatFilters
+from shared.schemas import ChatFilters
 
 # ==============================================================================
 # FIXTURES & MOCKS

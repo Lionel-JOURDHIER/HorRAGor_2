@@ -7,7 +7,7 @@ from agents.tools.sql_tools import (
     filter_films_by_criteria,
     get_films_details_by_ids,
 )
-from api.schemas import FilmDetail
+from shared.schemas import FilmDetail
 
 # Structure nommée pour simuler les lignes Row retournées par SQLAlchemy
 SQLRowSimulation = namedtuple(

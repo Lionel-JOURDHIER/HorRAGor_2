@@ -36,7 +36,7 @@ if str(root_path) not in sys.path:
 
 from agents.config import llm_synthesis
 from agents.tools.wiki_tools import wikipedia_search
-from api.schemas import AgentState, AgentStep
+from shared.schemas import AgentState, AgentStep
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger

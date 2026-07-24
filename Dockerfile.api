@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir uv
 
 # Copie des fichiers de dépendances de chaque package
 # On copie d'abord pour profiter du cache Docker si le code change mais pas les deps
-COPY database/pyproject.toml database/uv.lock ./database/
+
 COPY agents/pyproject.toml agents/uv.lock ./agents/
 COPY api/pyproject.toml api/uv.lock ./api/
 
@@ -30,13 +30,11 @@ COPY api/pyproject.toml api/uv.lock ./api/
 RUN uv pip install --system --no-cache \
     fastapi \
     uvicorn[standard] \
-    sqlalchemy \
-    psycopg2-binary \
-    pgvector \
     python-dotenv \
     langchain-core \
     langchain-ollama \
     langgraph \
+    httpx \
     faiss-cpu \
     numpy \
     pydantic \

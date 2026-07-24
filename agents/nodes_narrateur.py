@@ -38,7 +38,7 @@ from agents.config import llm_narrateur
 from agents.prompts import (
     NARRATOR_PERSONA_PROMPT,
 )
-from api.schemas import AgentStep
+from shared.schemas import AgentStep
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger

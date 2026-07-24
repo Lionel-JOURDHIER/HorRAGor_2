@@ -53,7 +53,7 @@ from agents.router import (
 )
 
 # Import de l'état global
-from api.schemas import AgentState
+from shared.schemas import AgentState
 
 os.environ["LANGGRAPH_STRICT_MSGPACK"] = "false"
 
