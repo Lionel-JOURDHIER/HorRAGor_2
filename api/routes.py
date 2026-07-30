@@ -1,51 +1,91 @@
 """
 api/routes.py
 
-Routes de l'API IA HorRAGor.
+Module de définition des routes HTTP de l'API HorRAGor.
 
-Responsabilités:
-- communication client
-- exécution agent LangGraph
-- streaming SSE
-- génération de réponses
+Ce module centralise l'ensemble des endpoints REST exposés par FastAPI.
+Il assure la communication entre le client (interface Streamlit),
+les services métiers, la base de données Supabase et l'agent ReAct
+implémenté avec LangGraph.
 
-La base de données est accessible uniquement via Database API.
+Endpoints disponibles :
+    - GET /health
+        Vérifie la disponibilité de l'API.
+
+    - GET /film/{tmdb_id}
+        Retourne les informations détaillées d'un film.
+
+    - GET /list_real
+        Retourne la liste des réalisateurs disponibles.
+
+    - GET /list_genre
+        Retourne la liste des genres disponibles.
+
+    - POST /chat/response
+        Exécute l'agent conversationnel et retourne la réponse finale,
+        les étapes d'exécution et les recommandations de films.
+
+    - POST /chat/stream
+        Diffuse en temps réel les étapes d'exécution de l'agent
+        via Server-Sent Events (SSE).
+
+    - POST /chat/response_stream
+        Diffuse les étapes intermédiaires de l'agent puis la réponse
+        finale complète via Server-Sent Events (SSE).
+
+    - GET /wikipedia
+        Récupère des informations complémentaires depuis Wikipédia.
+
+Responsabilités :
+    - Validation des requêtes entrantes via les schémas Pydantic.
+    - Appel des services métier.
+    - Gestion des réponses HTTP.
+    - Gestion des erreurs et des exceptions.
+
+Dépendances principales :
+    - fastapi
+    - schemas
+    - services
+    - langgraph
+
+Auteur : Hanna
+Projet : HorRAGor
 """
 
+# IMPORT ----------------------------------------------------------
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from agents.tools.wiki_tools import wikipedia_search
+from api.modules.chat_service import run_agent, run_agent_stream, run_agent_stream_final
+from database.connection import get_db
+from database.queries import get_all_directors, get_all_genres, get_film_details_by_id
 
-from api.modules.chat_service import (
-    run_agent,
-    run_agent_stream,
-    run_agent_stream_final,
-)
-from api.modules.database_client import get_film
-
+# LOGGER ------------------------------------------------------
+from logger import get_logger, setup_logger
 from shared.schemas import (
     AgentStep,
     ChatRequest,
     ChatResponse,
-    FilmShort,
+    DirectorsResponse,
     ErrorResponse,
-    WikipediaResponse,
+    FilmDetail,
+    FilmShort,
+    GenresResponse,
     HealthResponse,
-    FilmDetail
+    WikipediaResponse,
 )
 
-# LOGGER -----------------------------------------------------------
-from logger import get_logger, setup_logger
-
-
 setup_logger()
-logger = get_logger("AI_ROUTES")
+logger = get_logger("ROUTES")
 
-# ROUTER -----------------------------------------------------------
+# ROUTER ---------------------------------------------------------
 router = APIRouter()
+
 
 # HEALTH ----------------------------------------------------------
 @router.get(
@@ -54,24 +94,77 @@ router = APIRouter()
     responses={500: {"model": ErrorResponse}},
     tags=["System"],
 )
-async def health():
-    return {
-        "status": "ok",
-        "service": "ai_api"
-    }
+async def health(db: Session = Depends(get_db)):
+    """Check API availability."""
+    try:
+        db.execute(text("SELECT 1"))
+        logger.info("HEATH SUSSESS")
+        return HealthResponse(status="ok")
+    except Exception as e:
+        logger.error(f"Health check failed: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {e!s}")
 
-# FILMS ---------------------------------------------------------
-async def filter_films(filters: dict):
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{DATABASE_API_URL}/db/filter_films",
-            json=filters,
+# LISTS -----------------------------------------------------------
+@router.get(
+    "/list_real",
+    response_model=DirectorsResponse,
+    responses={500: {"model": ErrorResponse}},
+    tags=["Metadata"],
+)
+async def list_real(session: Session = Depends(get_db)):
+    """Return list of directors."""
+    try:
+        directors = get_all_directors(session)
+        return directors
+    except Exception as e:
+        logger.error(f"Failed to retrieve directors: {e!s}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve directors: {e!s}"
         )
 
-    response.raise_for_status()
 
-    return response.json()["tmdb_ids"]
+@router.get(
+    "/list_genre",
+    response_model=GenresResponse,
+    responses={500: {"model": ErrorResponse}},
+    tags=["Metadata"],
+)
+async def list_genre(session: Session = Depends(get_db)):
+    """Return list of genres."""
+    try:
+        genres = get_all_genres(session)
+        return genres
+    except Exception as e:
+        logger.error(f"Failed to retrieve genres: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve genres: {e!s}")
+
+
+# FILMS -----------------------------------------------------------
+@router.get(
+    "/film/{tmdb_id}",
+    response_model=FilmDetail,
+    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    tags=["Films"],
+)
+async def get_film_detail(tmdb_id: int, session: Session = Depends(get_db)):
+    """Return full movie details by TMDB id."""
+    try:
+        film = get_film_details_by_id(session, tmdb_id)
+        if film is None:
+            logger.error("Film is None")
+            raise HTTPException(status_code=404, detail="Film not found")
+
+        return film
+
+    except HTTPException:
+        logger.error("Error get_film_details_by_id")
+        raise
+
+    except Exception as e:
+        logger.error(f"Failed to retrieve film: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve film: {e!s}")
+
 
 # CHAT ----------------------------------------------------------
 @router.post(
@@ -123,7 +216,7 @@ async def chat(request: ChatRequest):
     except Exception as e:
         logger.exception("Failed to get response from agent")
         raise HTTPException(
-            status_code=500, detail=f"Failed to get response from agent: {str(e)}"
+            status_code=500, detail=f"Failed to get response from agent: {e!s}"
         )
 
 
@@ -150,7 +243,7 @@ async def chat_stream(request: ChatRequest):
     async def event_generator():
         try:
             stream = run_agent_stream(request)
-            for event in stream:
+            async for event in stream:
                 if not isinstance(event, dict):
                     continue
 
@@ -204,10 +297,10 @@ def chat_stream_final(request: ChatRequest):
         the final validated ChatResponse.
     """
 
-    def event_generator():
+    async def event_generator():
         try:
             stream = run_agent_stream_final(request)
-            for event in stream:
+            async for event in stream:
                 # STEP EVENTS
                 if event["type"] == "step":
                     steps = event["step"]["steps"]
@@ -216,12 +309,9 @@ def chat_stream_final(request: ChatRequest):
                         continue
 
                     for step in steps:
-                        payload = {
-                            "node": event["node"],
-                            "step": step
-                        }
+                        payload = {"node": event["node"], "step": step}
                         yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
- 
+
                     # last_step = steps[-1]
                     # payload = {"node": event["node"], "step": last_step}
                     # yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
@@ -261,48 +351,23 @@ def chat_stream_final(request: ChatRequest):
 @router.get(
     "/wikipedia/{tmdb_id}",
     response_model=WikipediaResponse,
-    responses={
-        404: {"model": ErrorResponse},
-        500: {"model": ErrorResponse},
-    },
+    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
     tags=["Wikipedia"],
 )
-async def wikipedia(tmdb_id: int):
+async def wikipedia(tmdb_id: int, session: Session = Depends(get_db)):
     """Retrieve movie info from Wikipedia using TMDB ID."""
     try:
-        film = await get_film(tmdb_id)
-
+        film = get_film_details_by_id(session, tmdb_id)
         if not film:
-            raise HTTPException(
-                status_code=404,
-                detail="Film not found"
-            )
+            raise HTTPException(status_code=404, detail="Film not found")
 
         title = film.title
         year = film.release_date.year if film.release_date else None
 
-        response_wiki = wikipedia_search.invoke(
-            {
-                "title": title,
-                "year": year,
-            }
-        )
-
-        logger.info(
-            "Successfully retrieved movie info from Wikipedia"
-        )
-
+        response_wiki = wikipedia_search.invoke({"title": title, "year": year})
+        logger.info("Sussesfully Retrieve movie info from Wikipedia")
         return response_wiki
 
-    except HTTPException:
-        raise
-
     except Exception as e:
-        logger.exception(
-            f"Failed to retrieve wikipedia info: {str(e)}"
-        )
-
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve wikipedia info: {str(e)}"
-        )
+        logger.error(f"Failed to retrieve film: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve film: {e!s}")

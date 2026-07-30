@@ -43,11 +43,11 @@ from agents.prompts import (
 )
 from agents.tools.sql_tools import filter_films_by_criteria, get_films_details
 from agents.tools.vector_tools import search_vector_catalog
-from shared.schemas import AgentState, AgentStep, ChatFilters
 from api.modules.database_client import get_films_short_by_ids
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
+from shared.schemas import AgentState, AgentStep, ChatFilters
 
 setup_logger()
 logger = get_logger("NODES")
@@ -356,7 +356,7 @@ def merge_filters_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-def search_vector_node(state: AgentState) -> Dict[str, Any]:
+async def search_vector_node(state: AgentState) -> Dict[str, Any]:
     """
     Exécute le pré-filtrage SQL puis la recherche FAISS.
     Commun aux deux branches (direct et hybride).
@@ -375,15 +375,17 @@ def search_vector_node(state: AgentState) -> Dict[str, Any]:
     candidate_ids = None
     if not is_direct and state.sql_filters:
         f = state.sql_filters
-        candidate_ids = filter_films_by_criteria.func(
-            realisateur=f.realisateur,
-            genres_included=f.genres_included or None,
-            genres_excluded=f.genres_excluded or None,
-            release_year_min=f.release_year_min,
-            release_year_max=f.release_year_max,
-            tmdb_score_min=f.tmdb_score_min,
-            runtime_min=f.runtime_min,
-            runtime_max=f.runtime_max,
+        candidate_ids = await filter_films_by_criteria.ainvoke(
+            {
+                "realisateur": f.realisateur,
+                "genres_included": f.genres_included or None,
+                "genres_excluded": f.genres_excluded or None,
+                "release_year_min": f.release_year_min,
+                "release_year_max": f.release_year_max,
+                "tmdb_score_min": f.tmdb_score_min,
+                "runtime_min": f.runtime_min,
+                "runtime_max": f.runtime_max,
+            }
         )
         logger.info(
             f"[search_vector_node] Pool SQL : {len(candidate_ids) if candidate_ids else 'None (catalogue complet)'}"
@@ -418,10 +420,8 @@ def search_vector_node(state: AgentState) -> Dict[str, Any]:
         )
     )
     # 2. Recherche FAISS
-    results = search_vector_catalog.func(
-        query=query,
-        top_k=top_k,
-        candidate_ids=candidate_ids,
+    results = await search_vector_catalog.ainvoke(
+        {"query": query, "candidate_ids": candidate_ids, "top_k": top_k}
     )
     logger.info(
         f"[search_vector_node] FAISS → {len(results)} résultat(s) pour query='{query}'"

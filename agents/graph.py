@@ -287,4 +287,4 @@ def graph():
 
 if __name__ == "__main__":
     # Instanciation de l'application
-    app = build_graph()
+    app = graph()

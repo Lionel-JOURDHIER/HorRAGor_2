@@ -71,7 +71,7 @@ def normalize_steps(steps: list[Any] | None) -> list[dict]:
     return result
 
 
-def run_agent(chat_request):
+async def run_agent(chat_request):
     """
     Execute the conversational agent workflow.
 
@@ -97,12 +97,19 @@ def run_agent(chat_request):
         answer=None,
     )
 
-    final_state = graph.invoke(initial_state, config={"recursion_limit": 10})
+    config = {
+        "recursion_limit": 10,
+        "configurable": {
+            "thread_id": getattr(chat_request, "session_id", "default_api_session")
+        },
+    }
+
+    final_state = await graph.ainvoke(initial_state, config=config)
 
     return {**final_state, "steps": normalize_steps(final_state.get("steps"))}
 
 
-def run_agent_stream(chat_request):
+async def run_agent_stream(chat_request):
     """
     Execute the workflow in streaming mode.
 
@@ -128,12 +135,17 @@ def run_agent_stream(chat_request):
         answer=None,
     )
 
-    return graph.stream(
-        initial_state, config={"recursion_limit": 10}, stream_mode="updates"
-    )
+    config = {
+        "recursion_limit": 10,
+        "configurable": {
+            "thread_id": getattr(chat_request, "session_id", "default_api_session")
+        },
+    }
+
+    return graph.astream(initial_state, config=config, stream_mode="updates")
 
 
-def run_agent_stream_final(chat_request):
+async def run_agent_stream_final(chat_request):
     """
     Stream workflow execution and aggregate the final state.
 
@@ -166,13 +178,18 @@ def run_agent_stream_final(chat_request):
         answer=None,
     )
 
-    stream = graph.stream(
-        initial_state, config={"recursion_limit": 10}, stream_mode="updates"
-    )
+    config = {
+        "recursion_limit": 10,
+        "configurable": {
+            "thread_id": getattr(chat_request, "session_id", "default_api_session")
+        },
+    }
+
+    stream = graph.astream(initial_state, config=config, stream_mode="updates")
 
     final_state: dict[str, Any] = {}
 
-    for event in stream:
+    async for event in stream:
         if not isinstance(event, dict):
             continue
 
