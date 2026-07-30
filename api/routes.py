@@ -331,7 +331,7 @@ def chat_stream_final(request: ChatRequest):
                             for s in (result.get("steps") or [])
                         ],
                         recommendations=[
-                            FilmShort.model_validate(r) if isinstance(r, dict) else r
+                            FilmDetail.model_validate(r) if isinstance(r, dict) else r
                             for r in (result.get("retrieved_movies") or [])
                         ],
                     )

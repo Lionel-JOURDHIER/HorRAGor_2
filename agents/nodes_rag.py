@@ -26,7 +26,7 @@ Auteur/Responsable : Équipe Agents
 
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -41,9 +41,9 @@ from agents.prompts import (
     ROUTER_PROMPT,
     TITLE_DETECTOR_PROMPT,
 )
-from agents.tools.sql_tools import filter_films_by_criteria, get_films_details
+from agents.tools.sql_tools import filter_films_by_criteria
 from agents.tools.vector_tools import search_vector_catalog
-from api.modules.database_client import get_films_short_by_ids
+from api.modules.database_client import get_films_details_by_ids, get_films_short_by_ids
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
@@ -78,10 +78,10 @@ CATALOG_GENRES = {
 
 
 class ValidationFilmListResult(BaseModel):
-    valid_titles: List[str] = Field(
+    valid_titles: list[str] = Field(
         description="Titres des films qui correspondent aux critères demandés."
     )
-    invalid_titles: List[str] = Field(
+    invalid_titles: list[str] = Field(
         description="Titres des films qui ne correspondent PAS aux critères."
     )
     feedback: str = Field(description="Explication concise du choix de validation.")
@@ -97,7 +97,7 @@ class ValidationResult(BaseModel):
     feedback: str = Field(
         description="Explication concise du choix de validation ou de ce qui fait défaut."
     )
-    corrected_title: Optional[str] = Field(
+    corrected_title: str | None = Field(
         default=None,
         description=(
             "Si tu identifies avec certitude le titre exact du film qui aurait dû être "
@@ -111,10 +111,10 @@ class FilmDataCheck(BaseModel):
     sujet: str = Field(
         description="Le sujet précis de la question : synopsis, réalisateur, score, budget, casting, année, collection, etc."
     )
-    films_ok: List[str] = Field(
+    films_ok: list[str] = Field(
         description="Titres des films pour lesquels la donnée demandée est présente et non vide."
     )
-    films_missing: List[str] = Field(
+    films_missing: list[str] = Field(
         description="Titres des films pour lesquels la donnée demandée est absente ou vide — nécessitent un enrichissement Wikipedia."
     )
     feedback: str = Field(
@@ -133,7 +133,7 @@ class IntentOutput(BaseModel):
 # ==============================================================================
 
 
-def intent_classifier_node(state: AgentState) -> Dict[str, Any]:
+def intent_classifier_node(state: AgentState) -> dict[str, Any]:
     """
     Étape 0 : Analyse et classifie l'intention globale de la requête utilisateur.
     Utilise ChatPromptTemplate pour forcer Ollama à respecter les consignes système.
@@ -212,7 +212,7 @@ def intent_classifier_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-def title_router_node(state: AgentState) -> Dict[str, Any]:
+def title_router_node(state: AgentState) -> dict[str, Any]:
     """
     Détecte la présence d'un titre de film dans la requête.
 
@@ -286,7 +286,7 @@ def title_router_node(state: AgentState) -> Dict[str, Any]:
 # ==============================================================================
 
 
-def merge_filters_node(state: AgentState) -> Dict[str, Any]:
+def merge_filters_node(state: AgentState) -> dict[str, Any]:
     """
     Extrait les filtres SQL depuis la requête utilisateur (LLM structuré),
     les merge avec initial_filters (front-end), valide les bornes.
@@ -356,7 +356,7 @@ def merge_filters_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-async def search_vector_node(state: AgentState) -> Dict[str, Any]:
+async def search_vector_node(state: AgentState) -> dict[str, Any]:
     """
     Exécute le pré-filtrage SQL puis la recherche FAISS.
     Commun aux deux branches (direct et hybride).
@@ -401,6 +401,7 @@ async def search_vector_node(state: AgentState) -> Dict[str, Any]:
             "retrieved_movies": [],
             "candidate_ids": [],
             "current_step": "no_results",
+            "retry_count": state.retry_count + 1,
             "steps": steps,
         }
     elif candidate_ids:
@@ -439,11 +440,12 @@ async def search_vector_node(state: AgentState) -> Dict[str, Any]:
         "retrieved_movies": results,
         "candidate_ids": candidate_ids,
         "current_step": "has_results" if results else "no_results",
+        "retry_count": 0 if results else state.retry_count + 1,
         "steps": steps,
     }
 
 
-def hydratation_node(state: AgentState) -> Dict[str, Any]:
+async def hydratation_node(state: AgentState) -> dict[str, Any]:
     """
     Branche directe uniquement.
     Hydrate le FilmShort retourné par FAISS en FilmDetail complet via SQL.
@@ -462,7 +464,7 @@ def hydratation_node(state: AgentState) -> Dict[str, Any]:
     logger.info(f"[hydratation_node] Hydratation pour tmdb_id={tmdb_id}")
 
     # Hydratation du film selectionné.
-    details = get_films_details([tmdb_id])
+    details = await get_films_details_by_ids([tmdb_id])
 
     # Cas 2 : Hydratation échouée : Film Absent de la table SQL
     if not details:
@@ -489,7 +491,7 @@ def hydratation_node(state: AgentState) -> Dict[str, Any]:
         }
 
 
-def card_node(state: AgentState) -> Dict[str, Any]:
+def card_node(state: AgentState) -> dict[str, Any]:
     """
     Branche directe.
     Signale que retrieved_movies est prêt à être envoyé au front via SSE type='card'.
@@ -526,7 +528,7 @@ def card_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-def validation_node(state: AgentState) -> Dict[str, Any]:
+def validation_node(state: AgentState) -> dict[str, Any]:
     """
     Branche directe uniquement.
     Vérifie la cohérence sémantique entre le FilmDetail hydraté et la requête.
@@ -605,7 +607,7 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
             )
         )
 
-        update: Dict[str, Any] = {
+        update: dict[str, Any] = {
             "current_step": "invalid_coherence",
             "steps": steps,
             "retry_count": state.retry_count + 1,
@@ -639,7 +641,7 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
             return update
 
 
-async def format_cards_node(state: AgentState) -> Dict[str, Any]:
+async def format_cards_node(state: AgentState) -> dict[str, Any]:
     """
     Branche hybride uniquement.
     Ré-hydrate les FilmShort depuis SQL (synopsis inclus) via get_films_short_by_ids
@@ -693,7 +695,7 @@ async def format_cards_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-def validation_film_node(state: AgentState) -> Dict[str, Any]:
+def validation_film_node(state: AgentState) -> dict[str, Any]:
     """
     Branche hybride uniquement.
     Vérifie la cohérence de la liste de FilmShort retournée par FAISS
@@ -716,7 +718,6 @@ def validation_film_node(state: AgentState) -> Dict[str, Any]:
         ]
     )
 
-    #
     filters_summary = (
         state.sql_filters.model_dump(exclude_none=True) if state.sql_filters else {}
     )
@@ -806,7 +807,7 @@ def validation_film_node(state: AgentState) -> Dict[str, Any]:
 # ==============================================================================
 
 
-def load_film_node(state: AgentState) -> Dict[str, Any]:
+async def load_film_node(state: AgentState) -> dict[str, Any]:
     """
     Branche DISCUSSION uniquement.
     Charge le FilmDetail depuis last_displayed_movies_id (mémoire session).
@@ -833,7 +834,7 @@ def load_film_node(state: AgentState) -> Dict[str, Any]:
 
     # Hydratation des films pour contexte.
     try:
-        details = get_films_details(film_ids)
+        details = await get_films_details_by_ids(film_ids)
     except Exception as e:
         logger.error(f"[load_film_node] Erreur SQL : {e}.")
         details = []
@@ -864,7 +865,7 @@ def load_film_node(state: AgentState) -> Dict[str, Any]:
         }
 
 
-def verif_film_node(state: AgentState) -> Dict[str, Any]:
+def verif_film_node(state: AgentState) -> dict[str, Any]:
     """
     Branche DISCUSSION uniquement.
     Analyse la question utilisateur et vérifie si le FilmDetail chargé
