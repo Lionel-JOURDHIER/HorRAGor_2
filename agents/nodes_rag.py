@@ -403,6 +403,7 @@ async def search_vector_node(state: AgentState) -> dict[str, Any]:
             "current_step": "no_results",
             "retry_count": state.retry_count + 1,
             "steps": steps,
+            "search_branch": state.search_branch,
         }
     elif candidate_ids:
         logger.info(
@@ -442,6 +443,7 @@ async def search_vector_node(state: AgentState) -> dict[str, Any]:
         "current_step": "has_results" if results else "no_results",
         "retry_count": 0 if results else state.retry_count + 1,
         "steps": steps,
+        "search_branch": "direct" if is_direct else "hybrid",
     }
 
 
@@ -553,18 +555,25 @@ def validation_node(state: AgentState) -> dict[str, Any]:
 
     # Création des parramètres pour l'appel de validation
     evaluator = validation_llm.with_structured_output(ValidationResult)
+
+    film = state.retrieved_movies[0]
+    evaluator = validation_llm.with_structured_output(ValidationResult)
+
     prompt = f"""
     Tu es un contrôleur qualité pour un système RAG sur le cinéma d'horreur.
-    Analyse si la réponse générée correspond fidèlement aux films trouvés et à la question initiale.
-    
-    Requête Utilisateur : {state.user_query}
-    Films trouvés (Contexte) : {film.title}
-    Réponse générée par le LLM : {state.answer}
+    Analyse si le film trouvé correspond à la requête utilisateur.
 
-    Si la réponse est incorrecte ET que tu peux identifier avec certitude le titre exact
-    du film qui aurait dû être recherché (ex: la requête décrit clairement un film connu
-    par son réalisateur/synopsis mais le mauvais film a été renvoyé), indique ce titre
-    dans corrected_title pour permettre une nouvelle recherche ciblée.
+    Requête utilisateur : {state.user_query}
+    Film trouvé : {film.title} ({getattr(film, "release_date", "")})
+    Réalisateur : {getattr(film, "director", "")}
+    Genres : {getattr(film, "genres", [])}
+    Synopsis : {getattr(film, "synopsis", "")[:300] if getattr(film, "synopsis", None) else "Non disponible"}
+
+    Évalue uniquement si ce film répond aux critères de la requête.
+    - is_relevant : true si le film correspond (réalisateur, genre, thème, époque...)
+    - has_missing_info : true si la fiche manque d'infos pour trancher
+    - corrected_title : uniquement si tu identifies avec certitude un AUTRE film plus pertinent, null sinon
+    - feedback : explication courte si is_relevant est false
     """
 
     # Appel de Validation
