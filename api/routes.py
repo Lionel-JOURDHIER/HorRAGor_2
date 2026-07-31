@@ -98,7 +98,7 @@ async def health(db: Session = Depends(get_db)):
     """Check API availability."""
     try:
         db.execute(text("SELECT 1"))
-        logger.info("HEATH SUSSESS")
+        logger.info("HEALTH SUCCESS")
         return HealthResponse(status="ok")
     except Exception as e:
         logger.error(f"Health check failed: {e!s}")

@@ -35,7 +35,7 @@ root_path = Path(__file__).resolve().parent.parent
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))  # pragma: no cover
 
-from agents.config import llm, structured_llm
+from agents.config import llm, structured_llm, validation_llm
 from agents.prompts import (
     INTENTION_PROMPT,
     ROUTER_PROMPT,
@@ -552,7 +552,7 @@ def validation_node(state: AgentState) -> dict[str, Any]:
     film = state.retrieved_movies[0]
 
     # Création des parramètres pour l'appel de validation
-    evaluator = structured_llm.with_structured_output(ValidationResult)
+    evaluator = validation_llm.with_structured_output(ValidationResult)
     prompt = f"""
     Tu es un contrôleur qualité pour un système RAG sur le cinéma d'horreur.
     Analyse si la réponse générée correspond fidèlement aux films trouvés et à la question initiale.
@@ -723,7 +723,7 @@ def validation_film_node(state: AgentState) -> dict[str, Any]:
     )
 
     # Préparation de l'appel LLM
-    evaluator = structured_llm.with_structured_output(ValidationFilmListResult)
+    evaluator = validation_llm.with_structured_output(ValidationFilmListResult)
     prompt = f"""
         Tu es un contrôleur qualité pour un système RAG cinéma d'horreur.
         Vérifie que la liste de films proposée correspond aux critères demandés.
