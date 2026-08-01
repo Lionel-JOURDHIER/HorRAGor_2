@@ -74,7 +74,6 @@ from shared.schemas import (
     DirectorsResponse,
     ErrorResponse,
     FilmDetail,
-    FilmShort,
     GenresResponse,
     HealthResponse,
     WikipediaResponse,
@@ -208,7 +207,7 @@ async def chat(request: ChatRequest):
                 for s in (result.get("steps") or [])
             ],
             recommendations=[
-                FilmShort.model_validate(r) if isinstance(r, dict) else r
+                FilmDetail.model_validate(r) if isinstance(r, dict) else r
                 for r in result.get("retrieved_movies") or []
             ],
         )
@@ -331,7 +330,9 @@ def chat_stream_final(request: ChatRequest):
                             for s in (result.get("steps") or [])
                         ],
                         recommendations=[
-                            FilmDetail.model_validate(r) if isinstance(r, dict) else r
+                            FilmDetail.model_validate(
+                                r.model_dump() if hasattr(r, "model_dump") else r
+                            )
                             for r in (result.get("retrieved_movies") or [])
                         ],
                     )

@@ -30,7 +30,7 @@ Auteur/Responsable : Hanna (Epic 3)
 
 # IMPORT
 from datetime import date
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
@@ -163,6 +163,20 @@ class AgentStep(BaseModel):
     status: str
 
 
+def keep_or_update_list(
+    current: list[int] | None, update: list[int] | None
+) -> list[int] | None:
+    """
+    Reducer LangGraph : Conserve l'ancienne liste si la mise à jour est vide ou None,
+    sinon remplace par la nouvelle liste d'IDs.
+    """
+    # Si le nœud actuel ne renvoie rien ou une liste vide, on garde la mémoire du tour précédent
+    if update is None or (isinstance(update, list) and len(update) == 0):
+        return current if current is not None else []
+    # Sinon, un nœud a décidé d'écraser la mémoire avec de nouveaux films affichés
+    return update
+
+
 class AgentState(BaseModel):
     """Shared state exchanged between LangGraph nodes."""
 
@@ -186,7 +200,9 @@ class AgentState(BaseModel):
     answer: str | None = None
     search_branch: str | None = None
     retry_count: int = 0
-    last_displayed_movies_id: list[int] | None = Field(default_factory=list)
+    last_displayed_movies_id: Annotated[list[int] | None, keep_or_update_list] = Field(
+        default_factory=list
+    )
     intent: str | None = None
     branch_search_wiki: str = Field(
         default="RAG"
@@ -204,6 +220,11 @@ class ChatRequest(BaseModel):
 
     message: str = Field(min_length=1, max_length=2000)
     filters: ChatFilters | None = None
+    session_id: str | None = Field(
+        default=None,
+        description="L'identifiant unique de la session/conversation pour maintenir la mémoire (géré par le client)",
+        examples=["c9b4e1a2-8b45-4cde-a012-3456789abcdef"],
+    )
 
 
 class ChatStatusResponse(BaseModel):
