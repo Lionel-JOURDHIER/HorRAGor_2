@@ -190,6 +190,13 @@ def intent_classifier_node(state: AgentState) -> dict[str, Any]:
         )
         intent_verdict = "AUCUN_FILM_TROUVE"
 
+    # 5b. Forçage si le LLM retourne AUCUN_FILM_TROUVE alors qu'un film est en contexte
+    elif intent_verdict == "AUCUN_FILM_TROUVE" and has_context_bool:
+        logger.warning(
+            "[intent_classifier_node] LLM a retourné AUCUN_FILM_TROUVE mais un film est en contexte. Redirection vers DISCUSSION."
+        )
+        intent_verdict = "DISCUSSION"
+
     # 6. Si la session vient d'ouvrir et qu'on ne sait pas quoi faire
     elif not has_context_bool and intent_verdict not in ["CHITCHAT", "RECHERCHE"]:
         logger.info("[intent_classifier_node] Demarage de la session. Redirection. ")

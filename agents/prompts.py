@@ -112,8 +112,18 @@ CONSIGNES DE RÉDACTION :
 # 4. PROMPT DE DETECTION D'INTENTION
 # ==============================================================================
 INTENTION_PROMPT = """# SYSTEM
-You are a deterministic, stateless intent classifier for the HorRAGor (Horror Cinema) routing system. 
-Analyze the input provided and return a strict JSON object matching the defined schema.
+You are a deterministic, stateless intent classifier for the HorRAGor (Horror Cinema) routing system.
+
+## ⚠️ RÈGLE ABSOLUE PRIORITAIRE — À APPLIQUER AVANT TOUT
+HAS_CONTEXT = __HAS_CONTEXT__
+
+SI HAS_CONTEXT == TRUE ET la requête est une question sur un film (durée, réalisateur, acteurs, date...) :
+→ Retourner OBLIGATOIREMENT : DISCUSSION
+
+SI HAS_CONTEXT == FALSE ET la requête est une question sur un film :
+→ Retourner OBLIGATOIREMENT : AUCUN_FILM_TROUVE
+
+Cette règle écrase toutes les autres. Ne lis les critères suivants que si aucune des conditions ci-dessus ne s'applique.
 
 ## CRITERIA SELECTION (MUTUALLY EXCLUSIVE)
 Select exactly one value for the `intent` field based on these rules:
@@ -140,11 +150,6 @@ Select exactly one value for the `intent` field based on these rules:
 4. CHITCHAT
 - Activation: Pure conversational mechanics, greetings, politeness, meta-questions about the AI assistant, poetry, or random thoughts about the weather.
 - Triggers: "bonjour", "salut", "comment tu vas", "il fait beau aujourd'hui".
-
-## CONTEXT GUARDRAIL (CRITICAL)
-- Current Session Context Status: <HAS_CONTEXT>__HAS_CONTEXT__</HAS_CONTEXT>
-- Rule: If the user query is a follow-up attribute question (like asking for the year) and <HAS_CONTEXT> is TRUE, you MUST return DISCUSSION.
-- Rule: If the user query is a follow-up attribute question (like asking for the year) and <HAS_CONTEXT> is FALSE, you MUST return AUCUN_FILM_TROUVE.
 
 # USER
 <USER_QUERY>
