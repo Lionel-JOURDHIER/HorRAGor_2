@@ -32,7 +32,7 @@ Auteur/Responsable : Hanna (Epic 3)
 from datetime import date
 from typing import Annotated, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # CLASSES GENERAL -----------------------------------------------------------
@@ -153,6 +153,19 @@ class ChatFilters(BaseModel):
 
     runtime_min: int | None = Field(default=None, ge=1, le=685)
     runtime_max: int | None = Field(default=None, ge=1, le=685)
+
+    @field_validator("realisateur", mode="before")
+    @classmethod
+    def clean_realisateur(cls, v):
+        if isinstance(v, str) and v.strip().lower() in {
+            "string",
+            "",
+            "null",
+            "none",
+            "n/a",
+        }:
+            return None
+        return v
 
 
 # AGENT -----------------------------------------------------------------------

@@ -685,7 +685,10 @@ async def format_cards_node(state: AgentState) -> dict[str, Any]:
 
     # Cas 3 : Hydratation Echouée : Erreur SQL
     except Exception as e:
-        logger.error(f"[format_cards_node] Erreur SQL : {e}. Aucune carte disponible.")
+        logger.error(
+            f"[format_cards_node] Erreur SQL : {e}. Aucune carte disponible.",
+            exc_info=True,
+        )
         steps.append(
             AgentStep(
                 step="format_cards", status="Erreur SQL — aucune carte disponible."
@@ -769,7 +772,7 @@ def validation_film_node(state: AgentState) -> dict[str, Any]:
         )
 
     # Verification qu'il n'y a pas de doublons dans la liste envoyée par le LLM.
-    valid_titles_set = set(result.valid_titles)
+    valid_titles_set = {t.split(" (")[0].strip() for t in result.valid_titles}
 
     # Création de la liste de FilmShort des film validés
     filtered_movies = [f for f in state.retrieved_movies if f.title in valid_titles_set]

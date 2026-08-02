@@ -131,6 +131,7 @@ async def run_agent(chat_request):
         "candidate_ids": None,
         "retrieved_movies": [],
         "answer": None,
+        "retry_count": 0,
     }
 
     config = get_graph_config(chat_request)
@@ -164,6 +165,7 @@ async def run_agent_stream(chat_request):
         "candidate_ids": None,
         "retrieved_movies": [],
         "answer": None,
+        "retry_count": 0,
     }
 
     config = get_graph_config(chat_request)
@@ -202,6 +204,7 @@ async def run_agent_stream_final(chat_request):
         "candidate_ids": None,
         "retrieved_movies": [],
         "answer": None,
+        "retry_count": 0,
     }
 
     config = get_graph_config(chat_request)

@@ -68,6 +68,12 @@ laisse TOUS les champs à leur valeur par défaut (listes vides, valeurs null).
 N'utilise JAMAIS genres_excluded pour compenser un critère que tu ne sais pas mapper.
 Ne mets JAMAIS l'intégralité de la liste des genres dans genres_excluded : cela exclurait tout le catalogue.
 
+RÈGLE CRITIQUE — GENRES :
+N'extrais un genre QUE s'il est explicitement mentionné dans la requête utilisateur.
+Ne déduis JAMAIS un genre à partir du nom d'un réalisateur, d'un acteur ou d'un titre.
+"films de John Carpenter" → genres_included=[] (le genre n'est pas mentionné)
+"films d'horreur de John Carpenter" → genres_included=["Horror"]
+
 EXEMPLES :
 - "meilleurs films japonais" → tous les champs vides/null (aucun critère mappable)
 - "un thriller psychologique bien noté" → genres_included=["Thriller"], tmdb_score_min=7.0
