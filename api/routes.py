@@ -57,6 +57,7 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from langgraph.errors import GraphRecursionError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -341,6 +342,28 @@ def chat_stream_final(request: ChatRequest):
 
                     yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+        except GraphRecursionError:
+            logger.warning(
+                "GraphRecursionError interceptée. Déclenchement du fallback narratif."
+            )
+
+            # Création d'un message d'erreur théâtralisé
+            fallback_message = (
+                "Les esprits de la crypte se sont perdus dans un labyrinthe de pensées infinies... "
+                "Le grimoire s'est refermé brutalement. Pose ta question autrement, mortel."
+            )
+
+            # On imite la structure attendue par le front-end pour éviter un crash de l'UI
+            fallback_payload = {
+                "answer": fallback_message,
+                "steps": [],
+                "recommendations": [],
+            }
+
+            yield f"data: {json.dumps(fallback_payload, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
         except Exception as e:
             logger.exception("Streaming final response failed")
             yield (f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n")
