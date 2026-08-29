@@ -150,12 +150,34 @@ async def list_genre(session: Session = Depends(get_db)):
     tags=["Films"],
 )
 async def get_film_detail(tmdb_id: int, session: Session = Depends(get_db)):
-    """Return full movie details by TMDB id."""
+    """
+    Return full movie details by TMDB id.
+    
+    If synopsis is missing, automatically enriches it from Wikipedia.
+    """
     try:
         film = get_film_details_by_id(session, tmdb_id)
         if film is None:
             logger.error("Film is None")
             raise HTTPException(status_code=404, detail="Film not found")
+
+        # Enrichir le synopsis via Wikipedia s'il est manquant
+        if not film.synopsis or film.synopsis.strip() == "":
+            logger.info(f"Synopsis manquant pour le film {tmdb_id} ({film.title}). Tentative de récupération via Wikipedia.")
+            
+            try:
+                year = film.release_date.year if film.release_date else None
+                wiki_result = wikipedia_search.invoke({"title": film.title, "year": year})
+                
+                if wiki_result.get("source") == "wikipedia" and wiki_result.get("synopsis"):
+                    film.synopsis = wiki_result["synopsis"]
+                    logger.info(f"Synopsis enrichi avec succès depuis Wikipedia pour {film.title}")
+                else:
+                    logger.warning(f"Impossible de récupérer le synopsis depuis Wikipedia pour {film.title}: {wiki_result.get('source', 'UNKNOWN')}")
+                    
+            except Exception as wiki_error:
+                logger.error(f"Erreur lors de l'enrichissement du synopsis via Wikipedia: {str(wiki_error)}")
+                # On ne fait pas échouer la requête si Wikipedia échoue
 
         return film
 
