@@ -6,7 +6,10 @@ Point d'entrée principal de l'API REST FastAPI.
 
 import os
 from contextlib import asynccontextmanager
+from fastapi import Request
 
+from api.monitoring.langfuse_client import langfuse
+from api.routes_monitoring import router as monitoring_router
 from fastapi import FastAPI
 
 from api.routes import router
@@ -71,4 +74,52 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+@app.middleware("http")
+async def langfuse_middleware(request: Request, call_next):
+    """
+    Middleware FastAPI pour l'instrumentation Langfuse.
+
+    Les endpoints techniques et de monitoring sont exclus de Langfuse.
+    """
+
+    excluded_paths = {
+        "/health",
+        "/monitoring/metrics",
+        "/monitoring/traces",
+        "/docs",
+        "/openapi.json",
+    }
+
+    if request.url.path in excluded_paths:
+        return await call_next(request)
+
+    with langfuse.start_as_current_observation(
+        name=f"{request.method} {request.url.path}",
+        as_type="span",
+        input={
+            "method": request.method,
+            "url": str(request.url),
+        },
+    ) as observation:
+        try:
+            response = await call_next(request)
+
+            observation.update(
+                output={"status_code": response.status_code}
+            )
+
+            return response
+
+        except Exception as e:
+            observation.update(
+                output={"error": str(e)}
+            )
+            raise
+
+        finally:
+            langfuse.flush()
+
+
 app.include_router(router)
+app.include_router(monitoring_router)

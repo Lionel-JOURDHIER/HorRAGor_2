@@ -31,9 +31,11 @@ RUN uv pip install --system --no-cache \
     fastapi \
     uvicorn[standard] \
     python-dotenv \
+    langchain \
     langchain-core \
     langchain-ollama \
     langgraph \
+    langfuse \
     httpx \
     faiss-cpu \
     numpy \

@@ -27,6 +27,8 @@ Functions:
 
 from typing import Any
 
+from api.monitoring.langfuse_callback import langfuse_handler
+
 from agents.graph import graph as build_my_graph
 from logger import get_logger, setup_logger
 from shared.schemas import ChatFilters, ChatRequest
@@ -104,6 +106,11 @@ def get_graph_config(chat_request: ChatRequest) -> dict[str, Any]:
     return {
         "recursion_limit": 15,  # 💡 Augmenté à 15 au cas où Wikipédia + RAG fassent beaucoup d'aller-retours
         "configurable": {"thread_id": session_id},
+        "callbacks": [langfuse_handler],
+        "metadata": {
+            "application": "HorRAGor",
+            "environment": "development",
+        },
     }
 
 
