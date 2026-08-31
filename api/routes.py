@@ -1,91 +1,51 @@
 """
 api/routes.py
 
-Module de définition des routes HTTP de l'API HorRAGor.
+Routes de l'API IA HorRAGor.
 
-Ce module centralise l'ensemble des endpoints REST exposés par FastAPI.
-Il assure la communication entre le client (interface Streamlit),
-les services métiers, la base de données Supabase et l'agent ReAct
-implémenté avec LangGraph.
+Responsabilités:
+- communication client
+- exécution agent LangGraph
+- streaming SSE
+- génération de réponses
 
-Endpoints disponibles :
-    - GET /health
-        Vérifie la disponibilité de l'API.
-
-    - GET /film/{tmdb_id}
-        Retourne les informations détaillées d'un film.
-
-    - GET /list_real
-        Retourne la liste des réalisateurs disponibles.
-
-    - GET /list_genre
-        Retourne la liste des genres disponibles.
-
-    - POST /chat/response
-        Exécute l'agent conversationnel et retourne la réponse finale,
-        les étapes d'exécution et les recommandations de films.
-
-    - POST /chat/stream
-        Diffuse en temps réel les étapes d'exécution de l'agent
-        via Server-Sent Events (SSE).
-
-    - POST /chat/response_stream
-        Diffuse les étapes intermédiaires de l'agent puis la réponse
-        finale complète via Server-Sent Events (SSE).
-
-    - GET /wikipedia
-        Récupère des informations complémentaires depuis Wikipédia.
-
-Responsabilités :
-    - Validation des requêtes entrantes via les schémas Pydantic.
-    - Appel des services métier.
-    - Gestion des réponses HTTP.
-    - Gestion des erreurs et des exceptions.
-
-Dépendances principales :
-    - fastapi
-    - schemas
-    - services
-    - langgraph
-
-Auteur : Hanna
-Projet : HorRAGor
+La base de données est accessible uniquement via Database API.
 """
 
-# IMPORT ----------------------------------------------------------
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from langgraph.errors import GraphRecursionError
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 from agents.tools.wiki_tools import wikipedia_search
-from api.modules.chat_service import run_agent, run_agent_stream, run_agent_stream_final
-from database.connection import get_db
-from database.queries import get_all_directors, get_all_genres, get_film_details_by_id
 
-# LOGGER ------------------------------------------------------
-from logger import get_logger, setup_logger
+from api.modules.chat_service import (
+    run_agent,
+    run_agent_stream,
+    run_agent_stream_final,
+)
+from api.modules.database_client import get_film
+
 from shared.schemas import (
     AgentStep,
     ChatRequest,
     ChatResponse,
-    DirectorsResponse,
+    FilmShort,
     ErrorResponse,
-    FilmDetail,
-    GenresResponse,
-    HealthResponse,
     WikipediaResponse,
+    HealthResponse,
+    FilmDetail
 )
 
+# LOGGER -----------------------------------------------------------
+from logger import get_logger, setup_logger
+
+
 setup_logger()
-logger = get_logger("ROUTES")
+logger = get_logger("AI_ROUTES")
 
-# ROUTER ---------------------------------------------------------
+# ROUTER -----------------------------------------------------------
 router = APIRouter()
-
 
 # HEALTH ----------------------------------------------------------
 @router.get(
@@ -94,77 +54,24 @@ router = APIRouter()
     responses={500: {"model": ErrorResponse}},
     tags=["System"],
 )
-async def health(db: Session = Depends(get_db)):
-    """Check API availability."""
-    try:
-        db.execute(text("SELECT 1"))
-        logger.info("HEALTH SUCCESS")
-        return HealthResponse(status="ok")
-    except Exception as e:
-        logger.error(f"Health check failed: {e!s}")
-        raise HTTPException(status_code=500, detail=f"Health check failed: {e!s}")
+async def health():
+    return {
+        "status": "ok",
+        "service": "ai_api"
+    }
 
+# FILMS ---------------------------------------------------------
+async def filter_films(filters: dict):
 
-# LISTS -----------------------------------------------------------
-@router.get(
-    "/list_real",
-    response_model=DirectorsResponse,
-    responses={500: {"model": ErrorResponse}},
-    tags=["Metadata"],
-)
-async def list_real(session: Session = Depends(get_db)):
-    """Return list of directors."""
-    try:
-        directors = get_all_directors(session)
-        return directors
-    except Exception as e:
-        logger.error(f"Failed to retrieve directors: {e!s}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve directors: {e!s}"
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{DATABASE_API_URL}/db/filter_films",
+            json=filters,
         )
 
+    response.raise_for_status()
 
-@router.get(
-    "/list_genre",
-    response_model=GenresResponse,
-    responses={500: {"model": ErrorResponse}},
-    tags=["Metadata"],
-)
-async def list_genre(session: Session = Depends(get_db)):
-    """Return list of genres."""
-    try:
-        genres = get_all_genres(session)
-        return genres
-    except Exception as e:
-        logger.error(f"Failed to retrieve genres: {e!s}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve genres: {e!s}")
-
-
-# FILMS -----------------------------------------------------------
-@router.get(
-    "/film/{tmdb_id}",
-    response_model=FilmDetail,
-    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
-    tags=["Films"],
-)
-async def get_film_detail(tmdb_id: int, session: Session = Depends(get_db)):
-    """Return full movie details by TMDB id."""
-    try:
-        film = get_film_details_by_id(session, tmdb_id)
-        if film is None:
-            logger.error("Film is None")
-            raise HTTPException(status_code=404, detail="Film not found")
-
-        return film
-
-    except HTTPException:
-        logger.error("Error get_film_details_by_id")
-        raise
-
-    except Exception as e:
-        logger.error(f"Failed to retrieve film: {e!s}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve film: {e!s}")
-
+    return response.json()["tmdb_ids"]
 
 # CHAT ----------------------------------------------------------
 @router.post(
@@ -208,7 +115,7 @@ async def chat(request: ChatRequest):
                 for s in (result.get("steps") or [])
             ],
             recommendations=[
-                FilmDetail.model_validate(r) if isinstance(r, dict) else r
+                FilmShort.model_validate(r) if isinstance(r, dict) else r
                 for r in result.get("retrieved_movies") or []
             ],
         )
@@ -216,7 +123,7 @@ async def chat(request: ChatRequest):
     except Exception as e:
         logger.exception("Failed to get response from agent")
         raise HTTPException(
-            status_code=500, detail=f"Failed to get response from agent: {e!s}"
+            status_code=500, detail=f"Failed to get response from agent: {str(e)}"
         )
 
 
@@ -243,7 +150,7 @@ async def chat_stream(request: ChatRequest):
     async def event_generator():
         try:
             stream = run_agent_stream(request)
-            async for event in stream:
+            for event in stream:
                 if not isinstance(event, dict):
                     continue
 
@@ -297,10 +204,10 @@ def chat_stream_final(request: ChatRequest):
         the final validated ChatResponse.
     """
 
-    async def event_generator():
+    def event_generator():
         try:
             stream = run_agent_stream_final(request)
-            async for event in stream:
+            for event in stream:
                 # STEP EVENTS
                 if event["type"] == "step":
                     steps = event["step"]["steps"]
@@ -309,9 +216,12 @@ def chat_stream_final(request: ChatRequest):
                         continue
 
                     for step in steps:
-                        payload = {"node": event["node"], "step": step}
+                        payload = {
+                            "node": event["node"],
+                            "step": step
+                        }
                         yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-
+ 
                     # last_step = steps[-1]
                     # payload = {"node": event["node"], "step": last_step}
                     # yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
@@ -331,9 +241,7 @@ def chat_stream_final(request: ChatRequest):
                             for s in (result.get("steps") or [])
                         ],
                         recommendations=[
-                            FilmDetail.model_validate(
-                                r.model_dump() if hasattr(r, "model_dump") else r
-                            )
+                            FilmShort.model_validate(r) if isinstance(r, dict) else r
                             for r in (result.get("retrieved_movies") or [])
                         ],
                     )
@@ -342,28 +250,6 @@ def chat_stream_final(request: ChatRequest):
 
                     yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-        except GraphRecursionError:
-            logger.warning(
-                "GraphRecursionError interceptée. Déclenchement du fallback narratif."
-            )
-
-            # Création d'un message d'erreur théâtralisé
-            fallback_message = (
-                "Les esprits de la crypte se sont perdus dans un labyrinthe de pensées infinies... "
-                "Le grimoire s'est refermé brutalement. Pose ta question autrement, mortel."
-            )
-
-            # On imite la structure attendue par le front-end pour éviter un crash de l'UI
-            fallback_payload = {
-                "answer": fallback_message,
-                "steps": [],
-                "recommendations": [],
-            }
-
-            yield f"data: {json.dumps(fallback_payload, ensure_ascii=False)}\n\n"
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
         except Exception as e:
             logger.exception("Streaming final response failed")
             yield (f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n")
@@ -375,23 +261,48 @@ def chat_stream_final(request: ChatRequest):
 @router.get(
     "/wikipedia/{tmdb_id}",
     response_model=WikipediaResponse,
-    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
     tags=["Wikipedia"],
 )
-async def wikipedia(tmdb_id: int, session: Session = Depends(get_db)):
+async def wikipedia(tmdb_id: int):
     """Retrieve movie info from Wikipedia using TMDB ID."""
     try:
-        film = get_film_details_by_id(session, tmdb_id)
+        film = await get_film(tmdb_id)
+
         if not film:
-            raise HTTPException(status_code=404, detail="Film not found")
+            raise HTTPException(
+                status_code=404,
+                detail="Film not found"
+            )
 
         title = film.title
         year = film.release_date.year if film.release_date else None
 
-        response_wiki = wikipedia_search.invoke({"title": title, "year": year})
-        logger.info("Sussesfully Retrieve movie info from Wikipedia")
+        response_wiki = wikipedia_search.invoke(
+            {
+                "title": title,
+                "year": year,
+            }
+        )
+
+        logger.info(
+            "Successfully retrieved movie info from Wikipedia"
+        )
+
         return response_wiki
 
+    except HTTPException:
+        raise
+
     except Exception as e:
-        logger.error(f"Failed to retrieve film: {e!s}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve film: {e!s}")
+        logger.exception(
+            f"Failed to retrieve wikipedia info: {str(e)}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve wikipedia info: {str(e)}"
+        )

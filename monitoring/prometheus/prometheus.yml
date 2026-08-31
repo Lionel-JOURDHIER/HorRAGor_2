@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "horragor-api"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["horragor_api:8000"]

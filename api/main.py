@@ -10,7 +10,10 @@ from fastapi import Request
 
 from api.monitoring.langfuse_client import langfuse
 from api.routes_monitoring import router as monitoring_router
+from prometheus_fastapi_instrumentator import Instrumentator
+
 from fastapi import FastAPI
+
 
 from api.routes import router
 
@@ -74,6 +77,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+Instrumentator().instrument(app).expose(app)
 
 @app.middleware("http")
 async def langfuse_middleware(request: Request, call_next):
