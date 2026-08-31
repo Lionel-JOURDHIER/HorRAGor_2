@@ -146,13 +146,13 @@ class ChatFilters(BaseModel):
     genres_included: list[str] = []
     genres_excluded: list[str] = []
 
-    release_year_min: int | None = Field(default=None, ge=1900, le=2026)
-    release_year_max: int | None = Field(default=None, ge=1900, le=2026)
+    release_year_min: int | None = Field(default=1900, ge=1900, le=2026)
+    release_year_max: int | None = Field(default=2026, ge=1900, le=2026)
 
-    tmdb_score_min: float | None = Field(default=None, ge=0, le=10)
+    tmdb_score_min: float | None = Field(default=0, ge=0, le=10)
 
-    runtime_min: int | None = Field(default=None, ge=1, le=685)
-    runtime_max: int | None = Field(default=None, ge=1, le=685)
+    runtime_min: int | None = Field(default=1, ge=1, le=685)
+    runtime_max: int | None = Field(default=180, ge=1, le=685)
 
     @field_validator("realisateur", mode="before")
     @classmethod
