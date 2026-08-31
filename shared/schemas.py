@@ -252,7 +252,7 @@ class ChatResponse(BaseModel):
 
     answer: str
     steps: list[AgentStep] = Field(default_factory=list)
-    recommendations: list[FilmDetail] = Field(default_factory=list)
+    recommendations: list[FilmShort] = Field(default_factory=list)
 
 
 class WikipediaResponse(BaseModel):

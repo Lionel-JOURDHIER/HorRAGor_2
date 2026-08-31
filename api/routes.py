@@ -60,18 +60,6 @@ async def health():
         "service": "ai_api"
     }
 
-# FILMS ---------------------------------------------------------
-async def filter_films(filters: dict):
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{DATABASE_API_URL}/db/filter_films",
-            json=filters,
-        )
-
-    response.raise_for_status()
-
-    return response.json()["tmdb_ids"]
 
 # CHAT ----------------------------------------------------------
 @router.post(
@@ -149,7 +137,7 @@ async def chat_stream(request: ChatRequest):
 
     async def event_generator():
         try:
-            stream = run_agent_stream(request)
+            stream = await run_agent_stream(request)
             for event in stream:
                 if not isinstance(event, dict):
                     continue
@@ -190,7 +178,7 @@ async def chat_stream(request: ChatRequest):
 
 
 @router.post("/chat/response_stream", tags=["Agent"])
-def chat_stream_final(request: ChatRequest):
+async def chat_stream_final(request: ChatRequest):
     """
     Stream agent execution steps and final response.
 
@@ -204,10 +192,10 @@ def chat_stream_final(request: ChatRequest):
         the final validated ChatResponse.
     """
 
-    def event_generator():
+    async def event_generator():
         try:
             stream = run_agent_stream_final(request)
-            for event in stream:
+            async for event in stream:
                 # STEP EVENTS
                 if event["type"] == "step":
                     steps = event["step"]["steps"]
