@@ -198,6 +198,18 @@ services:
     networks:
       - horragor_net
 
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: horragor_uptime_kuma
+    restart: always
+    ports:
+      - "3002:3001"
+    volumes:
+      - uptime_kuma_data:/app/data
+    networks:
+      - horragor_net
+
+
 volumes:
   langfuse_postgres_data:
     driver: local
@@ -212,6 +224,7 @@ volumes:
 
   prometheus_data:
   grafana_data:
+  uptime_kuma_data:
   
 
 networks:
