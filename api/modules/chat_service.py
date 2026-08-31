@@ -166,8 +166,16 @@ def run_agent_stream_final(chat_request):
         answer=None,
     )
 
+    # TEMP: for test LangGraph checkpoint --------------------------------------------------------
+    config = {
+        "recursion_limit": 10,
+        "configurable": {
+            "thread_id": "test_session_001",
+        },
+    }
+    # ---------------------------------------------------------------------------------------------------------
     stream = graph.stream(
-        initial_state, config={"recursion_limit": 10}, stream_mode="updates"
+        initial_state, config=config, stream_mode="updates"
     )
 
     final_state: dict[str, Any] = {}
