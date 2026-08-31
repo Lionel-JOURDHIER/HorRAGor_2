@@ -207,23 +207,10 @@ async def run_agent_stream_final(chat_request):
         "retry_count": 0,
     }
 
-<<<<<<< HEAD
-    # TEMP: for test LangGraph checkpoint --------------------------------------------------------
-    config = {
-        "recursion_limit": 10,
-        "configurable": {
-            "thread_id": "test_session_001",
-        },
-    }
-    # ---------------------------------------------------------------------------------------------------------
-    stream = graph.stream(
-        initial_state, config=config, stream_mode="updates"
-    )
-=======
+
     config = get_graph_config(chat_request)
 
     stream = graph.astream(initial_state, config=config, stream_mode="updates")
->>>>>>> bf70ba48f08005d6e3a07f59e52a5b8f57a7bcdf
 
     final_state: dict[str, Any] = {}
 
