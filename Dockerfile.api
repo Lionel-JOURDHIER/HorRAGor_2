@@ -40,7 +40,9 @@ RUN uv pip install --system --no-cache \
     pydantic \
     requests \
     wikipedia \
-    loguru
+    loguru \
+    SQLAlchemy \
+    psycopg2-binary
 
 # Copie du code source complet
 COPY . .

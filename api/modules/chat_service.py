@@ -28,8 +28,11 @@ Functions:
 from typing import Any
 
 from agents.graph import graph as build_my_graph
-from shared.schemas import AgentState as GraphState
-from shared.schemas import ChatFilters
+from logger import get_logger, setup_logger
+from shared.schemas import ChatFilters, ChatRequest
+
+setup_logger()
+logger = get_logger("CHAT_SERVICE")
 
 graph = build_my_graph()
 
@@ -71,7 +74,40 @@ def normalize_steps(steps: list[Any] | None) -> list[dict]:
     return result
 
 
-def run_agent(chat_request):
+def get_graph_config(chat_request: ChatRequest) -> dict[str, Any]:
+    """
+    Génère le dictionnaire de configuration requis par LangGraph.
+    Si le front n'envoie pas de session_id, applique un identifiant
+    fixe par défaut pour tester la persistance (InMemorySaver).
+    """
+    # 1. On récupère proprement l'ID de session
+    session_id = getattr(chat_request, "session_id", None)
+    is_new_session = False
+
+    # 2. Si aucun ID n'est fourni, on génère un ID unique temporaire par requête
+    #    pour éviter les collisions (ou on lève une erreur si la session est obligatoire)
+    if not session_id:
+        session_id = "thread_de_test_fixe_12345"
+        is_new_session = True
+        logger.warning(
+            f"Aucun session_id fourni. Génération d'un ID temporaire : {session_id}"
+        )
+
+    logger.info(
+        "═" * 60 + "\n"
+        f"🚀 [NOUVELLE REQUÊTE CHAT]\n"
+        f"   • Session ID : '{session_id}' {'🟢 (Généré/Anonyme)' if is_new_session else '🔵 (Persistant)'}\n"
+        f'   • Message    : "{chat_request.message}"\n' + "═" * 60
+    )
+
+    # 3. Votre configuration nettoyée
+    return {
+        "recursion_limit": 15,  # 💡 Augmenté à 15 au cas où Wikipédia + RAG fassent beaucoup d'aller-retours
+        "configurable": {"thread_id": session_id},
+    }
+
+
+async def run_agent(chat_request):
     """
     Execute the conversational agent workflow.
 
@@ -86,23 +122,26 @@ def run_agent(chat_request):
     """
     initial_filters = chat_request.filters or ChatFilters()
 
-    initial_state = GraphState(
-        user_query=chat_request.message,
-        initial_filters=initial_filters,
-        current_step=None,
-        steps=[],
-        sql_filters=ChatFilters(),
-        candidate_ids=None,
-        retrieved_movies=[],
-        answer=None,
-    )
+    initial_state = {
+        "user_query": chat_request.message,
+        "initial_filters": chat_request.filters or ChatFilters(),
+        "current_step": None,
+        "steps": [],
+        "sql_filters": ChatFilters(),
+        "candidate_ids": None,
+        "retrieved_movies": [],
+        "answer": None,
+        "retry_count": 0,
+    }
 
-    final_state = graph.invoke(initial_state, config={"recursion_limit": 10})
+    config = get_graph_config(chat_request)
+
+    final_state = await graph.ainvoke(initial_state, config=config)
 
     return {**final_state, "steps": normalize_steps(final_state.get("steps"))}
 
 
-def run_agent_stream(chat_request):
+async def run_agent_stream(chat_request):
     """
     Execute the workflow in streaming mode.
 
@@ -117,23 +156,24 @@ def run_agent_stream(chat_request):
     """
     initial_filters = chat_request.filters or ChatFilters()
 
-    initial_state = GraphState(
-        user_query=chat_request.message,
-        initial_filters=initial_filters,
-        current_step=None,
-        steps=[],
-        sql_filters=ChatFilters(),
-        candidate_ids=None,
-        retrieved_movies=[],
-        answer=None,
-    )
+    initial_state = {
+        "user_query": chat_request.message,
+        "initial_filters": chat_request.filters or ChatFilters(),
+        "current_step": None,
+        "steps": [],
+        "sql_filters": ChatFilters(),
+        "candidate_ids": None,
+        "retrieved_movies": [],
+        "answer": None,
+        "retry_count": 0,
+    }
 
-    return graph.stream(
-        initial_state, config={"recursion_limit": 10}, stream_mode="updates"
-    )
+    config = get_graph_config(chat_request)
+
+    return graph.astream(initial_state, config=config, stream_mode="updates")
 
 
-def run_agent_stream_final(chat_request):
+async def run_agent_stream_final(chat_request):
     """
     Stream workflow execution and aggregate the final state.
 
@@ -155,17 +195,19 @@ def run_agent_stream_final(chat_request):
     Args:
         chat_request: User request containing message and filters.
     """
-    initial_state = GraphState(
-        user_query=chat_request.message,
-        initial_filters=chat_request.filters or ChatFilters(),
-        current_step=None,
-        steps=[],
-        sql_filters=ChatFilters(),
-        candidate_ids=None,
-        retrieved_movies=[],
-        answer=None,
-    )
+    initial_state = {
+        "user_query": chat_request.message,
+        "initial_filters": chat_request.filters or ChatFilters(),
+        "current_step": None,
+        "steps": [],
+        "sql_filters": ChatFilters(),
+        "candidate_ids": None,
+        "retrieved_movies": [],
+        "answer": None,
+        "retry_count": 0,
+    }
 
+<<<<<<< HEAD
     # TEMP: for test LangGraph checkpoint --------------------------------------------------------
     config = {
         "recursion_limit": 10,
@@ -177,10 +219,15 @@ def run_agent_stream_final(chat_request):
     stream = graph.stream(
         initial_state, config=config, stream_mode="updates"
     )
+=======
+    config = get_graph_config(chat_request)
+
+    stream = graph.astream(initial_state, config=config, stream_mode="updates")
+>>>>>>> bf70ba48f08005d6e3a07f59e52a5b8f57a7bcdf
 
     final_state: dict[str, Any] = {}
 
-    for event in stream:
+    async for event in stream:
         if not isinstance(event, dict):
             continue
 

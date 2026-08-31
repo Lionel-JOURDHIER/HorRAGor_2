@@ -30,9 +30,9 @@ Auteur/Responsable : Hanna (Epic 3)
 
 # IMPORT
 from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # CLASSES GENERAL -----------------------------------------------------------
@@ -46,7 +46,7 @@ class ErrorResponse(BaseModel):
     """Standard API error response model."""
 
     error: str
-    details: Optional[str] = None
+    details: str | None = None
 
 
 # CLASSES FILMS -----------------------------------------------------------
@@ -55,13 +55,13 @@ class ErrorResponse(BaseModel):
 class DirectorsResponse(BaseModel):
     """List of available movie directors."""
 
-    directors: List[str]
+    directors: list[str]
 
 
 class GenresResponse(BaseModel):
     """List of available movie genres."""
 
-    genres: List[str]
+    genres: list[str]
 
 
 class FilmShort(BaseModel):
@@ -69,18 +69,18 @@ class FilmShort(BaseModel):
 
     tmdb_id: int
     title: str
-    release_date: Optional[date] = None
-    genres: List[str] = Field(default_factory=list)
-    tmdb_score: Optional[float] = None
-    similarity_score: Optional[float] = None
-    poster_url: Optional[str] = None
-    synopsis: Optional[str] = None
+    release_date: date | None = None
+    genres: list[str] = Field(default_factory=list)
+    tmdb_score: float | None = None
+    similarity_score: float | None = None
+    poster_url: str | None = None
+    synopsis: str | None = None
 
 
 class FilmSearchResponse(BaseModel):
     """Movie search results."""
 
-    results: List[FilmShort] = Field(default_factory=list)
+    results: list[FilmShort] = Field(default_factory=list)
 
 
 class FilmDetail(BaseModel):
@@ -89,32 +89,32 @@ class FilmDetail(BaseModel):
     tmdb_id: int
     title: str
 
-    original_title: Optional[str] = None
-    original_language: Optional[str] = None
+    original_title: str | None = None
+    original_language: str | None = None
 
-    realisateur: Optional[str] = None
-    release_date: Optional[date] = None
-    runtime: Optional[int] = None
-    status: Optional[str] = None
-    synopsis: Optional[str] = None
-    tagline: Optional[str] = None
-    director: Optional[str] = None
-    genres: List[str] = Field(default_factory=list)
-    poster_url: Optional[str] = None
-    backdrop_url: Optional[str] = None
-    budget: Optional[int] = None
-    revenue: Optional[int] = None
+    realisateur: str | None = None
+    release_date: date | None = None
+    runtime: int | None = None
+    status: str | None = None
+    synopsis: str | None = None
+    tagline: str | None = None
+    director: str | None = None
+    genres: list[str] = Field(default_factory=list)
+    poster_url: str | None = None
+    backdrop_url: str | None = None
+    budget: int | None = None
+    revenue: int | None = None
 
-    tmdb_score: Optional[float] = None
-    tmdb_vote_count: Optional[int] = None
-    imdb_score: Optional[float] = None
-    imdb_vote_count: Optional[int] = None
-    rotten_tomatometer: Optional[int] = None
-    rotten_audience_score: Optional[int] = None
+    tmdb_score: float | None = None
+    tmdb_vote_count: int | None = None
+    imdb_score: float | None = None
+    imdb_vote_count: int | None = None
+    rotten_tomatometer: int | None = None
+    rotten_audience_score: int | None = None
 
-    aggregated_score: Optional[float] = None
+    aggregated_score: float | None = None
 
-    collection: Optional[str] = None
+    collection: str | None = None
 
 
 class FilmFilterRequest(BaseModel):
@@ -132,25 +132,40 @@ class FilmFilterRequest(BaseModel):
     runtime_min: int | None = None
     runtime_max: int | None = None
 
+
 class FilmIdsRequest(BaseModel):
     tmdb_ids: list[int]
+
 
 # FILTERS -----------------------------------------------------------
 class ChatFilters(BaseModel):
     """Optional filters applied to a movie search request."""
 
-    realisateur: Optional[str] = None
+    realisateur: str | None = None
 
-    genres_included: List[str] = []
-    genres_excluded: List[str] = []
+    genres_included: list[str] = []
+    genres_excluded: list[str] = []
 
-    release_year_min: Optional[int] = Field(default=None, ge=1900, le=2026)
-    release_year_max: Optional[int] = Field(default=None, ge=1900, le=2026)
+    release_year_min: int | None = Field(default=None, ge=1900, le=2026)
+    release_year_max: int | None = Field(default=None, ge=1900, le=2026)
 
-    tmdb_score_min: Optional[float] = Field(default=None, ge=0, le=10)
+    tmdb_score_min: float | None = Field(default=None, ge=0, le=10)
 
-    runtime_min: Optional[int] = Field(default=None, ge=1, le=685)
-    runtime_max: Optional[int] = Field(default=None, ge=1, le=685)
+    runtime_min: int | None = Field(default=None, ge=1, le=685)
+    runtime_max: int | None = Field(default=None, ge=1, le=685)
+
+    @field_validator("realisateur", mode="before")
+    @classmethod
+    def clean_realisateur(cls, v):
+        if isinstance(v, str) and v.strip().lower() in {
+            "string",
+            "",
+            "null",
+            "none",
+            "n/a",
+        }:
+            return None
+        return v
 
 
 # AGENT -----------------------------------------------------------------------
@@ -159,6 +174,20 @@ class AgentStep(BaseModel):
 
     step: str
     status: str
+
+
+def keep_or_update_list(
+    current: list[int] | None, update: list[int] | None
+) -> list[int] | None:
+    """
+    Reducer LangGraph : Conserve l'ancienne liste si la mise à jour est vide ou None,
+    sinon remplace par la nouvelle liste d'IDs.
+    """
+    # Si le nœud actuel ne renvoie rien ou une liste vide, on garde la mémoire du tour précédent
+    if update is None or (isinstance(update, list) and len(update) == 0):
+        return current if current is not None else []
+    # Sinon, un nœud a décidé d'écraser la mémoire avec de nouveaux films affichés
+    return update
 
 
 class AgentState(BaseModel):
@@ -170,30 +199,32 @@ class AgentState(BaseModel):
     initial_filters: ChatFilters = Field(default_factory=ChatFilters)
 
     # Suivi de l'exécution
-    current_step: Optional[str] = None
-    steps: List[AgentStep] = Field(default_factory=list)
+    current_step: str | None = None
+    steps: list[AgentStep] = Field(default_factory=list)
 
     # Données intermédiaires et filtres mergés
     sql_filters: ChatFilters = Field(default_factory=ChatFilters)
-    candidate_ids: Optional[List[int]] = None
+    candidate_ids: list[int] | None = None
 
     # Données de sortie pour les réponses finales
-    retrieved_movies: List[Any] = Field(
+    retrieved_movies: list[Any] = Field(
         default_factory=list
     )  # Contiendra FilmShort ou FilmDetail
-    answer: Optional[str] = None
-    search_branch: Optional[str] = None
+    answer: str | None = None
+    search_branch: str | None = None
     retry_count: int = 0
-    last_displayed_movies_id: Optional[List[int]] = Field(default_factory=list)
-    intent: Optional[str] = None
+    last_displayed_movies_id: Annotated[list[int] | None, keep_or_update_list] = Field(
+        default_factory=list
+    )
+    intent: str | None = None
     branch_search_wiki: str = Field(
         default="RAG"
     )  # posé par search_vector_node / load_film_node
-    enrich_ids: List[int] = Field(default_factory=list)  # posé par verif_film_node
-    data_enrich: Dict[int, Any] = Field(
+    enrich_ids: list[int] = Field(default_factory=list)  # posé par verif_film_node
+    data_enrich: dict[int, Any] = Field(
         default_factory=dict
     )  # posé par wikipedia_search_node
-    data_enriched: Optional[str] = None
+    data_enriched: str | None = None
 
 
 # CHAT REQUESTS RESPONSE --------------------------------------------------
@@ -201,22 +232,27 @@ class ChatRequest(BaseModel):
     """User query sent to the conversational agent."""
 
     message: str = Field(min_length=1, max_length=2000)
-    filters: Optional[ChatFilters] = None
+    filters: ChatFilters | None = None
+    session_id: str | None = Field(
+        default=None,
+        description="L'identifiant unique de la session/conversation pour maintenir la mémoire (géré par le client)",
+        examples=["c9b4e1a2-8b45-4cde-a012-3456789abcdef"],
+    )
 
 
 class ChatStatusResponse(BaseModel):
     """Current execution status of the conversational agent."""
 
     status: str
-    steps: List[AgentStep] = Field(default_factory=list)
+    steps: list[AgentStep] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):
     """Final response generated by the conversational agent."""
 
     answer: str
-    steps: List[AgentStep] = Field(default_factory=list)
-    recommendations: List[FilmShort] = Field(default_factory=list)
+    steps: list[AgentStep] = Field(default_factory=list)
+    recommendations: list[FilmDetail] = Field(default_factory=list)
 
 
 class WikipediaResponse(BaseModel):
@@ -224,7 +260,7 @@ class WikipediaResponse(BaseModel):
 
     title: str
     synopsis: str
-    source_url: Optional[str] = None
+    source_url: str | None = None
     source: str = "wikipedia"
 
 

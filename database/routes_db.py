@@ -40,29 +40,32 @@ Projet : HorRAGor
 """
 
 # IMPORT ----------------------------------------------------------
-import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from typing import List
+from database.connection import get_db
+from database.queries import (
+    get_all_directors,
+    get_all_genres,
+    get_film_details_by_id,
+    get_films_details_by_ids,
+    get_films_short_by_ids,
+    get_filtered_ids,
+)
 
+# LOGGER ------------------------------------------------------
+from logger import get_logger, setup_logger
 from shared.schemas import (
     DirectorsResponse,
     ErrorResponse,
     FilmDetail,
+    FilmFilterRequest,
+    FilmIdsRequest,
     GenresResponse,
     HealthResponse,
-    FilmFilterRequest,
-    FilmIdsRequest
 )
-
-from database.connection import get_db
-from database.queries import get_all_directors, get_all_genres, get_film_details_by_id, get_filtered_ids, get_films_details_by_ids
-
-# LOGGER ------------------------------------------------------
-from logger import get_logger, setup_logger
 
 setup_logger()
 logger = get_logger("ROUTES")
@@ -85,8 +88,8 @@ async def health(db: Session = Depends(get_db)):
         logger.info("HEATH SUSSESS")
         return HealthResponse(status="ok")
     except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
+        logger.error(f"Health check failed: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {e!s}")
 
 
 # LISTS -----------------------------------------------------------
@@ -102,9 +105,9 @@ async def list_real(session: Session = Depends(get_db)):
         directors = get_all_directors(session)
         return directors
     except Exception as e:
-        logger.error(f"Failed to retrieve directors: {str(e)}")
+        logger.error(f"Failed to retrieve directors: {e!s}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve directors: {str(e)}"
+            status_code=500, detail=f"Failed to retrieve directors: {e!s}"
         )
 
 
@@ -120,10 +123,8 @@ async def list_genre(session: Session = Depends(get_db)):
         genres = get_all_genres(session)
         return genres
     except Exception as e:
-        logger.error(f"Failed to retrieve genres: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve genres: {str(e)}"
-        )
+        logger.error(f"Failed to retrieve genres: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve genres: {e!s}")
 
 
 # FILMS -----------------------------------------------------------
@@ -148,10 +149,9 @@ async def get_film_detail(tmdb_id: int, session: Session = Depends(get_db)):
         raise
 
     except Exception as e:
-        logger.error(f"Failed to retrieve film: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve film: {str(e)}"
-        )
+        logger.error(f"Failed to retrieve film: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve film: {e!s}")
+
 
 @router.post(
     "/filter_films",
@@ -180,19 +180,13 @@ async def filter_films(
             runtime_max=request.runtime_max,
         )
 
-        return {
-            "tmdb_ids": ids or []
-        }
+        return {"tmdb_ids": ids or []}
 
     except Exception as e:
-        logger.exception(
-            "Failed to filter films"
-        )
+        logger.exception("Failed to filter films")
 
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to filter films: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to filter films: {e!s}")
+
 
 @router.post(
     "/films/details",
@@ -208,23 +202,15 @@ async def films_details(
     """
 
     try:
-        films = get_films_details_by_ids(
-            session,
-            request.tmdb_ids
-        )
+        films = get_films_details_by_ids(session, request.tmdb_ids)
 
         return films
 
     except Exception as e:
-        logger.exception(
-            "Failed to retrieve films details"
-        )
+        logger.exception("Failed to retrieve films details")
 
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
-    
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post(
     "/films/short",

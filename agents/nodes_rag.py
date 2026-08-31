@@ -26,7 +26,7 @@ Auteur/Responsable : Équipe Agents
 
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -35,19 +35,19 @@ root_path = Path(__file__).resolve().parent.parent
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))  # pragma: no cover
 
-from agents.config import llm, structured_llm
+from agents.config import llm, structured_llm, validation_llm
 from agents.prompts import (
     INTENTION_PROMPT,
     ROUTER_PROMPT,
     TITLE_DETECTOR_PROMPT,
 )
-from agents.tools.sql_tools import filter_films_by_criteria, get_films_details
+from agents.tools.sql_tools import filter_films_by_criteria
 from agents.tools.vector_tools import search_vector_catalog
-from shared.schemas import AgentState, AgentStep, ChatFilters
-from api.modules.database_client import get_films_short_by_ids
+from api.modules.database_client import get_films_details_by_ids, get_films_short_by_ids
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
+from shared.schemas import AgentState, AgentStep, ChatFilters
 
 setup_logger()
 logger = get_logger("NODES")
@@ -78,10 +78,10 @@ CATALOG_GENRES = {
 
 
 class ValidationFilmListResult(BaseModel):
-    valid_titles: List[str] = Field(
+    valid_titles: list[str] = Field(
         description="Titres des films qui correspondent aux critères demandés."
     )
-    invalid_titles: List[str] = Field(
+    invalid_titles: list[str] = Field(
         description="Titres des films qui ne correspondent PAS aux critères."
     )
     feedback: str = Field(description="Explication concise du choix de validation.")
@@ -97,7 +97,7 @@ class ValidationResult(BaseModel):
     feedback: str = Field(
         description="Explication concise du choix de validation ou de ce qui fait défaut."
     )
-    corrected_title: Optional[str] = Field(
+    corrected_title: str | None = Field(
         default=None,
         description=(
             "Si tu identifies avec certitude le titre exact du film qui aurait dû être "
@@ -111,10 +111,10 @@ class FilmDataCheck(BaseModel):
     sujet: str = Field(
         description="Le sujet précis de la question : synopsis, réalisateur, score, budget, casting, année, collection, etc."
     )
-    films_ok: List[str] = Field(
+    films_ok: list[str] = Field(
         description="Titres des films pour lesquels la donnée demandée est présente et non vide."
     )
-    films_missing: List[str] = Field(
+    films_missing: list[str] = Field(
         description="Titres des films pour lesquels la donnée demandée est absente ou vide — nécessitent un enrichissement Wikipedia."
     )
     feedback: str = Field(
@@ -133,7 +133,7 @@ class IntentOutput(BaseModel):
 # ==============================================================================
 
 
-def intent_classifier_node(state: AgentState) -> Dict[str, Any]:
+def intent_classifier_node(state: AgentState) -> dict[str, Any]:
     """
     Étape 0 : Analyse et classifie l'intention globale de la requête utilisateur.
     Utilise ChatPromptTemplate pour forcer Ollama à respecter les consignes système.
@@ -190,6 +190,13 @@ def intent_classifier_node(state: AgentState) -> Dict[str, Any]:
         )
         intent_verdict = "AUCUN_FILM_TROUVE"
 
+    # 5b. Forçage si le LLM retourne AUCUN_FILM_TROUVE alors qu'un film est en contexte
+    elif intent_verdict == "AUCUN_FILM_TROUVE" and has_context_bool:
+        logger.warning(
+            "[intent_classifier_node] LLM a retourné AUCUN_FILM_TROUVE mais un film est en contexte. Redirection vers DISCUSSION."
+        )
+        intent_verdict = "DISCUSSION"
+
     # 6. Si la session vient d'ouvrir et qu'on ne sait pas quoi faire
     elif not has_context_bool and intent_verdict not in ["CHITCHAT", "RECHERCHE"]:
         logger.info("[intent_classifier_node] Demarage de la session. Redirection. ")
@@ -212,7 +219,7 @@ def intent_classifier_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-def title_router_node(state: AgentState) -> Dict[str, Any]:
+def title_router_node(state: AgentState) -> dict[str, Any]:
     """
     Détecte la présence d'un titre de film dans la requête.
 
@@ -286,7 +293,7 @@ def title_router_node(state: AgentState) -> Dict[str, Any]:
 # ==============================================================================
 
 
-def merge_filters_node(state: AgentState) -> Dict[str, Any]:
+def merge_filters_node(state: AgentState) -> dict[str, Any]:
     """
     Extrait les filtres SQL depuis la requête utilisateur (LLM structuré),
     les merge avec initial_filters (front-end), valide les bornes.
@@ -356,7 +363,7 @@ def merge_filters_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-def search_vector_node(state: AgentState) -> Dict[str, Any]:
+async def search_vector_node(state: AgentState) -> dict[str, Any]:
     """
     Exécute le pré-filtrage SQL puis la recherche FAISS.
     Commun aux deux branches (direct et hybride).
@@ -375,15 +382,17 @@ def search_vector_node(state: AgentState) -> Dict[str, Any]:
     candidate_ids = None
     if not is_direct and state.sql_filters:
         f = state.sql_filters
-        candidate_ids = filter_films_by_criteria.func(
-            realisateur=f.realisateur,
-            genres_included=f.genres_included or None,
-            genres_excluded=f.genres_excluded or None,
-            release_year_min=f.release_year_min,
-            release_year_max=f.release_year_max,
-            tmdb_score_min=f.tmdb_score_min,
-            runtime_min=f.runtime_min,
-            runtime_max=f.runtime_max,
+        candidate_ids = await filter_films_by_criteria.ainvoke(
+            {
+                "realisateur": f.realisateur,
+                "genres_included": f.genres_included or None,
+                "genres_excluded": f.genres_excluded or None,
+                "release_year_min": f.release_year_min,
+                "release_year_max": f.release_year_max,
+                "tmdb_score_min": f.tmdb_score_min,
+                "runtime_min": f.runtime_min,
+                "runtime_max": f.runtime_max,
+            }
         )
         logger.info(
             f"[search_vector_node] Pool SQL : {len(candidate_ids) if candidate_ids else 'None (catalogue complet)'}"
@@ -399,7 +408,9 @@ def search_vector_node(state: AgentState) -> Dict[str, Any]:
             "retrieved_movies": [],
             "candidate_ids": [],
             "current_step": "no_results",
+            "retry_count": state.retry_count + 1,
             "steps": steps,
+            "search_branch": state.search_branch,
         }
     elif candidate_ids:
         logger.info(
@@ -418,10 +429,8 @@ def search_vector_node(state: AgentState) -> Dict[str, Any]:
         )
     )
     # 2. Recherche FAISS
-    results = search_vector_catalog.func(
-        query=query,
-        top_k=top_k,
-        candidate_ids=candidate_ids,
+    results = await search_vector_catalog.ainvoke(
+        {"query": query, "candidate_ids": candidate_ids, "top_k": top_k}
     )
     logger.info(
         f"[search_vector_node] FAISS → {len(results)} résultat(s) pour query='{query}'"
@@ -439,11 +448,13 @@ def search_vector_node(state: AgentState) -> Dict[str, Any]:
         "retrieved_movies": results,
         "candidate_ids": candidate_ids,
         "current_step": "has_results" if results else "no_results",
+        "retry_count": 0 if results else state.retry_count + 1,
         "steps": steps,
+        "search_branch": "direct" if is_direct else "hybrid",
     }
 
 
-def hydratation_node(state: AgentState) -> Dict[str, Any]:
+async def hydratation_node(state: AgentState) -> dict[str, Any]:
     """
     Branche directe uniquement.
     Hydrate le FilmShort retourné par FAISS en FilmDetail complet via SQL.
@@ -462,7 +473,7 @@ def hydratation_node(state: AgentState) -> Dict[str, Any]:
     logger.info(f"[hydratation_node] Hydratation pour tmdb_id={tmdb_id}")
 
     # Hydratation du film selectionné.
-    details = get_films_details([tmdb_id])
+    details = await get_films_details_by_ids([tmdb_id])
 
     # Cas 2 : Hydratation échouée : Film Absent de la table SQL
     if not details:
@@ -489,7 +500,7 @@ def hydratation_node(state: AgentState) -> Dict[str, Any]:
         }
 
 
-def card_node(state: AgentState) -> Dict[str, Any]:
+def card_node(state: AgentState) -> dict[str, Any]:
     """
     Branche directe.
     Signale que retrieved_movies est prêt à être envoyé au front via SSE type='card'.
@@ -526,7 +537,7 @@ def card_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-def validation_node(state: AgentState) -> Dict[str, Any]:
+def validation_node(state: AgentState) -> dict[str, Any]:
     """
     Branche directe uniquement.
     Vérifie la cohérence sémantique entre le FilmDetail hydraté et la requête.
@@ -550,19 +561,26 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
     film = state.retrieved_movies[0]
 
     # Création des parramètres pour l'appel de validation
-    evaluator = structured_llm.with_structured_output(ValidationResult)
+    evaluator = validation_llm.with_structured_output(ValidationResult)
+
+    film = state.retrieved_movies[0]
+    evaluator = validation_llm.with_structured_output(ValidationResult)
+
     prompt = f"""
     Tu es un contrôleur qualité pour un système RAG sur le cinéma d'horreur.
-    Analyse si la réponse générée correspond fidèlement aux films trouvés et à la question initiale.
-    
-    Requête Utilisateur : {state.user_query}
-    Films trouvés (Contexte) : {film.title}
-    Réponse générée par le LLM : {state.answer}
+    Analyse si le film trouvé correspond à la requête utilisateur.
 
-    Si la réponse est incorrecte ET que tu peux identifier avec certitude le titre exact
-    du film qui aurait dû être recherché (ex: la requête décrit clairement un film connu
-    par son réalisateur/synopsis mais le mauvais film a été renvoyé), indique ce titre
-    dans corrected_title pour permettre une nouvelle recherche ciblée.
+    Requête utilisateur : {state.user_query}
+    Film trouvé : {film.title} ({getattr(film, "release_date", "")})
+    Réalisateur : {getattr(film, "director", "")}
+    Genres : {getattr(film, "genres", [])}
+    Synopsis : {getattr(film, "synopsis", "")[:300] if getattr(film, "synopsis", None) else "Non disponible"}
+
+    Évalue uniquement si ce film répond aux critères de la requête.
+    - is_relevant : true si le film correspond (réalisateur, genre, thème, époque...)
+    - has_missing_info : true si la fiche manque d'infos pour trancher
+    - corrected_title : uniquement si tu identifies avec certitude un AUTRE film plus pertinent, null sinon
+    - feedback : explication courte si is_relevant est false
     """
 
     # Appel de Validation
@@ -605,7 +623,7 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
             )
         )
 
-        update: Dict[str, Any] = {
+        update: dict[str, Any] = {
             "current_step": "invalid_coherence",
             "steps": steps,
             "retry_count": state.retry_count + 1,
@@ -639,7 +657,7 @@ def validation_node(state: AgentState) -> Dict[str, Any]:
             return update
 
 
-async def format_cards_node(state: AgentState) -> Dict[str, Any]:
+async def format_cards_node(state: AgentState) -> dict[str, Any]:
     """
     Branche hybride uniquement.
     Ré-hydrate les FilmShort depuis SQL (synopsis inclus) via get_films_short_by_ids
@@ -667,7 +685,10 @@ async def format_cards_node(state: AgentState) -> Dict[str, Any]:
 
     # Cas 3 : Hydratation Echouée : Erreur SQL
     except Exception as e:
-        logger.error(f"[format_cards_node] Erreur SQL : {e}. Aucune carte disponible.")
+        logger.error(
+            f"[format_cards_node] Erreur SQL : {e}. Aucune carte disponible.",
+            exc_info=True,
+        )
         steps.append(
             AgentStep(
                 step="format_cards", status="Erreur SQL — aucune carte disponible."
@@ -693,7 +714,7 @@ async def format_cards_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-def validation_film_node(state: AgentState) -> Dict[str, Any]:
+def validation_film_node(state: AgentState) -> dict[str, Any]:
     """
     Branche hybride uniquement.
     Vérifie la cohérence de la liste de FilmShort retournée par FAISS
@@ -716,13 +737,12 @@ def validation_film_node(state: AgentState) -> Dict[str, Any]:
         ]
     )
 
-    #
     filters_summary = (
         state.sql_filters.model_dump(exclude_none=True) if state.sql_filters else {}
     )
 
     # Préparation de l'appel LLM
-    evaluator = structured_llm.with_structured_output(ValidationFilmListResult)
+    evaluator = validation_llm.with_structured_output(ValidationFilmListResult)
     prompt = f"""
         Tu es un contrôleur qualité pour un système RAG cinéma d'horreur.
         Vérifie que la liste de films proposée correspond aux critères demandés.
@@ -752,7 +772,7 @@ def validation_film_node(state: AgentState) -> Dict[str, Any]:
         )
 
     # Verification qu'il n'y a pas de doublons dans la liste envoyée par le LLM.
-    valid_titles_set = set(result.valid_titles)
+    valid_titles_set = {t.split(" (")[0].strip() for t in result.valid_titles}
 
     # Création de la liste de FilmShort des film validés
     filtered_movies = [f for f in state.retrieved_movies if f.title in valid_titles_set]
@@ -806,7 +826,7 @@ def validation_film_node(state: AgentState) -> Dict[str, Any]:
 # ==============================================================================
 
 
-def load_film_node(state: AgentState) -> Dict[str, Any]:
+async def load_film_node(state: AgentState) -> dict[str, Any]:
     """
     Branche DISCUSSION uniquement.
     Charge le FilmDetail depuis last_displayed_movies_id (mémoire session).
@@ -833,7 +853,7 @@ def load_film_node(state: AgentState) -> Dict[str, Any]:
 
     # Hydratation des films pour contexte.
     try:
-        details = get_films_details(film_ids)
+        details = await get_films_details_by_ids(film_ids)
     except Exception as e:
         logger.error(f"[load_film_node] Erreur SQL : {e}.")
         details = []
@@ -864,7 +884,7 @@ def load_film_node(state: AgentState) -> Dict[str, Any]:
         }
 
 
-def verif_film_node(state: AgentState) -> Dict[str, Any]:
+def verif_film_node(state: AgentState) -> dict[str, Any]:
     """
     Branche DISCUSSION uniquement.
     Analyse la question utilisateur et vérifie si le FilmDetail chargé
