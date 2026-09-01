@@ -21,6 +21,8 @@ dependencies = [
     "supabase>=2.30.1",
     "uvicorn>=0.49.0",
     "prometheus-fastapi-instrumentator>=7.1.0",
+    "faiss-cpu>=1.15.0",
+    "pytest-asyncio>=1.4.0",
 ]
 
 [dependency-groups]

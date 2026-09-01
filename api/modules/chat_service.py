@@ -114,70 +114,70 @@ def get_graph_config(chat_request: ChatRequest) -> dict[str, Any]:
     }
 
 
-async def run_agent(chat_request):
-    """
-    Execute the conversational agent workflow.
+# async def run_agent(chat_request):
+#     """
+#     Execute the conversational agent workflow.
 
-    Builds the initial graph state from the user request,
-    runs the workflow to completion, and returns the final state.
+#     Builds the initial graph state from the user request,
+#     runs the workflow to completion, and returns the final state.
 
-    Args:
-        chat_request: User request containing message and filters.
+#     Args:
+#         chat_request: User request containing message and filters.
 
-    Returns:
-        dict: Final workflow state including normalized execution steps.
-    """
-    initial_filters = chat_request.filters or ChatFilters()
+#     Returns:
+#         dict: Final workflow state including normalized execution steps.
+#     """
+#     initial_filters = chat_request.filters or ChatFilters()
 
-    initial_state = {
-        "user_query": chat_request.message,
-        "initial_filters": chat_request.filters or ChatFilters(),
-        "current_step": None,
-        "steps": [],
-        "sql_filters": ChatFilters(),
-        "candidate_ids": None,
-        "retrieved_movies": [],
-        "answer": None,
-        "retry_count": 0,
-    }
+#     initial_state = {
+#         "user_query": chat_request.message,
+#         "initial_filters": chat_request.filters or ChatFilters(),
+#         "current_step": None,
+#         "steps": [],
+#         "sql_filters": ChatFilters(),
+#         "candidate_ids": None,
+#         "retrieved_movies": [],
+#         "answer": None,
+#         "retry_count": 0,
+#     }
 
-    config = get_graph_config(chat_request)
+#     config = get_graph_config(chat_request)
 
-    final_state = await graph.ainvoke(initial_state, config=config)
+#     final_state = await graph.ainvoke(initial_state, config=config)
 
-    return {**final_state, "steps": normalize_steps(final_state.get("steps"))}
+#     return {**final_state, "steps": normalize_steps(final_state.get("steps"))}
 
 
-async def run_agent_stream(chat_request):
-    """
-    Execute the workflow in streaming mode.
+# async def run_agent_stream(chat_request):
+#     """
+#     Execute the workflow in streaming mode.
 
-    Returns a LangGraph event stream containing intermediate
-    state updates produced during graph execution.
+#     Returns a LangGraph event stream containing intermediate
+#     state updates produced during graph execution.
 
-    Args:
-        chat_request: User request containing message and filters.
+#     Args:
+#         chat_request: User request containing message and filters.
 
-    Returns:
-        Iterator producing graph update events.
-    """
-    initial_filters = chat_request.filters or ChatFilters()
+#     Returns:
+#         Iterator producing graph update events.
+#     """
+#     initial_filters = chat_request.filters or ChatFilters()
 
-    initial_state = {
-        "user_query": chat_request.message,
-        "initial_filters": chat_request.filters or ChatFilters(),
-        "current_step": None,
-        "steps": [],
-        "sql_filters": ChatFilters(),
-        "candidate_ids": None,
-        "retrieved_movies": [],
-        "answer": None,
-        "retry_count": 0,
-    }
+#     initial_state = {
+#         "user_query": chat_request.message,
+#         "initial_filters": chat_request.filters or ChatFilters(),
+#         "current_step": None,
+#         "steps": [],
+#         "sql_filters": ChatFilters(),
+#         "candidate_ids": None,
+#         "retrieved_movies": [],
+#         "answer": None,
+#         "retry_count": 0,
+#     }
 
-    config = get_graph_config(chat_request)
+#     config = get_graph_config(chat_request)
 
-    return graph.astream(initial_state, config=config, stream_mode="updates")
+#     return graph.astream(initial_state, config=config, stream_mode="updates")
 
 
 async def run_agent_stream_final(chat_request):
