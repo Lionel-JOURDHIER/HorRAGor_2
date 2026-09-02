@@ -174,10 +174,19 @@ def intent_classifier_node(state: AgentState) -> dict[str, Any]:
         f"[intent_classifier_node] Statut transmis au LLM : {has_active_context}"
     )
 
+    # 1b. Titres déjà en contexte (retrieved_movies persiste du tour précédent),
+    # pour permettre au LLM de distinguer un titre déjà affiché d'un titre nouveau.
+    context_titles = [
+        film.title for film in state.retrieved_movies if getattr(film, "title", None)
+    ]
+    logger.info(f"[intent_classifier_node] Titres en contexte : {context_titles}")
+
     # 2. Remplacement des variables dans le template textuel
-    prompt_system_text = INTENTION_PROMPT.replace(
-        "__USER_QUERY__", state.user_query
-    ).replace("__HAS_CONTEXT__", has_active_context)
+    prompt_system_text = (
+        INTENTION_PROMPT.replace("__USER_QUERY__", state.user_query)
+        .replace("__HAS_CONTEXT__", has_active_context)
+        .replace("__CONTEXT_TITLES__", str(context_titles))
+    )
 
     try:
         # 3. Association du schéma de sortie au LLM
@@ -847,6 +856,9 @@ async def load_film_node(state: AgentState) -> dict[str, Any]:
     Branche DISCUSSION uniquement.
     Charge le FilmDetail depuis last_displayed_movies_id (mémoire session).
     Alimente retrieved_movies pour route_verif_film puis narrator_node.
+    Si un titre cité dans la question réduit le contexte à un sous-ensemble
+    des films en mémoire, réécrit aussi last_displayed_movies_id sur ce
+    sous-ensemble pour que les tours suivants restent recalés dessus.
     """
     logger.info("[load_film_node] Chargement du film en mémoire session.")
     steps = list(state.steps)
@@ -887,17 +899,37 @@ async def load_film_node(state: AgentState) -> dict[str, Any]:
 
     # Cas 3 : Hydratation Réussie.
     else:
+        # Si plusieurs films sont en mémoire, ne garder que celui explicitement cité
+        # dans la question pour éviter de renvoyer toute la liste précédente.
+        if len(details) > 1:
+            query_lower = state.user_query.lower()
+            matched = [f for f in details if f.title and f.title.lower() in query_lower]
+            if matched:
+                logger.info(
+                    f"[load_film_node] Filtrage sur le(s) titre(s) cité(s) : "
+                    f"{[f.title for f in matched]}"
+                )
+                details = matched
+
         logger.info(f"[load_film_node] Films chargés : '{details[0].title}'")
         steps.append(
             AgentStep(step="load_film", status=f"Films chargés : '{details[0].title}'")
         )
 
-        return {
+        result: dict[str, Any] = {
             "retrieved_movies": details,
             "current_step": "film_loaded",
             "branch_search_wiki": "DISCUSSION",
             "steps": steps,
         }
+
+        # Un titre a réduit le contexte à un sous-ensemble : la mémoire de session
+        # se recale dessus, pour que les questions suivantes par pronom ("il",
+        # "sa durée") ne portent plus que sur ce(s) film(s).
+        if len(details) < len(film_ids):
+            result["last_displayed_movies_id"] = [f.tmdb_id for f in details]
+
+        return result
 
 
 def verif_film_node(state: AgentState) -> dict[str, Any]:
