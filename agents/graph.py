@@ -270,17 +270,24 @@ def graph():
     # ==============================================================================
     graph = workflow.compile(checkpointer=_checkpointer)
 
-    # On récupère le code texte au format Mermaid
-    mermaid_code = graph.get_graph().draw_mermaid()
+    # Génération du diagramme (aide au développement uniquement) : le rendu PNG
+    # appelle l'API externe mermaid.ink, qui peut être indisponible (réseau,
+    # proxy) — un échec ici ne doit pas empêcher le graphe compilé d'être
+    # utilisable par l'API.
+    try:
+        mermaid_code = graph.get_graph().draw_mermaid()
+        with open("graph.mmd", "w", encoding="utf-8") as f:
+            f.write(mermaid_code)
 
-    # On l'écrit dans un fichier .mmd
-    with open("graph.mmd", "w", encoding="utf-8") as f:
-        f.write(mermaid_code)
-
-    graph_image = graph.get_graph().draw_mermaid_png()
-    with open("HorRAGor_graph.png", "wb") as f:
-        f.write(graph_image)
-        print("✅ Graphe enregistré sous 'HorRAGor_graph.png'")
+        graph_image = graph.get_graph().draw_mermaid_png()
+        with open("HorRAGor_graph.png", "wb") as f:
+            f.write(graph_image)
+        logger.info("Diagramme du graphe enregistré sous 'HorRAGor_graph.png'.")
+    except Exception:
+        logger.warning(
+            "Génération du diagramme du graphe impossible (probablement "
+            "mermaid.ink inaccessible) — le graphe compilé reste utilisable."
+        )
 
     return graph
 

@@ -187,6 +187,31 @@ Mis à jour au fil des sessions.
   si plusieurs films sont enrichis en DISCUSSION. Plafond global
   `MAX_SYNTHESIS_CONTEXT_CHARS = 8000` ajouté sur le contexte total
   (tous films confondus) avant l'appel LLM.
+- [x] Mauvais usage de loguru dans
+  [agents/tools/wiki_tools.py](agents/tools/wiki_tools.py) : `print()` au
+  lieu du logger, `logger.error("SUMMARY ERROR:", repr(e))` (args positionnels
+  sans `{}`, le détail de l'erreur était silencieusement perdu), et un
+  `except Exception:` final qui ne journalisait rien avant de renvoyer
+  `{"error": "UNKNOWN_ERROR"}`. Remplacés par `logger.exception(...)` avec
+  placeholders `{}` dans les trois cas.
+- [x] Génération du diagramme au démarrage sans gestion d'erreur
+  ([agents/graph.py:273-283](agents/graph.py:273)) : `graph()` est appelée une
+  fois à l'import par `api/modules/chat_service.py` et écrivait
+  inconditionnellement `graph.mmd` puis `HorRAGor_graph.png` via
+  `draw_mermaid_png()` — un appel réseau vers l'API externe mermaid.ink. Une
+  indisponibilité réseau (proxy, coupure) faisait planter tout le démarrage
+  de l'API pour un simple artefact de développement. `print()` remplacé par
+  le logger. Génération encadrée par un `try/except` : un échec journalise un
+  warning sans empêcher le graphe compilé d'être retourné et utilisé.
+- [ ] `os.environ["LANGGRAPH_STRICT_MSGPACK"] = "false"`
+  ([agents/graph.py:58](agents/graph.py:58)) : désactive globalement la
+  vérification stricte du msgpack pour faire taire les avertissements
+  « Deserializing unregistered type... This will be blocked in a future
+  version » (vus en logs pour `ChatFilters`, `AgentStep`, `FilmShort`) au lieu
+  d'enregistrer ces types comme modules msgpack autorisés. Non traité :
+  contournement qui cassera silencieusement dès qu'une version future de
+  LangGraph rendra le mode strict obligatoire ; nécessite d'identifier
+  précisément les types à enregistrer plutôt que de désactiver le contrôle.
 
 ## 🐛 Bugs confirmés — câblage frontend / backend
 
