@@ -13,7 +13,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository }}
 
 jobs:
 
@@ -74,7 +73,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
       # ───────────────── API ─────────────────
 
       - name: Build API image
@@ -84,8 +84,8 @@ jobs:
           file: Dockerfile.api
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/api:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/api:latest
+            ghcr.io/${{ env.IMAGE_NAME }}/api:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}/api:latest
 
 
       # ─────────────── DATABASE API ──────────
@@ -97,8 +97,8 @@ jobs:
           file: Dockerfile.database
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/database-api:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/database-api:latest
+            ghcr.io/${{ env.IMAGE_NAME }}/database-api:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}/database-api:latest
 
 
       # ─────────────── FRONTEND ──────────────
@@ -110,5 +110,5 @@ jobs:
           file: Dockerfile.frontend
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/frontend:latest
+            ghcr.io/${{ env.IMAGE_NAME }}/frontend:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}/frontend:latest
