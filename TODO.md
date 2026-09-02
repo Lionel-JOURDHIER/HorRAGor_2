@@ -164,6 +164,13 @@ Mis à jour au fil des sessions.
   `agents/nodes_narrateur.py` commencent tous les deux par
   `"""agents/nodes.py` (copié-collé d'un fichier renommé/scindé depuis).
   Réécrits pour décrire le contenu réel de chaque fichier.
+- [ ] `agents/state.py` est un fichier mort : entièrement composé de code
+  commenté (ancienne définition de `AgentState`/`AgentStep`, remplacée par
+  `shared/schemas.py`), aucune référence ailleurs dans le dépôt
+  (`grep -rn "agents.state"` ne remonte rien hors de lui-même). À supprimer
+  (`git rm agents/state.py`) — non fait cette session : la suppression de
+  fichier a été bloquée par le classifieur de permissions de l'environnement
+  d'exécution, à faire manuellement.
 - [x] Coquille dans un message de log :
   [agents/router.py:536](agents/router.py:536)
   `"[Rouroute_validation_hybridte]"`. Corrigé en `[route_validation_hybrid]`.
