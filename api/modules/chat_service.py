@@ -185,23 +185,12 @@ async def run_agent_stream_final(chat_request):
     Stream workflow execution and aggregate the final state.
 
     Yields:
-        dict:
-            Step events:
-                {
-                    "type": "step",
-                    "node": str,
-                    "step": {...}
-                }
-
-            Final event:
-                {
-                    "type": "final",
-                    "result": {...}
-                }
+        dict: Step and final events generated during workflow execution.
 
     Args:
         chat_request: User request containing message and filters.
     """
+    
     initial_state = {
         "user_query": chat_request.message,
         "initial_filters": chat_request.filters or ChatFilters(),

@@ -1,3 +1,4 @@
+
 """agents/router.py
 Module de routage conditionnel et d'aiguillage du graphe HorRAGor v3.
 
@@ -9,102 +10,111 @@ une séparation stricte entre la logique de décision de trajectoire et l'exécu
 En se basant sur les variables d'état de l'AgentState, ce module implémente les fonctions
 d'aiguillage suivantes à travers les 3 phases du programme :
 
-================================================================================
 PHASE 1 : AIGUILLAGE DE L'INTENTION ET DE L'ENTRÉE (LE CERVEAU)
-================================================================================
+----------------------------------------------------------------
+
 Aiguille le flux dès la réception du message utilisateur pour séparer les requêtes
 de recherche lourdes des interactions conversationnelles (Bypass).
 
-    - route_by_intent : Dispatche selon l'intention classifiée par intent_classifier_node :
-        * "RECHERCHE"        → route_after_title_check (pipeline RAG complet).
-        * "DISCUSSION"       → load_film_node (bypass mémoire session).
-        * "CHITCHAT"         → narrator_node (court-circuit direct, pas de BDD).
-        * "AUCUN_FILM_TROUVE"→ narrator_node (court-circuit, invite à rechercher).
+- route_by_intent : Dispatche selon l'intention classifiée par intent_classifier_node.
+  - "RECHERCHE" → route_after_title_check (pipeline RAG complet).
+  - "DISCUSSION" → load_film_node (bypass mémoire session).
+  - "CHITCHAT" → narrator_node (court-circuit direct, pas de BDD).
+  - "AUCUN_FILM_TROUVE" → narrator_node (court-circuit, invite à rechercher).
 
-    - route_after_title_check : Dispatche selon la présence d'un titre explicite :
-        * "has_title"  → search_vector_node (Processus A - Direct).
-        * "no_title"   → merge_filters_node (Processus B - Hybride).
+- route_after_title_check : Dispatche selon la présence d'un titre explicite.
+  - "has_title" → search_vector_node (Processus A - Direct).
+  - "no_title" → merge_filters_node (Processus B - Hybride).
 
-    - route_verif_film : Valide l'alignement contextuel après load_film_node :
-        * retrieved_movies vide ou "intent_rupture" → route_after_title_check.
-        * film chargé et cohérent                   → verif_film_node.
+- route_verif_film : Valide l'alignement contextuel après load_film_node.
+  - retrieved_movies vide ou "intent_rupture" → route_after_title_check.
+  - film chargé et cohérent → verif_film_node.
 
-================================================================================
+
 PHASE 2 : ROUTAGE DE RECHERCHE & RÉFLEXION (L'EXPERT)
-================================================================================
+-----------------------------------------------------
+
 Supervise les transitions entre collecte interne, enrichissement externe et
 boucles de rétroaction (max 2 tentatives via retry_count).
 
-    - route_direct_id_valid : Valide la présence d'un film après search_vector_node (Direct).
-        * 1 film trouvé    → hydratation_node.
-        * 0 film, retry<2  → search_vector_node (RETRY).
-        * 0 film, retry>=2 → narrator_node (FAIL).
+- route_direct_id_valid : Valide la présence d'un film après search_vector_node (Direct).
+  - 1 film trouvé → hydratation_node.
+  - 0 film, retry<2 → search_vector_node (RETRY).
+  - 0 film, retry>=2 → narrator_node (FAIL).
 
-    - route_hybrid_id_valid : Valide la présence de films après search_vector_node (Hybride).
-        * films trouvés    → format_cards_node.
-        * 0 film, retry<2  → merge_filters_node (RETRY).
-        * 0 film, retry>=2 → narrator_node (FAIL).
+- route_hybrid_id_valid : Valide la présence de films après search_vector_node (Hybride).
+  - films trouvés → format_cards_node.
+  - 0 film, retry<2 → merge_filters_node (RETRY).
+  - 0 film, retry>=2 → narrator_node (FAIL).
 
-    - route_need_wikipedia : Oriente selon branch_search_wiki et current_step :
-        * RAG + "valid_missing_synopsis" → wikipedia_search_node.
-        * RAG + search_branch="direct"   → card_node.
-        * RAG + search_branch="hybrid"   → format_cards_node.
-        * DISCUSSION + "valid_missing_data" → wikipedia_search_node.
-        * DISCUSSION + données suffisantes  → synthesis_node.
+- route_need_wikipedia : Oriente selon branch_search_wiki et current_step.
+  - RAG + "valid_missing_synopsis" → wikipedia_search_node.
+  - RAG + search_branch="direct" → card_node.
+  - RAG + search_branch="hybrid" → format_cards_node.
+  - DISCUSSION + "valid_missing_data" → wikipedia_search_node.
+  - DISCUSSION + données suffisantes → synthesis_node.
 
-    - route_return_wiki : Convergence post-synthèse Wikipédia :
-        * RAG        → card_node ou format_cards_node selon search_branch.
-        * DISCUSSION → synthesis_node → narrator_node.
+- route_return_wiki : Convergence post-synthèse Wikipédia.
+  - RAG → card_node ou format_cards_node selon search_branch.
+  - DISCUSSION → synthesis_node → narrator_node.
 
-================================================================================
+
 PHASE 3 : ROUTAGE DE VALIDATION (LE GARDIEN)
-================================================================================
+--------------------------------------------
+
 Évalue la cohérence sémantique des résultats avant génération finale.
 
-    - route_validation_direct : Valide le film hydraté (Processus A) :
-        * "valid" ou "valid_missing_synopsis" → route_need_wikipedia (PASS).
-        * "invalid_coherence", retry<2        → search_vector_node (RETRY).
-        * "invalid_coherence", retry>=2       → narrator_node (FAIL).
+- route_validation_direct : Valide le film hydraté (Processus A).
+  - "valid" ou "valid_missing_synopsis" → route_need_wikipedia (PASS).
+  - "invalid_coherence", retry<2 → search_vector_node (RETRY).
+  - "invalid_coherence", retry>=2 → narrator_node (FAIL).
 
-    - route_validation_hybrid : Valide la liste de films (Processus B) :
-        * "valid"                      → route_need_wikipedia (PASS total).
-        * "valid_partial"              → route_need_wikipedia (PASS partiel, liste filtrée).
-        * "invalid_coherence", retry<2 → merge_filters_node (RETRY).
-        * "invalid_coherence", retry>=2→ narrator_node (FAIL).
+- route_validation_hybrid : Valide la liste de films (Processus B).
+  - "valid" → route_need_wikipedia (PASS total).
+  - "valid_partial" → route_need_wikipedia (PASS partiel, liste filtrée).
+  - "invalid_coherence", retry<2 → merge_filters_node (RETRY).
+  - "invalid_coherence", retry>=2 → narrator_node (FAIL).
 
---------------------------------------------------------------------------------
+
 Statuts current_step reconnus :
-    "has_title"              : titre détecté par title_router_node
-    "no_title"               : pas de titre, branche hybride
-    "filters_ready"          : filtres SQL consolidés par merge_filters_node
-    "has_results"            : films trouvés par search_vector_node
-    "no_results"             : aucun film trouvé (pool SQL vide ou FAISS vide)
-    "hydrated"               : FilmDetail chargé par hydratation_node
-    "card_ready"             : carte prête pour envoi SSE (card_node)
-    "cards_ready"            : liste de cartes prête pour envoi SSE (format_cards_node)
-    "valid"                  : validation réussie (direct ou hybride)
-    "valid_partial"          : validation partielle hybride (liste filtrée)
-    "valid_missing_synopsis" : film valide mais synopsis absent (RAG)
-    "valid_missing_data"     : film valide mais donnée demandée absente (DISCUSSION)
-    "invalid_coherence"      : film ou liste incohérent avec la requête
-    "intent_rupture"         : changement de sujet détecté en mode DISCUSSION
-    "film_loaded"            : FilmDetail chargé depuis la mémoire session
-    "wiki_done"              : enrichissement Wikipedia effectué
-    "synthesis_done"         : synthèse LLM produite
-    "completed"              : réponse finale générée par narrator_node
+
+- "has_title" : titre détecté par title_router_node
+- "no_title" : pas de titre, branche hybride
+- "filters_ready" : filtres SQL consolidés par merge_filters_node
+- "has_results" : films trouvés par search_vector_node
+- "no_results" : aucun film trouvé (pool SQL vide ou FAISS vide)
+- "hydrated" : FilmDetail chargé par hydratation_node
+- "card_ready" : carte prête pour envoi SSE (card_node)
+- "cards_ready" : liste de cartes prête pour envoi SSE (format_cards_node)
+- "valid" : validation réussie (direct ou hybride)
+- "valid_partial" : validation partielle hybride (liste filtrée)
+- "valid_missing_synopsis" : film valide mais synopsis absent (RAG)
+- "valid_missing_data" : film valide mais donnée demandée absente (DISCUSSION)
+- "invalid_coherence" : film ou liste incohérent avec la requête
+- "intent_rupture" : changement de sujet détecté en mode DISCUSSION
+- "film_loaded" : FilmDetail chargé depuis la mémoire session
+- "wiki_done" : enrichissement Wikipedia effectué
+- "synthesis_done" : synthèse LLM produite
+- "completed" : réponse finale générée par narrator_node
+
 
 Variables d'état clés :
-    branch_search_wiki : "RAG" | "DISCUSSION"
-    search_branch      : "direct" | "hybrid"
-    retry_count        : int (max 2)
+
+- branch_search_wiki : "RAG" | "DISCUSSION"
+- search_branch : "direct" | "hybrid"
+- retry_count : int (max 2)
+
 
 Dépendances principales :
-    - api.schemas (AgentState)
-    - agents.nodes (Cibles de routage pour le constructeur du graphe)
+
+- api.schemas (AgentState)
+- agents.nodes (Cibles de routage pour le constructeur du graphe)
+
 
 Auteur/Responsable : Équipe Agents - Spécification HorRAGor v3
---------------------------------------------------------------------------------
 """
+
+
 
 from shared.schemas import AgentState
 
@@ -163,6 +173,7 @@ def route_by_intent(state: AgentState) -> str:
 
 def route_after_title_check(state: AgentState) -> str:
     """Aiguille le workflow selon la présence ou non d'un titre de film précis.
+    
     Returns:
         str: "direct_movie_detail" (Processus A : direct) ou "filter_and_search_hybrid" (Processus B : hybride).
     """
