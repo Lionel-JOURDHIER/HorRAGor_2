@@ -4,6 +4,166 @@ Suivi des manquements identifiés par rapport au cahier des charges
 (`HorRAGor BOT Partie 3.pdf`) et de bugs relevés par relecture de code.
 Mis à jour au fil des sessions.
 
+## 🐛 Bugs confirmés — agent LangGraph
+
+- [ ] **Boucle de retry sans plafond réel → `GraphRecursionError`.**
+  Observé en usage réel (logs Docker, requête "films de science-fiction
+  note > 7 entre 1990 et 2000") : la boucle
+  `merge_filters_node → search_vector_node → validation_film_node →
+  route_validation_hybrid` tourne indéfiniment sans jamais atteindre le
+  plafond métier prévu (`retry_count >= 2`), jusqu'à la limite globale de
+  LangGraph, qui bascule sur un fallback narratif dégradé au lieu de la
+  réponse attendue.
+  - Cause : [agents/nodes_rag.py:451](agents/nodes_rag.py:451)
+    (`search_vector_node`) remet `retry_count` à **0** dès que FAISS renvoie
+    des résultats non vides, sans savoir si ces résultats passeront la
+    validation. [agents/nodes_rag.py:820](agents/nodes_rag.py:820)
+    (`validation_film_node`) le remonte à 1 en cas d'échec, mais le tour
+    suivant le remet à 0 avant que le routeur ne le revoie — le compteur ne
+    dépasse donc jamais 1.
+  - Déclencheur observé : un film candidat au titre mal formé en base
+    (`"Frankenstein's Planet of Monsters!"`, sans suffixe année) rejeté en
+    boucle par la validation stricte de format `Titre Année`.
+  → Corriger la logique de compteur (ne le remettre à 0 qu'après une
+  validation réussie, pas juste une recherche FAISS non vide) et/ou assouplir
+  la validation de format de titre.
+
+- [x] **Poser une question sur un film déjà affiché relançait une RECHERCHE
+  au lieu d'une DISCUSSION.** Observé en usage réel : citer le titre d'un des
+  films proposés dans la question suivante ("Get Out, quel est le
+  réalisateur ?") faisait parfois retomber le bot sur la même liste de films
+  au lieu de répondre sur ce film précis.
+  - Cause : [agents/prompts.py:120](agents/prompts.py:120) (`INTENTION_PROMPT`)
+    contenait deux règles contradictoires — la règle absolue disait "question
+    sur un film + contexte actif → toujours DISCUSSION", tandis que la règle 3
+    disait "titre explicite mentionné → toujours RECHERCHE, même si contexte
+    actif". Le LLM n'avait aucun moyen de savoir si le titre cité était déjà
+    l'un des films affichés, car [agents/nodes_rag.py:136](agents/nodes_rag.py:136)
+    (`intent_classifier_node`) ne transmettait qu'un booléen (`HAS_CONTEXT`),
+    jamais les titres réels.
+  - Correctif appliqué : `intent_classifier_node` extrait maintenant les
+    titres déjà en mémoire depuis `state.retrieved_movies` (déjà hydraté par
+    `card_node`/`format_cards_node`, aucun appel base supplémentaire) et les
+    injecte dans le prompt via `CONTEXT_TITLES`. Les règles 1 et 3 du prompt
+    tranchent désormais sur l'appartenance du titre cité à cette liste, au
+    lieu d'un simple booléen — la contradiction est levée.
+
+- [x] **DISCUSSION sur un film déjà affiché plantait le stream si plusieurs
+  films étaient en mémoire (crash Pydantic).** Observé en usage réel :
+  demander le réalisateur de "Welcome to Japan" alors que 5 films japonais
+  étaient en contexte faisait planter le SSE après que le narrateur ait déjà
+  généré la bonne réponse — jamais livrée au frontend.
+  - Cause : [api/routes.py:226-240](api/routes.py:226) décide du type
+    Pydantic (`FilmDetail` vs `FilmShort`) uniquement sur le **nombre** de
+    films (`len(movies) == 1` vs `> 1`), pas sur leur type réel.
+    `load_film_node` ([agents/nodes_rag.py:829](agents/nodes_rag.py:829))
+    charge toujours des `FilmDetail` complets quel que soit leur nombre → à
+    5 films en contexte, `len(movies) > 1` déclenche
+    `FilmShort.model_validate(FilmDetail_instance)`, qui lève
+    `pydantic_core.ValidationError` (`Input should be a valid dictionary or
+    instance of FilmShort`).
+  - Bug symétrique identifié en même temps : la branche hybride RAG
+    (`format_cards_node`) produit toujours des `FilmShort`, même quand un
+    seul film reste après validation → `len(movies) == 1` déclenche alors
+    `FilmDetail.model_validate(FilmShort_instance)`, qui plante pareil.
+  - Correctif appliqué : normalisation par `movie.model_dump()` avant
+    revalidation dans les deux branches, qui fonctionne quel que soit le
+    modèle Pydantic source.
+  - Limite connue du correctif : quand la branche hybride ne renvoie qu'un
+    seul `FilmShort`, le `FilmDetail` reconstruit à partir de son
+    `model_dump()` a les champs absents de `FilmShort` (réalisateur, durée,
+    budget...) à `None` — pas un crash, mais une carte incomplète. Une
+    ré-hydratation complète via `get_films_details_by_ids` serait plus
+    correcte si ce cas s'avère fréquent.
+
+- [ ] **`validation_film_node` valide par défaut quand le LLM ne remplit pas
+  `valid_titles`/`invalid_titles`.** Observé en usage réel (requête "Films
+  japonais avec une note supérieure à 8") : le LLM a renvoyé
+  `valid_titles: []`, `invalid_titles: []` et son verdict réel
+  (`is_relevant: False`, films non pertinents listés un par un) uniquement
+  dans le champ texte libre `feedback`. Le code
+  ([agents/nodes_rag.py:790](agents/nodes_rag.py:790)) ne teste que
+  `len(invalid_titles) == 0` pour décider du PASS → liste entière (dont des
+  films indonésien/philippin non-horreur) validée et présentée à
+  l'utilisateur comme cohérente.
+  - Cause structurelle : `ValidationFilmListResult`
+    ([agents/nodes_rag.py:80](agents/nodes_rag.py:80)) n'a pas de champ
+    booléen de verdict global (`is_relevant`) — seulement deux listes de
+    titres à recomposer, fragiles dès que le LLM local ne les remplit pas.
+  → Ajouter un champ `is_relevant: bool` obligatoire au schéma de sortie
+  structurée, et faire du PASS un cas explicite (`is_relevant is True`)
+  plutôt qu'une absence de titres invalides — fail-safe (rejeter) en cas de
+  sortie LLM incomplète, pas fail-open (tout accepter).
+
+- [x] **DISCUSSION sur un film précis renvoyait toujours les N films en
+  mémoire, pas seulement celui cité.** Observé en usage réel : "Welcome to
+  Japan nom du réalisateur ?" avec 5 films japonais en mémoire → les 5 films
+  étaient rechargés, revalidés, enrichis et renvoyés dans la réponse finale,
+  alors que la question ne portait que sur un seul titre.
+  - Cause : [agents/nodes_rag.py:838](agents/nodes_rag.py:838)
+    (`load_film_node`, branche DISCUSSION) charge inconditionnellement
+    **tous** les `tmdb_id` de `last_displayed_movies_id`, sans jamais les
+    filtrer sur le titre cité — contrairement à la branche RECHERCHE qui
+    passe par `title_router_node`. Le film cité par l'utilisateur n'est
+    jamais isolé du reste du contexte.
+  - Correctif appliqué : quand plusieurs films sont en mémoire,
+    `load_film_node` filtre `retrieved_movies` sur les films dont le titre
+    apparaît (recherche de sous-chaîne insensible à la casse) dans
+    `user_query`. Si aucun titre ne correspond (question par pronom, "il
+    est sorti quand ?"), tous les films restent en contexte — comportement
+    inchangé pour ce cas.
+  - Limite connue : matching par sous-chaîne simple, pas de gestion des
+    accents/ponctuation/casse avancée ni des fautes de frappe (ex :
+    "welcome to japn" ne matcherait pas "Welcome to Japan") — même limite
+    que le point suivant.
+  - Complément appliqué : le filtrage ne portait que sur la réponse du tour
+    en cours — `last_displayed_movies_id` (mémoire de session) restait
+    inchangé, donc le tour suivant sans titre explicite ("qui est
+    l'actrice principale ?") rechargeait de nouveau tous les films
+    d'origine. `load_film_node` réécrit maintenant aussi
+    `last_displayed_movies_id` sur le sous-ensemble retenu quand le
+    filtrage par titre a réduit le contexte, pour que les questions par
+    pronom du tour suivant restent recalées sur le bon film.
+  - Vérifié séparément : le réalisateur "non disponible" pour "Welcome to
+    Japan" n'est pas un bug — `director_id` est réellement `NULL` en base
+    pour ce film (jeu de données de test).
+
+- [ ] **Matching de titres par égalité de chaîne fragile dans
+  `validation_film_node`.** [agents/nodes_rag.py:784](agents/nodes_rag.py:784)
+  compare `valid_titles`/`invalid_titles` (texte libre du LLM) à `f.title`
+  par égalité stricte après un hack `split(" (")[0]`. Un titre reformulé
+  différemment par le LLM (accent, casse, ponctuation) est silencieusement
+  exclu du `valid_partial`, sans log de l'écart.
+
+## 🟠 Dette de lisibilité — agent LangGraph
+
+- [ ] Code mort laissé en commentaire dans
+  [agents/nodes_narrateur.py:191-200](agents/nodes_narrateur.py:191)
+  (contraire à la règle du socle commun : « pas de code mort en commentaire,
+  git le retrouve »).
+- [ ] Log trompeur : [agents/nodes_narrateur.py:72](agents/nodes_narrateur.py:72)
+  tague `[format_cards_node]` alors que la ligne s'exécute dans
+  `narrator_node` — gêne la lecture des logs Docker en production.
+- [ ] En-têtes de docstring obsolètes : `agents/nodes_wikipedia.py` et
+  `agents/nodes_narrateur.py` commencent tous les deux par
+  `"""agents/nodes.py` (copié-collé d'un fichier renommé/scindé depuis).
+- [ ] Coquille dans un message de log :
+  [agents/router.py:536](agents/router.py:536)
+  `"[Rouroute_validation_hybridte]"`.
+- [ ] Script de test cassé dans
+  [agents/tools/vector_tools.py:241-375](agents/tools/vector_tools.py:241)
+  (bloc `if __name__ == "__main__"`) : appelle des `@tool async def` via
+  `.func(...)` sans `await` — plante s'il est exécuté directement.
+- [ ] `_checkpointer = InMemorySaver()`
+  ([agents/graph.py:63](agents/graph.py:63)) : toute la mémoire de
+  conversation (dont `last_displayed_movies_id`, nécessaire pour discuter
+  d'un film déjà affiché) est perdue à chaque redémarrage du conteneur — pas
+  de backend de persistance configuré.
+- [ ] Contexte potentiellement surdimensionné envoyé à `llm_synthesis`
+  ([agents/nodes_wikipedia.py:184](agents/nodes_wikipedia.py:184)) : jusqu'à
+  10 000 caractères de synopsis Wikipédia par film, sans troncature globale
+  si plusieurs films sont enrichis en DISCUSSION.
+
 ## 🐛 Bugs confirmés — câblage frontend / backend
 
 - [ ] **Cartes de films non affichées quand un seul film est trouvé.**
