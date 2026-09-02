@@ -6,7 +6,7 @@ Mis à jour au fil des sessions.
 
 ## 🐛 Bugs confirmés — agent LangGraph
 
-- [ ] **Boucle de retry sans plafond réel → `GraphRecursionError`.**
+- [x] **Boucle de retry sans plafond réel → `GraphRecursionError`.**
   Observé en usage réel (logs Docker, requête "films de science-fiction
   note > 7 entre 1990 et 2000") : la boucle
   `merge_filters_node → search_vector_node → validation_film_node →
@@ -24,9 +24,16 @@ Mis à jour au fil des sessions.
   - Déclencheur observé : un film candidat au titre mal formé en base
     (`"Frankenstein's Planet of Monsters!"`, sans suffixe année) rejeté en
     boucle par la validation stricte de format `Titre Année`.
-  → Corriger la logique de compteur (ne le remettre à 0 qu'après une
-  validation réussie, pas juste une recherche FAISS non vide) et/ou assouplir
-  la validation de format de titre.
+  - Correctif appliqué : `search_vector_node` ne touche plus `retry_count`
+    quand FAISS trouve des résultats (seul un échec de recherche
+    l'incrémente désormais) — c'est uniquement `validation_film_node` qui
+    l'incrémente sur un échec de validation. `intent_classifier_node` le
+    remet explicitement à 0 à chaque nouveau tour de conversation, pour
+    qu'il ne s'accumule pas ni ne reste figé d'un tour à l'autre.
+  - Non traité : la validation stricte de format de titre
+    (`"Frankenstein's Planet of Monsters!"` rejeté faute de suffixe année)
+    qui déclenchait concrètement les retries — hors du périmètre de ce
+    correctif, à traiter séparément si le cas se reproduit.
 
 - [x] **Poser une question sur un film déjà affiché relançait une RECHERCHE
   au lieu d'une DISCUSSION.** Observé en usage réel : citer le titre d'un des
@@ -76,7 +83,7 @@ Mis à jour au fil des sessions.
     ré-hydratation complète via `get_films_details_by_ids` serait plus
     correcte si ce cas s'avère fréquent.
 
-- [ ] **`validation_film_node` valide par défaut quand le LLM ne remplit pas
+- [x] **`validation_film_node` valide par défaut quand le LLM ne remplit pas
   `valid_titles`/`invalid_titles`.** Observé en usage réel (requête "Films
   japonais avec une note supérieure à 8") : le LLM a renvoyé
   `valid_titles: []`, `invalid_titles: []` et son verdict réel
@@ -90,10 +97,13 @@ Mis à jour au fil des sessions.
     ([agents/nodes_rag.py:80](agents/nodes_rag.py:80)) n'a pas de champ
     booléen de verdict global (`is_relevant`) — seulement deux listes de
     titres à recomposer, fragiles dès que le LLM local ne les remplit pas.
-  → Ajouter un champ `is_relevant: bool` obligatoire au schéma de sortie
-  structurée, et faire du PASS un cas explicite (`is_relevant is True`)
-  plutôt qu'une absence de titres invalides — fail-safe (rejeter) en cas de
-  sortie LLM incomplète, pas fail-open (tout accepter).
+  - Correctif appliqué : ajout du champ `is_relevant: bool` (obligatoire)
+    au schéma, prompt aligné sur les champs réellement attendus par le
+    schéma (il en décrivait d'autres, `has_missing_info`/`corrected_title`,
+    qui n'existent pas sur `ValidationFilmListResult`), et le PASS total
+    exige désormais `is_relevant is True` **et** `invalid_titles` vide —
+    un verdict incomplet (listes vides sans `is_relevant`) tombe en PASS
+    partiel/FAIL au lieu d'un PASS implicite.
 
 - [x] **DISCUSSION sur un film précis renvoyait toujours les N films en
   mémoire, pas seulement celui cité.** Observé en usage réel : "Welcome to
@@ -128,41 +138,55 @@ Mis à jour au fil des sessions.
     Japan" n'est pas un bug — `director_id` est réellement `NULL` en base
     pour ce film (jeu de données de test).
 
-- [ ] **Matching de titres par égalité de chaîne fragile dans
+- [x] **Matching de titres par égalité de chaîne fragile dans
   `validation_film_node`.** [agents/nodes_rag.py:784](agents/nodes_rag.py:784)
   compare `valid_titles`/`invalid_titles` (texte libre du LLM) à `f.title`
   par égalité stricte après un hack `split(" (")[0]`. Un titre reformulé
   différemment par le LLM (accent, casse, ponctuation) est silencieusement
   exclu du `valid_partial`, sans log de l'écart.
+  - Correctif appliqué : comparaison normalisée en minuscules des deux
+    côtés, et log d'avertissement listant les titres validés par le LLM
+    introuvables dans `retrieved_movies` (reformulation/hallucination),
+    pour garder la visibilité sur les écarts qui subsistent malgré la
+    normalisation (accents, ponctuation).
 
 ## 🟠 Dette de lisibilité — agent LangGraph
 
-- [ ] Code mort laissé en commentaire dans
+- [x] Code mort laissé en commentaire dans
   [agents/nodes_narrateur.py:191-200](agents/nodes_narrateur.py:191)
   (contraire à la règle du socle commun : « pas de code mort en commentaire,
-  git le retrouve »).
-- [ ] Log trompeur : [agents/nodes_narrateur.py:72](agents/nodes_narrateur.py:72)
+  git le retrouve »). Supprimé.
+- [x] Log trompeur : [agents/nodes_narrateur.py:72](agents/nodes_narrateur.py:72)
   tague `[format_cards_node]` alors que la ligne s'exécute dans
-  `narrator_node` — gêne la lecture des logs Docker en production.
-- [ ] En-têtes de docstring obsolètes : `agents/nodes_wikipedia.py` et
+  `narrator_node` — gêne la lecture des logs Docker en production. Tag
+  corrigé.
+- [x] En-têtes de docstring obsolètes : `agents/nodes_wikipedia.py` et
   `agents/nodes_narrateur.py` commencent tous les deux par
   `"""agents/nodes.py` (copié-collé d'un fichier renommé/scindé depuis).
-- [ ] Coquille dans un message de log :
+  Réécrits pour décrire le contenu réel de chaque fichier.
+- [x] Coquille dans un message de log :
   [agents/router.py:536](agents/router.py:536)
-  `"[Rouroute_validation_hybridte]"`.
-- [ ] Script de test cassé dans
+  `"[Rouroute_validation_hybridte]"`. Corrigé en `[route_validation_hybrid]`.
+- [x] Script de test cassé dans
   [agents/tools/vector_tools.py:241-375](agents/tools/vector_tools.py:241)
   (bloc `if __name__ == "__main__"`) : appelle des `@tool async def` via
-  `.func(...)` sans `await` — plante s'il est exécuté directement.
+  `.func(...)` sans `await` — plante s'il est exécuté directement. Logique
+  déplacée dans `async def _run_manual_tests()`, appels convertis en
+  `.ainvoke(...)`, exécutée via `asyncio.run()`.
 - [ ] `_checkpointer = InMemorySaver()`
   ([agents/graph.py:63](agents/graph.py:63)) : toute la mémoire de
   conversation (dont `last_displayed_movies_id`, nécessaire pour discuter
   d'un film déjà affiché) est perdue à chaque redémarrage du conteneur — pas
-  de backend de persistance configuré.
-- [ ] Contexte potentiellement surdimensionné envoyé à `llm_synthesis`
+  de backend de persistance configuré. Non traité : nécessite de choisir et
+  d'ajouter un backend de checkpoint persistant (SQLite/Postgres via
+  `langgraph-checkpoint-*`), une dépendance nouvelle à valider avant tout
+  ajout (socle commun § priorité 2).
+- [x] Contexte potentiellement surdimensionné envoyé à `llm_synthesis`
   ([agents/nodes_wikipedia.py:184](agents/nodes_wikipedia.py:184)) : jusqu'à
   10 000 caractères de synopsis Wikipédia par film, sans troncature globale
-  si plusieurs films sont enrichis en DISCUSSION.
+  si plusieurs films sont enrichis en DISCUSSION. Plafond global
+  `MAX_SYNTHESIS_CONTEXT_CHARS = 8000` ajouté sur le contexte total
+  (tous films confondus) avant l'appel LLM.
 
 ## 🐛 Bugs confirmés — câblage frontend / backend
 
