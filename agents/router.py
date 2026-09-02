@@ -533,5 +533,5 @@ def route_validation_hybrid(state: AgentState) -> str:
 
     # 3. Cas FAIL : les films ne sont pas pertinant et le compteur de RETRY est inférieur à 2
     else:
-        logger.error("[Rouroute_validation_hybridte] (FAIL) -> Transfert au Narrateur.")
+        logger.error("[route_validation_hybrid] (FAIL) -> Transfert au Narrateur.")
         return "narrator_node"
