@@ -1,12 +1,12 @@
 ---
 paths:
-  - "Dockerfile"
-  - "**/Dockerfile"
+  - "Dockerfile*"
   - "docker-compose*.yml"
-  - "**/docker-compose*.yml"
-  - "k8s/**/*.yaml"
+  - "docker-compose*.yaml"
+  - "compose.yml"
+  - "compose.yaml"
+  - "**/k8s/**"
   - "prefect.yaml"
-  - "**/prefect.yaml"
 ---
 
 # Conteneurs et orchestration — Docker, Compose, Kubernetes
@@ -16,7 +16,13 @@ paths:
      couvre ce qui se passe une fois l'image construite : composition locale
      (Compose), orchestration de pipeline (Prefect), traitement asynchrone
      (Celery), passage à l'échelle (Kubernetes). Le cycle de vie du modèle
-     lui-même reste dans rules/ml.md — ce fichier ne fait que le servir. -->
+     lui-même reste dans rules/ml.md — ce fichier ne fait que le servir.
+
+     Portée : un motif sans barre oblique s'applique déjà à tous les niveaux du
+     dépôt, donc "Dockerfile*" couvre Dockerfile.dev comme docker/Dockerfile et
+     un "**/" en plus serait redondant. "compose.yaml" est le nom par défaut de
+     Compose v2, "**/k8s/**" attrape les manifestes en .yaml comme en .yml, y
+     compris sous deploy/k8s/. -->
 
 Un conteneur garantit qu'un service tourne à l'identique partout. Ce qui suit
 ne porte pas sur cette garantie mais sur ce qui l'entoure : combien
@@ -76,7 +82,11 @@ d'instances, quelles données survivent à un arrêt, qui peut parler à qui.
 
 <!-- Source : tuto-traefik.html (proxy vs reverse proxy, vocabulaire
      EntryPoint/Router/Service/Middleware, docker-compose + labels, socket
-     Docker, dashboard, ACME). -->
+     Docker, dashboard, ACME, priorité des routers, réseaux multiples,
+     cycle de vie des labels, compatibilité Docker 29, provider file,
+     forwardauth, métriques). Le module 8 du même support — répliques,
+     affinité de session, streaming — est en § séparé plus bas : il ne se
+     manifeste qu'au-delà d'un conteneur unique. -->
 
 - Aucun service applicatif ne publie de port (`ports:`) : un seul port
   publié dans tout le projet, celui du reverse proxy. Les services se
@@ -89,9 +99,27 @@ d'instances, quelles données survivent à un arrêt, qui peut parler à qui.
   par `&&`), **Service** (le port interne du conteneur, jamais le port
   publié — s'y tromper donne un 502), **Middleware** (ce qui se passe entre
   les deux — `stripprefix`, `basicauth`, `ratelimit`).
+- La priorité par défaut d'un router est la **longueur de sa règle** : la
+  plus spécifique gagne, sans rien à déclarer. Et `PathPrefix` compare une
+  **chaîne**, pas des segments de chemin : `/apidocs` correspond à
+  `PathPrefix(/api)`. Quand la distinction compte, un `Path(...)` exact.
 - Labels Docker = configuration dynamique relue à chaud, sans redémarrer le
   proxy. `traefik.enable=true` obligatoire sur chaque service à exposer —
   ignoré par défaut sinon.
+- Les labels sont lus à la **création** du conteneur : `docker compose
+  restart` redémarre sans recréer, donc sans relire. Une modification de
+  label se prend par `docker compose up -d` (`--force-recreate` en cas de
+  doute) — un label resté sans effet est presque toujours ça, pas une
+  faute de syntaxe.
+- Version du proxy épinglée, jamais `latest`, et **v3.6 au minimum** : les
+  versions antérieures réclament une version de l'API Docker que Docker 29
+  ne sert plus. Le proxy démarre normalement, ne découvre aucun conteneur,
+  et tout répond 404 — dashboard compris.
+- Un conteneur présent sur deux réseaux a deux adresses, et le proxy peut
+  retenir celle qu'il n'atteint pas : 504 sur une configuration pourtant
+  juste. Déclarer `--providers.docker.network` dès qu'un service est sur
+  plus d'un réseau, ce qui est le cas courant quand la donnée a le sien en
+  `internal: true`.
 - Les noms de routers/services sont globaux au provider Docker, pas
   cloisonnés par projet Compose : deux projets qui nomment un router `api`
   se collisionnent (404 ou timeout). Contraindre par
@@ -106,6 +134,15 @@ d'instances, quelles données survivent à un arrêt, qui peut parler à qui.
 - Dashboard **jamais** en `--api.insecure=true` (topologie complète exposée
   sans authentification) : le router comme n'importe quel service, protégé
   par un middleware `basicauth`.
+- `basicauth` protège un dashboard, pas une application : dès que le projet
+  a son propre système d'authentification (`rules/securite-api.md`), c'est
+  `forwardauth` qui interroge ce service avant de transmettre — 2xx laisse
+  passer, avec les en-têtes d'identité renvoyés par le service d'auth, et
+  toute autre réponse est renvoyée telle quelle sans que le service protégé
+  soit atteint. Réimplémenter la vérification dans chaque service ne passe
+  pas à l'échelle ; en contrepartie le service d'auth devient un point de
+  passage obligé, sa latence et sa disponibilité comptent pour tout ce
+  qu'il protège.
 - Exposer une API sous `app.localhost/api` élimine le CORS par construction
   (même origine) plutôt que de le corriger — préférer ce routage au
   middleware `headers` (CORS), qui reste un repli pour les cas où les deux
@@ -118,10 +155,70 @@ d'instances, quelles données survivent à un arrêt, qui peut parler à qui.
 - HTTPS géré par le proxy (certificats ACME/Let's Encrypt), applications en
   HTTP en interne — à poser dès qu'un domaine public existe, pas seulement
   en environnement de démonstration.
-- Diagnostic : 404 = la route est inconnue de Traefik (label, règle ou
-  réseau à revoir) ; 502 = la route est connue mais l'application est
-  injoignable (mauvais port de service, ou application qui écoute sur
-  `127.0.0.1` au lieu de `0.0.0.0` dans le conteneur).
+- Un certificat n'appartient à aucun conteneur : aucun label ne peut le
+  déclarer. C'est le provider `file` qui porte la configuration TLS, en
+  parallèle du provider Docker — les deux tournent ensemble et leurs
+  configurations fusionnent.
+- Traefik ne sert pas de fichiers statiques : un front statique reste
+  derrière un nginx, que le proxy route comme n'importe quel autre service.
+- Point d'entrée unique = point de défaillance unique, assumé : en
+  production, plusieurs exemplaires du proxy derrière un répartiteur.
+- Diagnostic, dans cet ordre : le proxy ne plante presque jamais, il ignore
+  en silence ce qu'il ne comprend pas. D'abord ses **logs**, puis les
+  **routes qu'il connaît réellement** — une route absente de cette liste ne
+  sera jamais trouvée côté navigateur, inutile de chercher ailleurs —, puis
+  les **logs d'accès** (`--accesslog=true`), les seuls à dire ce qui est
+  réellement arrivé à chaque requête.
+- Codes de retour : 404 = route inconnue du proxy (`traefik.enable`
+  manquant, service hors du réseau du proxy, règle mal écrite, ou noms de
+  router qui ne concordent pas d'une ligne de label à l'autre) ; 502 =
+  route connue, application injoignable (port de service faux, ou
+  application qui écoute sur `127.0.0.1` au lieu de `0.0.0.0` dans le
+  conteneur) ; 504 = le plus souvent le conteneur à deux réseaux ci-dessus.
+- Les métriques du proxy (latence perçue, requêtes par router, codes de
+  retour, retries) ne remplacent pas celles de l'application et ne sont pas
+  remplacées par elles : l'application sait ce qu'elle a fait, le proxy sait
+  ce que le client a vécu.
+
+## Reverse proxy devant une IA — répliques, sessions, streaming
+
+<!-- Source : tuto-traefik.html module 8, mesures relevées sur traefik
+     v3.6.25. Ces points ne se manifestent qu'à partir de la deuxième
+     réplique ou du premier flux : jamais en développement local à un
+     conteneur, donc jamais avant la mise en production. -->
+
+- **Sonde de santé côté proxy dès la deuxième réplique.** Le proxy ne
+  vérifie rien par défaut : tant que le conteneur tourne, il reste dans la
+  répartition, même s'il ne rend plus aucun service (base injoignable,
+  thread bloqué, mémoire saturée). `restart: unless-stopped` ne le relève
+  pas, puisqu'il n'est pas tombé. À ne pas confondre avec le `healthcheck:`
+  de Compose : celui de Docker décide si le conteneur est sain, celui du
+  proxy s'il reste dans le pool — seul le second change le routage.
+- **Une session ne se répartit pas.** Un serveur MCP en `streamable-http`
+  (`rules/agents-ia.md` § Connecteur MCP), comme toute session portant des
+  flux SSE ouverts, vit dans un seul processus : elle ne se sérialise pas et
+  ne se déplace pas. Derrière plusieurs répliques sans affinité, l'appel
+  d'outil tombe sur une autre réplique que celle qui a ouvert la session, et
+  l'erreur (404, JSON-RPC `-32001`) ne dit rien du répartiteur. Le symptôme
+  se résume à « ça marche à une réplique, ça casse à deux ».
+- Le **cookie collant** ne suffit pas pour un agent : il suppose un client
+  qui gère les cookies. Un `httpx.post()` sans session persistante l'ignore
+  et reste cassé. Pour un client programmatique, l'affinité qui tient est le
+  hachage consistant sur l'adresse du client (`strategy=hrw`), avec sa
+  limite symétrique : deux agents derrière un même NAT partagent une
+  adresse, donc une réplique.
+- **Le streaming ne se configure pas, il se préserve.** Un middleware
+  `buffering` accumule la réponse et rend inutilisable le streaming exigé
+  par `rules/agents-ia.md` § Streaming — le piège est de l'ajouter pour
+  plafonner la taille des requêtes entrantes (`maxRequestBodyBytes`) sans
+  voir qu'on met les réponses en tampon du même coup. Deux réflexes venus de
+  nginx à ne pas recopier : le `compress` de Traefik transmet au fil de
+  l'eau (compatible SSE), et `flushInterval` n'a aucun effet sur une vraie
+  réponse `chunked` — un flux saccadé ne vient presque jamais de là.
+- S'il ne fallait ajouter que trois choses à un projet réel, dans cet
+  ordre : le TLS par ACME dès qu'un domaine public existe, le `ratelimit`
+  sur toute route qui déclenche une inférence, la sonde de santé dès la
+  deuxième réplique.
 
 ## Stockage objet compatible S3 — MinIO
 
@@ -139,9 +236,13 @@ d'instances, quelles données survivent à un arrêt, qui peut parler à qui.
 
 ## Orchestration de pipeline — Prefect
 
-- `@flow` marque le point d'entrée (nom explicite, `log_prints=True` pour que
-  les `print()` des tâches remontent dans les logs Prefect plutôt que de se
-  perdre) ; `@task` marque une étape unitaire.
+- `@flow` marque le point d'entrée (nom explicite), `@task` marque une étape
+  unitaire.
+- `log_prints=True` sur le `@flow` **ne lève pas l'interdiction de `print()`**
+  de `rules/python.md` § Journalisation : notre code journalise par loguru,
+  l'option ne sert qu'à récupérer ce qu'écrit sur la sortie standard le code
+  qu'on n'a pas écrit (bibliothèque tierce, script appelé), qui se perdrait
+  sinon. Elle n'autorise pas à écrire un `print()` de suivi dans une `@task`.
 - `retries` et `retry_delay_seconds` sur toute tâche qui dépend d'un réseau ou
   d'un service externe (appel API, scraping) — pas sur un calcul pur, qui
   échouera de la même façon à chaque tentative. `cache_key_fn` évite de

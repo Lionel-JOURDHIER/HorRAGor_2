@@ -3,8 +3,9 @@ paths:
   - "**/chains/**/*.py"
   - "**/agents/**/*.py"
   - "**/graphs/**/*.py"
-  - "**/tools/**/*.py"
   - "**/rag/**/*.py"
+  - "**/tools.py"
+  - "**/*_tools.py"
   - "**/mcp_server*.py"
   - "**/*_agent.py"
   - "**/*_graph.py"
@@ -20,7 +21,18 @@ paths:
      vectorielle — pgvector pour l'index/les opérateurs côté SQLAlchemy,
      et `rules/ml.md` § Portail qualité avant promotion et § Surveillance en
      production pour la philosophie de porte qualité et de traçage,
-     appliquée ici par tour d'agent plutôt que par déploiement de modèle. -->
+     appliquée ici par tour d'agent plutôt que par déploiement de modèle.
+
+     Portée resserrée : pas de "**/tools/**/*.py". Un répertoire tools/ est
+     un nom générique — dans la plupart des dépôts il contient des utilitaires
+     et pas une définition @tool, et la règle se chargeait pour rien. Les
+     outils d'un agent rangés sous agents/, chains/ ou graphs/ restent
+     couverts par les motifs de répertoire ci-dessus ; ailleurs, ce sont les
+     modules tools.py et *_tools.py qui déclenchent. Un dépôt qui groupe ses
+     @tool dans un tools/ à lui ajoute le chemin dans sa copie locale.
+
+     Reste un faux positif assumé : un excel_tools.py d'utilitaires déclenche
+     encore. Un fichier, plus une arborescence entière. -->
 
 ## Chaînes LCEL et objets typés
 
@@ -64,6 +76,9 @@ plantage, pas comme un calcul en cours.
 - Côté FastAPI : `StreamingResponse` autour d'un générateur asynchrone qui
   fait `async for chunk in chain.astream(...)`, jamais un `.invoke()`
   bloquant suivi d'un envoi d'un bloc.
+- Le streaming se perd aussi en aval du code : un reverse proxy qui met en
+  tampon annule tout le bénéfice, sans qu'aucune erreur n'apparaisse
+  (`rules/deploiement.md` § Reverse proxy devant une IA).
 
 ## RAG et bases vectorielles
 
@@ -225,3 +240,8 @@ plantage, pas comme un calcul en cours.
   rate limiting, CORS restreint (`rules/securite-api.md`). `host="0.0.0.0"`
   sans rien de tout ça n'est pas un raccourci acceptable en production,
   même si le protocole MCP lui-même ne l'impose pas.
+- Un serveur MCP en `streamable-http` **ne se réplique pas librement** : la
+  session porte des flux ouverts, elle vit dans un seul processus. Derrière
+  un reverse proxy, il faut une affinité qui ne dépende pas des cookies —
+  voir `rules/deploiement.md` § Reverse proxy devant une IA. Tant que le
+  service tourne en un seul exemplaire, le problème est invisible.
