@@ -788,11 +788,20 @@ def validation_film_node(state: AgentState) -> dict[str, Any]:
             feedback="Fallback",
         )
 
-    # Verification qu'il n'y a pas de doublons dans la liste envoyée par le LLM.
-    valid_titles_set = {t.split(" (")[0].strip() for t in result.valid_titles}
+    # Normalisation en minuscules : le LLM reformule parfois la casse d'un titre.
+    valid_titles_set = {t.split(" (")[0].strip().lower() for t in result.valid_titles}
 
     # Création de la liste de FilmShort des film validés
-    filtered_movies = [f for f in state.retrieved_movies if f.title in valid_titles_set]
+    filtered_movies = [
+        f for f in state.retrieved_movies if f.title.lower() in valid_titles_set
+    ]
+
+    unmatched = valid_titles_set - {f.title.lower() for f in filtered_movies}
+    if unmatched:
+        logger.warning(
+            f"[validation_film_node] Titre(s) validé(s) par le LLM introuvable(s) "
+            f"dans retrieved_movies (reformulation ?) : {unmatched}"
+        )
 
     # Cas 2 : PASS total : le LLM juge l'ensemble pertinent ET n'a identifié aucun titre
     # invalide. Un verdict "is_relevant=False" ne peut plus être masqué par des listes
