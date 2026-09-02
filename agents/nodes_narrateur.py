@@ -1,25 +1,15 @@
-"""agents/nodes.py
-Module de définition des nœuds (Nodes) du graphe de l'agent LangGraph HorRAGor v3.
+"""agents/nodes_narrateur.py
+Nœud de narration finale du graphe LangGraph HorRAGor v3.
 
-Ce fichier contient exclusivement les boîtes blanches applicatives. Chaque nœud reçoit
-l'état actuel ('AgentState'), exécute son traitement isolé et retourne les modifications
-à fusionner dans l'état global, en respectant scrupuleusement les cibles du router.py.
-
-Nœuds principaux à implémenter :
-    - node_classifier : Interroge le LLM avec le prompt de classification pour
-      déterminer l'intention de l'utilisateur.
-    - node_extractor : Extrait les entités et critères de filtrage (réalisateur, genre).
-    - node_sql_query / node_vector_search : Appellent respectivement les outils SQL
-      ou FAISS pour récupérer les données de films pertinents.
-    - node_wikipedia_enrich : Complète les synopsis manquants si nécessaire.
-    - node_rag_synthesizer : Fusionne le contexte, génère la réponse textuelle finale
-      et structure le top 5 des films pour le front-end.
+Isole le LLM narrateur (persona gothique) de la plomberie technique : ce module
+construit le contexte de narration selon le cas de sortie du graphe (chitchat,
+échec, résultats RAG, discussion) et produit la réponse texte finale envoyée à
+l'utilisateur.
 
 Dépendances principales :
-    - .state (AgentState)
-    - .prompts (Gabarits d'instructions)
-    - .tools (sql_tools, vector_tools, wiki_tools)
-    - langchain_ollama (Instance locale du LLM)
+    - agents.config (llm_narrateur)
+    - agents.prompts (NARRATOR_PERSONA_PROMPT)
+    - shared.schemas (AgentStep)
 
 Auteur/Responsable : Équipe Agents
 """
@@ -69,7 +59,7 @@ def narrator_node(state: Any) -> dict[str, Any]:
     retrieved_movies = getattr(state, "retrieved_movies", [])
     last_displayed_movies_id = getattr(state, "last_displayed_movies_id", [])
     logger.info(
-        f"[format_cards_node] Chargement de la liste des films affichés : {last_displayed_movies_id}"
+        f"[narrator_node] Liste des films affichés en mémoire : {last_displayed_movies_id}"
     )
     # 2. Construction du contexte de narration selon le cas de redirection
 
@@ -188,16 +178,6 @@ def narrator_node(state: Any) -> dict[str, Any]:
     # Assurez-vous que la classe AgentStep correspond bien à ce qui est défini dans votre state.py
     steps.append(AgentStep(step="narrator", status=status))
 
-    # # 5. Mise à jour de la mémoire de session (front-end)
-    # last_displayed = (
-    #     [
-    #         getattr(f, "tmdb_id", None)
-    #         for f in retrieved_movies
-    #         if getattr(f, "tmdb_id", None)
-    #     ]
-    #     if retrieved_movies
-    #     else last_displayed_movies_id
-    # )
     logger.info(f"[narrator_node] Réussite de la génération : {final_narrative}")
     return {
         "answer": final_narrative,
