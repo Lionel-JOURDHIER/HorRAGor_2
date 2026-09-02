@@ -142,7 +142,7 @@ def test_route_hybrid_id_valid(movies, retry, expected_route):
     "branch, expected_route",
     [
         ("RAG", "end_rag"),
-        ("DISCUSSION", "narrator_node"),
+        ("DISCUSSION", "synthesis_node"),
         ("INCONNU", "narrator_node"),  # Fallback
     ],
 )

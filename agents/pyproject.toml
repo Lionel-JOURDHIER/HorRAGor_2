@@ -14,6 +14,7 @@ dependencies = [
     "loguru>=0.7.3",
     "pgvector>=0.4.2",
     "psycopg2>=2.9.12",
+    "pytest-asyncio>=1.4.0",
     "sqlalchemy>=2.0.50",
 ]
 
