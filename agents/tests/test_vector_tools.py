@@ -14,7 +14,7 @@ from agents.tools.vector_tools import (
     search_vector_catalog,
 )
 from shared.schemas import FilmShort
-from database.connection import db_session
+# from database.connection import db_session
 
 
 @pytest.fixture(scope="module", autouse=True)
