@@ -228,6 +228,9 @@ def intent_classifier_node(state: AgentState) -> dict[str, Any]:
         "current_step": intent_verdict,
         "steps": steps,
         "branch_search_wiki": new_branch,
+        # Nouveau tour de conversation : le compteur de retry ne doit compter que
+        # les tentatives de CE tour, pas s'accumuler ou se figer d'un tour à l'autre.
+        "retry_count": 0,
     }
 
 
@@ -460,7 +463,11 @@ async def search_vector_node(state: AgentState) -> dict[str, Any]:
         "retrieved_movies": results,
         "candidate_ids": candidate_ids,
         "current_step": "has_results" if results else "no_results",
-        "retry_count": 0 if results else state.retry_count + 1,
+        # Trouver des résultats ne dit rien de leur pertinence : c'est la
+        # validation qui incrémente ce compteur en cas d'échec, pas cette étape.
+        # Le remettre à 0 ici masquait les échecs de validation successifs et
+        # empêchait le plafond de retry de jamais se déclencher (GraphRecursionError).
+        "retry_count": state.retry_count if results else state.retry_count + 1,
         "steps": steps,
         "search_branch": "direct" if is_direct else "hybrid",
     }
