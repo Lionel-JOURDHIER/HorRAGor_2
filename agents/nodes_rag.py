@@ -840,6 +840,9 @@ async def load_film_node(state: AgentState) -> dict[str, Any]:
     Branche DISCUSSION uniquement.
     Charge le FilmDetail depuis last_displayed_movies_id (mémoire session).
     Alimente retrieved_movies pour route_verif_film puis narrator_node.
+    Si un titre cité dans la question réduit le contexte à un sous-ensemble
+    des films en mémoire, réécrit aussi last_displayed_movies_id sur ce
+    sous-ensemble pour que les tours suivants restent recalés dessus.
     """
     logger.info("[load_film_node] Chargement du film en mémoire session.")
     steps = list(state.steps)
@@ -897,12 +900,20 @@ async def load_film_node(state: AgentState) -> dict[str, Any]:
             AgentStep(step="load_film", status=f"Films chargés : '{details[0].title}'")
         )
 
-        return {
+        result: dict[str, Any] = {
             "retrieved_movies": details,
             "current_step": "film_loaded",
             "branch_search_wiki": "DISCUSSION",
             "steps": steps,
         }
+
+        # Un titre a réduit le contexte à un sous-ensemble : la mémoire de session
+        # se recale dessus, pour que les questions suivantes par pronom ("il",
+        # "sa durée") ne portent plus que sur ce(s) film(s).
+        if len(details) < len(film_ids):
+            result["last_displayed_movies_id"] = [f.tmdb_id for f in details]
+
+        return result
 
 
 def verif_film_node(state: AgentState) -> dict[str, Any]:

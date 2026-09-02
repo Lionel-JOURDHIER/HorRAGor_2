@@ -116,6 +116,14 @@ Mis à jour au fil des sessions.
     accents/ponctuation/casse avancée ni des fautes de frappe (ex :
     "welcome to japn" ne matcherait pas "Welcome to Japan") — même limite
     que le point suivant.
+  - Complément appliqué : le filtrage ne portait que sur la réponse du tour
+    en cours — `last_displayed_movies_id` (mémoire de session) restait
+    inchangé, donc le tour suivant sans titre explicite ("qui est
+    l'actrice principale ?") rechargeait de nouveau tous les films
+    d'origine. `load_film_node` réécrit maintenant aussi
+    `last_displayed_movies_id` sur le sous-ensemble retenu quand le
+    filtrage par titre a réduit le contexte, pour que les questions par
+    pronom du tour suivant restent recalées sur le bon film.
   - Vérifié séparément : le réalisateur "non disponible" pour "Welcome to
     Japan" n'est pas un bug — `director_id` est réellement `NULL` en base
     pour ce film (jeu de données de test).
