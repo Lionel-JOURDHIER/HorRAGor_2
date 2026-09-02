@@ -22,6 +22,7 @@ __pycache__/
 .env.local
 *.env
 
+
 # --- Base de Données & Index Vectoriels Locaux (Souveraineté) ---
 # Exclure l'index FAISS local pour ne pas pousser de données lourdes ou sensibles
 *.faiss
@@ -53,3 +54,5 @@ coverage.xml
 data_backup/
 *.index
 *mapping.json
+
+monitoring/langfuse/

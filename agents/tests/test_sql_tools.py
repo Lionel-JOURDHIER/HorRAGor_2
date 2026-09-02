@@ -1,60 +1,52 @@
-from collections import namedtuple
-from datetime import date, datetime
-from unittest.mock import MagicMock, patch
+from datetime import date
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from agents.tools.sql_tools import (
-    _build_filtered_ids,
     filter_films_by_criteria,
-    get_films_details_by_ids,
-)
-from api.schemas import FilmDetail
-
-# Structure nommée pour simuler les lignes Row retournées par SQLAlchemy
-SQLRowSimulation = namedtuple(
-    "Row", ["Film", "director_name", "tmdb_score", "tmdb_vote_count", "genres_csv"]
+    get_films_details,
 )
 
-
-class FakeFilm:
-    """Objet factice stable imitant le modèle SQLAlchemy Film."""
-
-    tmdb_id = 666
-    title = "L'Armée des Morts"
-    original_title = "Dawn of the Dead"
-    original_language = "en"
-    release_date = date(2004, 3, 31)
-    runtime = 101
-    status = "Released"
-    overview = "Un groupe de survivants se réfugie dans un centre commercial."
-    tagline = "Quand il n'y a plus de place en enfer..."
-    poster_path = "/path.jpg"
-    backdrop_path = "/back.jpg"
-    budget = 26000000
-    revenue = 102000000
-    imdb_score = 7.3
+from shared.schemas import FilmDetail
 
 
 # ==============================================================================
-# TESTS POUR get_films_details_by_ids
+# TESTS POUR get_films_details
 # ==============================================================================
 
 
-def test_get_films_details_by_ids_success():
-    """Vérifie le mapping complet et le split de la chaîne CSV des genres."""
-    mock_row = SQLRowSimulation(
-        Film=FakeFilm(),
-        director_name="Zack Snyder",
+@pytest.mark.asyncio
+async def test_get_films_details_success():
+    """Vérifie la récupération des détails via la Database API."""
+    film = FilmDetail(
+        tmdb_id=666,
+        title="L'Armée des Morts",
+        original_title="Dawn of the Dead",
+        original_language="en",
+        release_date=date(2004, 3, 31),
+        runtime=101,
+        status="Released",
+        synopsis="Un groupe de survivants se réfugie dans un centre commercial.",
+        tagline="Quand il n'y a plus de place en enfer...",
+        poster_url="/path.jpg",
+        backdrop_url="/back.jpg",
+        budget=26000000,
+        revenue=102000000,
+        imdb_score=7.3,
         tmdb_score=7.2,
         tmdb_vote_count=3500,
-        genres_csv="Action,Horror",
+        genres=["Action", "Horror"],
+        director="Zack Snyder",
     )
 
-    with patch("agents.tools.sql_tools.db_session") as mock_db_session:
-        mock_session = MagicMock()
-        mock_db_session.return_value.__enter__.return_value = mock_session
-        mock_session.execute.return_value.all.return_value = [mock_row]
-
-        result = get_films_details_by_ids([666])
+    with patch(
+        "agents.tools.sql_tools.api_get_films_details",
+        new_callable=AsyncMock,
+        return_value=[film],
+    ) as mock_api:
+        result = await get_films_details.coroutine([666])
 
         assert len(result) == 1
         detail = result[0]
@@ -65,101 +57,74 @@ def test_get_films_details_by_ids_success():
         assert detail.director == "Zack Snyder"
         assert detail.release_date == date(2004, 3, 31)
 
+        mock_api.assert_awaited_once_with([666])
 
-def test_get_films_details_by_ids_empty_input():
+
+@pytest.mark.asyncio
+async def test_get_films_details_empty_input():
     """L'envoi d'une liste vide doit court-circuiter directement à un tableau vide."""
-    result = get_films_details_by_ids([])
+    result = await get_films_details.coroutine([])
+
     assert result == []
 
 
-def test_get_films_details_by_ids_no_genres_and_datetime():
-    """Couvre les branches sans genres et la conversion d'un type non-date (ex: datetime)."""
-    mock_film = FakeFilm()
-    # Simulation d'un datetime complet pour tester le fallback .date() de la ligne 234
-    mock_film.release_date = datetime(2004, 3, 31, 0, 0, 0)
+@pytest.mark.asyncio
+async def test_get_films_details_empty_result():
+    """Couvre le cas où la Database API ne retourne aucun film."""
+    with patch(
+        "agents.tools.sql_tools.api_get_films_details",
+        new_callable=AsyncMock,
+        return_value=[],
+    ) as mock_api:
+        result = await get_films_details.coroutine([666])
 
-    mock_row = SQLRowSimulation(
-        Film=mock_film,
-        director_name="Zack Snyder",
-        tmdb_score=7.2,
-        tmdb_vote_count=3500,
-        genres_csv=None,  # Pas de genres associés
-    )
-
-    with patch("agents.tools.sql_tools.db_session") as mock_db_session:
-        mock_session = MagicMock()
-        mock_db_session.return_value.__enter__.return_value = mock_session
-        mock_session.execute.return_value.all.return_value = [mock_row]
-
-        result = get_films_details_by_ids([666])
-        assert result[0].genres == []
-        assert result[0].release_date == date(2004, 3, 31)
+        assert result == []
+        mock_api.assert_awaited_once_with([666])
 
 
-def test_get_films_details_by_ids_missing_release_date():
-    """Couvre le cas où release_date est absent ou None."""
-    mock_film = FakeFilm()
-    mock_film.release_date = None
+@pytest.mark.asyncio
+async def test_get_films_details_exception():
+    """Force le bloc except à s'exécuter pour couvrir la gestion des erreurs."""
+    with patch(
+        "agents.tools.sql_tools.api_get_films_details",
+        new_callable=AsyncMock,
+        side_effect=Exception("Database API Failure"),
+    ):
+        result = await get_films_details.coroutine([666])
 
-    mock_row = SQLRowSimulation(
-        Film=mock_film,
-        director_name="Zack Snyder",
-        tmdb_score=7.2,
-        tmdb_vote_count=3500,
-        genres_csv="Horror",
-    )
-
-    with patch("agents.tools.sql_tools.db_session") as mock_db_session:
-        mock_session = MagicMock()
-        mock_db_session.return_value.__enter__.return_value = mock_session
-        mock_session.execute.return_value.all.return_value = [mock_row]
-
-        result = get_films_details_by_ids([666])
-        assert result[0].release_date is None
-
-
-def test_get_films_details_by_ids_exception():
-    """Force le bloc except à s'exécuter pour couvrir la gestion globale des erreurs."""
-    with patch("agents.tools.sql_tools.db_session") as mock_db_session:
-        mock_db_session.side_effect = Exception("Database Failure")
-
-        result = get_films_details_by_ids([666])
         assert result == []
 
 
 # ==============================================================================
-# TESTS POUR FILTER_FILMS_BY_CRITERIA & INTERNES
+# TESTS POUR FILTER_FILMS_BY_CRITERIA
 # ==============================================================================
 
 
-def test_build_filtered_ids_no_filters_active():
+@pytest.mark.asyncio
+async def test_filter_films_by_criteria_no_filters_active():
     """Vérifie que la fonction renvoie None si aucun filtre n'est activé."""
-    mock_session = MagicMock()
-    result = _build_filtered_ids(mock_session)
+    result = await filter_films_by_criteria.coroutine()
+
     assert result is None
 
 
-def test_filter_films_by_criteria_success():
-    """Parcourt l'intégralité des branches d'injection de conditions SQL (Tous les IFs)."""
-    with patch("agents.tools.sql_tools.db_session") as mock_db_session:
-        mock_session = MagicMock()
-        mock_db_session.return_value.__enter__.return_value = mock_session
-
-        # Simule le retour de execute().scalars().all()
-        mock_session.execute.return_value.scalars.return_value.all.return_value = [
-            11,
-            22,
-        ]
-
-        # On passe TOUS les arguments possibles pour couvrir chaque condition 'if'
-        result = filter_films_by_criteria.func(
+@pytest.mark.asyncio
+async def test_filter_films_by_criteria_success():
+    """Vérifie la transmission de tous les critères à la Database API."""
+    with patch(
+        "agents.tools.sql_tools.api_filter_films",
+        new_callable=AsyncMock,
+        return_value=[11, 22],
+    ) as mock_api:
+        # On passe TOUS les arguments possibles pour couvrir chaque condition.
+        result = await filter_films_by_criteria.coroutine(
             tmdb_id=666,
             realisateur="Snyder",
             genres_included=["Horror"],
             genres_excluded=[
                 "Comedy",
                 "Romance",
-            ],  # Liste multiple pour boucler sur l'exclusion
+            ],
             release_year_min=2000,
             release_year_max=2010,
             tmdb_score_min=6.5,
@@ -169,17 +134,54 @@ def test_filter_films_by_criteria_success():
 
         assert result == [11, 22]
 
+        mock_api.assert_awaited_once_with(
+            {
+                "tmdb_id": 666,
+                "realisateur": "Snyder",
+                "genres_included": ["Horror"],
+                "genres_excluded": [
+                    "Comedy",
+                    "Romance",
+                ],
+                "release_year_min": 2000,
+                "release_year_max": 2010,
+                "tmdb_score_min": 6.5,
+                "runtime_min": 90,
+                "runtime_max": 180,
+            }
+        )
 
-def test_filter_films_by_criteria_empty_pool_correct():
+
+@pytest.mark.asyncio
+async def test_filter_films_by_criteria_empty_pool_correct():
     """Couvre la branche 'if not ids:' avec un filtre actif mais sans résultats."""
-    with patch("agents.tools.sql_tools.db_session") as mock_db_session:
-        mock_session = MagicMock()
-        mock_db_session.return_value.__enter__.return_value = mock_session
+    with patch(
+        "agents.tools.sql_tools.api_filter_films",
+        new_callable=AsyncMock,
+        return_value=[],
+    ) as mock_api:
+        # On force le retour de la Database API à être une liste vide []
+        result = await filter_films_by_criteria.coroutine(
+            realisateur="Inexistant"
+        )
 
-        # On force le retour de la DB à être une liste vide []
-        mock_session.execute.return_value.scalars.return_value.all.return_value = []
+        assert result is None
 
-        # On passe un critère pour activer la logique et atteindre la ligne de log du pool vide
-        result = filter_films_by_criteria.func(realisateur="Inexistant")
+        mock_api.assert_awaited_once_with(
+            {"realisateur": "Inexistant"}
+        )
 
-        assert result == []
+
+@pytest.mark.asyncio
+async def test_filter_films_by_criteria_exception():
+    """Force le bloc except à s'exécuter pour couvrir la gestion des erreurs."""
+    with patch(
+        "agents.tools.sql_tools.api_filter_films",
+        new_callable=AsyncMock,
+        side_effect=Exception("Database API Failure"),
+    ):
+        result = await filter_films_by_criteria.coroutine(
+            realisateur="Snyder"
+        )
+
+        assert result is None

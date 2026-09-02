@@ -23,7 +23,7 @@ Auteur/Responsable : Équipe Agents
 import requests
 from urllib.parse import quote
 from langchain_core.tools import tool
-from api.schemas import WikipediaRequest, WikipediaResponse
+from shared.schemas import WikipediaRequest, WikipediaResponse
 
 
 # LOGGER ------------------------------------------------------

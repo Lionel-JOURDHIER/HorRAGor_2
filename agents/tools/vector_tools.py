@@ -29,6 +29,7 @@ from typing import List, Optional
 import faiss
 import numpy as np
 from langchain_core.tools import tool
+from shared.embeddings import OLLAMA_CLIENT_EMBEDD
 
 # --- CONFIGURATION DES CHEMINS (KISS & DRY) ---
 root_path = Path(__file__).resolve().parents[2]
@@ -37,12 +38,12 @@ if str(root_path) not in sys.path:  # pragma: no cover
     sys.path.insert(0, str(root_path))
 
 # Imports relatifs à la racine du projet
-from api.schemas import FilmShort
-from database.connection import db_session
-from database.faiss_service import faiss_global_service
-from database.populate import OLLAMA_CLIENT_EMBEDD
-from database.queries import get_films_short_by_ids
+from shared.schemas import FilmShort
 
+from database.faiss_service import faiss_global_service
+# from database.populate import OLLAMA_CLIENT_EMBEDD
+from api.modules.database_client import get_films_short_by_ids
+from shared.embeddings import OLLAMA_CLIENT_EMBEDD
 
 def _convert_distance_to_similarity_score(distance: float) -> int:
     """
@@ -131,7 +132,7 @@ def _search_in_pool(
 
 
 @tool
-def search_vector_catalog(
+async def search_vector_catalog(
     query: str,
     top_k: int = 5,
     candidate_ids: Optional[List[int]] = None,
@@ -173,8 +174,7 @@ def search_vector_catalog(
         ordered_ids = [int(res[0]) for res in faiss_results]
         distance_map = {int(res[0]): res[1] for res in faiss_results}
 
-        with db_session() as session:
-            films: List[FilmShort] = get_films_short_by_ids(session, ordered_ids)
+        films = await get_films_short_by_ids(ordered_ids)
 
         for film in films:
             film.similarity_score = _convert_distance_to_similarity_score(
@@ -189,7 +189,7 @@ def search_vector_catalog(
 
 
 @tool
-def search_similar_movies_by_id(
+async def search_similar_movies_by_id(
     movie_id: int,
     top_k: int = 5,
     candidate_ids: Optional[List[int]] = None,
@@ -222,8 +222,7 @@ def search_similar_movies_by_id(
         ordered_ids = [int(res[0]) for res in faiss_results]
         distance_map = {int(res[0]): res[1] for res in faiss_results}
 
-        with db_session() as session:
-            films: List[FilmShort] = get_films_short_by_ids(session, ordered_ids)
+        films = await get_films_short_by_ids(ordered_ids)
 
         for film in films:
             film.similarity_score = _convert_distance_to_similarity_score(

@@ -19,7 +19,7 @@ Dépendances principales :
     - sqlalchemy (select)
     - sqlalchemy.orm (Session)
     - tables (Fichiers de modèles modulaires éclatés par entité)
-    - api.schemas (FilmDetail)
+    - shared.schemas (FilmDetail)
 
 Auteur/Responsable : Lionel (Epic 1 & 2)
 """
@@ -30,8 +30,15 @@ from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, exists, extract, select
 
 from database.connection import get_db
+
+# LOGGER ------------------------------------------------------
+from logger import get_logger, setup_logger
+
+setup_logger()
+logger = get_logger("DATABASE_QUERIES")
 
 # --- CONFIGURATION DES CHEMINS (KISS & DRY) ---
 database_path = Path(__file__).resolve().parent
@@ -40,7 +47,7 @@ root_path = database_path.parent
 if str(root_path) not in sys.path:
     sys.path.append(str(root_path))  # pragma: no cover
 
-from api.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
+from shared.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
 from database.tables.collections import Collection
 from database.tables.film_genres import FilmGenre
 from database.tables.films import Film
@@ -209,6 +216,196 @@ def get_films_short_by_ids(session: Session, tmdb_ids: List[int]) -> List[FilmSh
     # On réordonne pour respecter scrupuleusement le classement de FAISS
     return [films_map[t_id] for t_id in tmdb_ids if t_id in films_map]
 
+
+def get_filtered_ids(
+    session: Session,
+    tmdb_id: Optional[int] = None,
+    realisateur: Optional[str] = None,
+    genres_included: Optional[List[str]] = None,
+    genres_excluded: Optional[List[str]] = None,
+    release_year_min: Optional[int] = None,
+    release_year_max: Optional[int] = None,
+    tmdb_score_min: Optional[float] = None,
+    runtime_min: Optional[int] = None,
+    runtime_max: Optional[int] = None,
+) -> Optional[List[int]]:
+    """
+    Filtre le catalogue des films selon des critères métier.
+
+    Retour:
+        - List[int] : liste des tmdb_id correspondant
+        - None : aucun filtre actif
+        - [] : aucun résultat
+    """
+
+    filters_active = any(
+        [
+            tmdb_id,
+            realisateur,
+            genres_included,
+            genres_excluded,
+            release_year_min,
+            release_year_max,
+            tmdb_score_min,
+            runtime_min,
+            runtime_max,
+        ]
+    )
+
+    if not filters_active:
+        return None
+
+
+    statement = select(Film.tmdb_id).distinct()
+
+    conditions = []
+
+    # TMDB ID ----------------------------
+    if tmdb_id is not None:
+        conditions.append(Film.tmdb_id == tmdb_id)
+
+    # Réalisateur ----------------------------
+    if realisateur:
+
+        statement = statement.join(
+            Realisateur,
+            Film.director_id == Realisateur.director_id
+        )
+
+        conditions.append(
+            Realisateur.name.ilike(
+                f"%{realisateur}%"
+            )
+        )
+
+    # Genres inclus OR logique ----------------------------
+    if genres_included:
+
+        genres_subquery = (
+            select(FilmGenre.tmdb_id)
+            .join(
+                Genre,
+                FilmGenre.id_genre == Genre.id_genre
+            )
+            .where(
+                and_(
+                    FilmGenre.tmdb_id == Film.tmdb_id,
+                    Genre.genre_name.in_(genres_included),
+                )
+            )
+        )
+
+        conditions.append(exists(genres_subquery)
+        )
+
+    # Genres exclus ----------------------------
+    if genres_excluded:
+
+        for genre in genres_excluded:
+
+            subquery = (
+                select(FilmGenre.tmdb_id)
+                .join(
+                    Genre,
+                    FilmGenre.id_genre == Genre.id_genre
+                )
+                .where(
+                    and_(
+                        FilmGenre.tmdb_id == Film.tmdb_id,
+                        Genre.genre_name == genre,
+                    )
+                )
+            )
+
+            conditions.append(~exists(subquery))
+
+    # Runtime ----------------------------
+    if runtime_min is not None:
+        conditions.append(
+            Film.runtime >= runtime_min
+        )
+
+    if runtime_max is not None:
+        conditions.append(
+            Film.runtime <= runtime_max
+        )
+
+    # Année sortie ----------------------------
+    if release_year_min is not None:
+
+        conditions.append(
+            extract(
+                "year",
+                Film.release_date
+            ) >= release_year_min
+        )
+
+
+    if release_year_max is not None:
+
+        conditions.append(
+            extract(
+                "year",
+                Film.release_date
+            ) <= release_year_max
+        )
+
+    # Score TMDB ----------------------------
+    if tmdb_score_min is not None:
+
+        statement = statement.join(
+            ScoreTmdb,
+            Film.tmdb_id == ScoreTmdb.tmdb_id
+        )
+
+        conditions.append(ScoreTmdb.vote_average >= tmdb_score_min)
+
+    # WHERE ----------------------------
+    if conditions:
+
+        statement = statement.where(and_(*conditions))
+
+
+    ids = list(
+        session.execute(statement)
+        .scalars()
+        .all()
+    )
+
+    if not ids:
+        logger.info("⚠️ Aucun film trouvé après filtrage")
+        return []
+
+    logger.info(f"✅ Filtrage terminé: {len(ids)} films")
+
+    return ids
+
+def get_films_details_by_ids(
+    session: Session,
+    tmdb_ids: List[int]
+) -> List[FilmDetail]:
+    """
+    Retrieve detailed information for multiple films.
+    """
+
+    if not tmdb_ids:
+        return []
+
+
+    films = []
+
+    for tmdb_id in tmdb_ids:
+
+        film = get_film_details_by_id(
+            session,
+            tmdb_id
+        )
+
+        if film:
+            films.append(film)
+
+
+    return films
 
 # --- Zone de Test Multi-Tables ---
 if __name__ == "__main__":

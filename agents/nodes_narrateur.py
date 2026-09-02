@@ -26,7 +26,7 @@ Auteur/Responsable : Équipe Agents
 
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -38,10 +38,10 @@ from agents.config import llm_narrateur
 from agents.prompts import (
     NARRATOR_PERSONA_PROMPT,
 )
-from api.schemas import AgentStep
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
+from shared.schemas import AgentStep
 
 setup_logger()
 logger = get_logger("NODES")
@@ -51,7 +51,7 @@ logger = get_logger("NODES")
 # ==============================================================================
 
 
-def narrator_node(state: Any) -> Dict[str, Any]:
+def narrator_node(state: Any) -> dict[str, Any]:
     """
     Étape finale : L'Écrivain Gothique.
     Isole le LLM de la plomberie technique pour emballer les données brutes,
@@ -147,10 +147,12 @@ def narrator_node(state: Any) -> Dict[str, Any]:
             data_enriched = "\n".join(fallback_details)
 
         narration_context = (
-            f"Réponse factuelle à transmettre : {data_enriched}\n\n"
-            f"Question : '{user_query}'.\n"
-            "Transmets cette réponse précise dans ton style gothique. "
-            "Ne modifie aucun fait. Maximum 2 phrases."
+            f"L'antique vérité à révéler (ne modifie aucune de ces données) : {data_enriched}\n\n"
+            f"Murmure de l'interlocuteur : '{user_query}'.\n"
+            "Incarne pleinement ton personnage de gardien des ombres. Révèle cette information "
+            "exacte comme un lourd secret exhumé d'un vieux grimoire ou un écho dans les ténèbres. "
+            "Ton ton doit être mystérieux, poétique et sombre. "
+            "Sois concis : 2 à 3 phrases maximum."
         )
 
     # 3. Préparation du Prompt Système avec le gabarit importé

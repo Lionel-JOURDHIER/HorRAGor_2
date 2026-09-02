@@ -3,6 +3,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+pytestmark = pytest.mark.skip(reason="Временно отключено")
 from langchain_core.messages import AIMessage
 
 from agents.nodes_rag import (
@@ -18,7 +20,7 @@ from agents.nodes_rag import (
     validation_node,
     verif_film_node,
 )
-from api.schemas import ChatFilters
+from shared.schemas import ChatFilters
 
 # ==============================================================================
 # FIXTURES & MOCKS

@@ -6,7 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from agents.nodes_narrateur import narrator_node
-from api.schemas import AgentStep
+from shared.schemas import AgentStep
 
 # ==============================================================================
 # FIXTURES

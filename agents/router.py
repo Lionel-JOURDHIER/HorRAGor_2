@@ -106,7 +106,7 @@ Auteur/Responsable : Équipe Agents - Spécification HorRAGor v3
 --------------------------------------------------------------------------------
 """
 
-from api.schemas import AgentState
+from shared.schemas import AgentState
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
