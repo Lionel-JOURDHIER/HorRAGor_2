@@ -44,6 +44,9 @@ jobs:
         working-directory: agents
         run: uv run pytest
 
+      - name: Build documentation
+        working-directory: docs
+        run: uv run --project ../api sphinx-build -E -b html source build/html
 
   # ─────────────────────────────────────────────
   # 2. BUILD + PUSH DOCKER IMAGES
