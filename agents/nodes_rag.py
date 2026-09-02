@@ -78,6 +78,9 @@ CATALOG_GENRES = {
 
 
 class ValidationFilmListResult(BaseModel):
+    is_relevant: bool = Field(
+        description="True si l'ensemble de la liste proposée est pertinent pour la requête utilisateur."
+    )
     valid_titles: list[str] = Field(
         description="Titres des films qui correspondent aux critères demandés."
     )
@@ -728,6 +731,9 @@ def validation_film_node(state: AgentState) -> dict[str, Any]:
     Branche hybride uniquement.
     Vérifie la cohérence de la liste de FilmShort retournée par FAISS
     par rapport aux filtres initiaux et à la requête utilisateur.
+    Le PASS total exige is_relevant=True ET aucun titre invalide : un verdict
+    LLM incomplet (listes vides sans is_relevant explicite) est traité comme
+    une absence de correspondance, pas comme une validation implicite.
     """
     logger.info("[validation_film_node] Validation liste films ↔ filtres")
     steps = list(state.steps)
@@ -761,9 +767,10 @@ def validation_film_node(state: AgentState) -> dict[str, Any]:
         Films proposés :
         {films_summary}
 
-        is_relevant : True si au moins la majorité des films correspondent aux critères.
-        has_missing_info : True si des films pertinents ont un synopsis absent ou vide.
-        corrected_title : laisser vide pour la recherche hybride.
+        is_relevant : True si la liste dans son ensemble correspond aux critères demandés.
+        valid_titles : titres des films qui correspondent aux critères.
+        invalid_titles : titres des films qui ne correspondent PAS aux critères.
+        feedback : explication concise du choix de validation.
         """
 
     # Appel LLM pour validation des films proposés
@@ -775,6 +782,7 @@ def validation_film_node(state: AgentState) -> dict[str, Any]:
             f"[validation_film_node] Échec évaluateur : {e}. Validation par défaut."
         )
         result = ValidationFilmListResult(
+            is_relevant=True,
             valid_titles=[f.title for f in state.retrieved_movies],
             invalid_titles=[],
             feedback="Fallback",
@@ -786,8 +794,10 @@ def validation_film_node(state: AgentState) -> dict[str, Any]:
     # Création de la liste de FilmShort des film validés
     filtered_movies = [f for f in state.retrieved_movies if f.title in valid_titles_set]
 
-    # Cas 2 : PASS : Aucun films invalide retourné
-    if len(result.invalid_titles) == 0:
+    # Cas 2 : PASS total : le LLM juge l'ensemble pertinent ET n'a identifié aucun titre
+    # invalide. Un verdict "is_relevant=False" ne peut plus être masqué par des listes
+    # de titres vides — fail-safe plutôt que fail-open.
+    if result.is_relevant and len(result.invalid_titles) == 0:
         steps.append(AgentStep(step="validation_hybrid", status="valid"))
         return {
             "current_step": "valid",
