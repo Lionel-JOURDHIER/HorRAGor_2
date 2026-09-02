@@ -122,8 +122,10 @@ You are a deterministic, stateless intent classifier for the HorRAGor (Horror Ci
 
 ## ⚠️ RÈGLE ABSOLUE PRIORITAIRE — À APPLIQUER AVANT TOUT
 HAS_CONTEXT = __HAS_CONTEXT__
+CONTEXT_TITLES = __CONTEXT_TITLES__
 
-SI HAS_CONTEXT == TRUE ET la requête est une question sur un film (durée, réalisateur, acteurs, date...) :
+SI HAS_CONTEXT == TRUE ET la requête est une question sur un film (durée, réalisateur, acteurs, date...)
+   ET qu'elle ne cite aucun titre, OU cite un titre présent dans CONTEXT_TITLES :
 → Retourner OBLIGATOIREMENT : DISCUSSION
 
 SI HAS_CONTEXT == FALSE ET la requête est une question sur un film :
@@ -135,10 +137,11 @@ Cette règle écrase toutes les autres. Ne lis les critères suivants que si auc
 Select exactly one value for the `intent` field based on these rules:
 
 1. DISCUSSION
-- Activation: L'utilisateur pose une question sur un film DÉJÀ en contexte, 
-  en utilisant des pronoms ("il", "ce film", "sa durée") SANS mentionner de nouveau titre.
-- RÈGLE CRITIQUE : Si l'utilisateur mentionne un titre de film différent du contexte,
-  c'est une RECHERCHE, pas une DISCUSSION.
+- Activation: L'utilisateur pose une question sur un film DÉJÀ en contexte (CONTEXT_TITLES),
+  en utilisant des pronoms ("il", "ce film", "sa durée") SANS mentionner de nouveau titre,
+  OU en citant explicitement un titre présent dans CONTEXT_TITLES.
+- RÈGLE CRITIQUE : Un titre mentionné qui n'est PAS dans CONTEXT_TITLES est un nouveau titre →
+  RECHERCHE, pas DISCUSSION.
 - Triggers: "qui joue dedans", "son budget", "le réalisateur", "il est sorti en quelle année".
 
 2. AUCUN_FILM_TROUVE
@@ -146,10 +149,11 @@ Select exactly one value for the `intent` field based on these rules:
 - Triggers: Follow-up attributes when context is empty.
 
 3. RECHERCHE
-- Activation: User wants to discover a new film, requests recommendations based on criteria, 
-  OR explicitly introduces a NEW movie title different from the one in context.
-- RÈGLE CRITIQUE : Si l'utilisateur mentionne un titre de film EXPLICITE (ex: "Get Out", "Alien", "Scream"),
-  c'est TOUJOURS une RECHERCHE, même si HAS_CONTEXT est TRUE.
+- Activation: User wants to discover a new film, requests recommendations based on criteria,
+  OR explicitly introduces a movie title that is ABSENT from CONTEXT_TITLES.
+- RÈGLE CRITIQUE : Un titre explicite (ex: "Get Out", "Alien", "Scream") qui n'est PAS dans
+  CONTEXT_TITLES déclenche TOUJOURS RECHERCHE, même si HAS_CONTEXT est TRUE. À l'inverse, un titre
+  déjà présent dans CONTEXT_TITLES ne déclenche jamais RECHERCHE à lui seul.
 - Triggers: "donne-moi", "recommande", "tu connais", "un film de", "GET OUT", "ALIEN", "Scream",
   tout titre de film accompagné d'un réalisateur ("Get Out de Jordan Peele").
 

@@ -16,6 +16,7 @@ import json
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from agents.tools.wiki_tools import wikipedia_search
 
@@ -229,13 +230,22 @@ async def chat_stream_final(request: ChatRequest):
                         if isinstance(movie, FilmDetail):
                             film = movie
                         else:
-                            film = FilmDetail.model_validate(movie)
+                            movie_data = (
+                                movie.model_dump()
+                                if isinstance(movie, BaseModel)
+                                else movie
+                            )
+                            film = FilmDetail.model_validate(movie_data)
 
                     elif len(movies) > 1:
                         recommendations = [
                             movie
                             if isinstance(movie, FilmShort)
-                            else FilmShort.model_validate(movie)
+                            else FilmShort.model_validate(
+                                movie.model_dump()
+                                if isinstance(movie, BaseModel)
+                                else movie
+                            )
                             for movie in movies
                         ]
 
