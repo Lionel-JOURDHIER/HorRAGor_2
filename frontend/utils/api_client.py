@@ -12,6 +12,7 @@ Fonctions disponibles :
     - get_genres : Récupère la liste des genres
     - send_chat_query : Envoie une requête au chatbot avec filtres (synchrone)
     - send_chat_query_streaming : Envoie une requête au chatbot en mode streaming SSE
+    - get_chat_history : Récupère l'historique de conversation persisté de l'utilisateur
     - get_wikipedia_info : Récupère des informations depuis Wikipedia
 
 Auteur : Flavie (Epic 7)
@@ -220,6 +221,31 @@ def send_chat_query(
             "status": "error",
             "message_erreur": f"Erreur de communication avec l'API: {str(e)}",
         }
+
+
+def get_chat_history(access_token: str) -> List[Dict[str, Any]]:
+    """
+    Récupère l'historique de conversation persisté de l'utilisateur connecté.
+
+    Args:
+        access_token: Access token JWT de l'utilisateur connecté.
+
+    Returns:
+        Messages {"role", "content", "films"?} dans l'ordre chronologique,
+        au format attendu par `st.session_state.messages`. Liste vide si
+        l'utilisateur n'a pas encore de conversation ou si l'appel échoue.
+    """
+    api_url = get_api_url()
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    try:
+        response = requests.get(
+            f"{api_url}/chat/history", headers=headers, timeout=10
+        )
+        response.raise_for_status()
+        return response.json().get("history", [])
+    except requests.exceptions.RequestException:
+        return []
 
 
 def send_chat_query_streaming(
