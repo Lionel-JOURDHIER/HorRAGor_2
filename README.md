@@ -10,15 +10,17 @@ L'architecture est entièrement conteneurisée et pensée pour s'exécuter local
 
 Une fois la stack lancée (`docker compose up -d`), tout passe par Traefik sur
 `localhost` — le routage se fait par chemin, pas par nom d'hôte, donc rien à
-ajouter dans `/etc/hosts`.
+ajouter dans `/etc/hosts`. Traefik termine le TLS avec un certificat
+auto-signé : le navigateur avertit à la première ouverture, à accepter
+manuellement (pas de CA à installer sur le poste).
 
 | Élément | Adresse |
 |---|---|
-| Frontend (Streamlit) | http://localhost |
-| API IA | http://localhost/api |
-| Documentation Swagger — API IA | http://localhost/api/docs |
-| API Database | http://localhost/dbapi |
-| Documentation Swagger — API Database | http://localhost/dbapi/docs |
+| Frontend (Streamlit) | https://localhost |
+| API IA | https://localhost/api |
+| Documentation Swagger — API IA | https://localhost/api/docs |
+| API Database | https://localhost/dbapi |
+| Documentation Swagger — API Database | https://localhost/dbapi/docs |
 | Dashboard Traefik | http://127.0.0.1:8080/dashboard/ |
 
 La stack `monitoring/docker-compose.yml` (à lancer séparément) expose en plus :
