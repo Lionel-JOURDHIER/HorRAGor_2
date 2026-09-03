@@ -1,25 +1,15 @@
-"""agents/nodes.py
-Module de définition des nœuds (Nodes) du graphe de l'agent LangGraph HorRAGor v3.
+"""agents/nodes_wikipedia.py
+Nœuds d'enrichissement Wikipedia et de synthèse du graphe LangGraph HorRAGor v3.
 
-Ce fichier contient exclusivement les boîtes blanches applicatives. Chaque nœud reçoit
-l'état actuel ('AgentState'), exécute son traitement isolé et retourne les modifications
-à fusionner dans l'état global, en respectant scrupuleusement les cibles du router.py.
-
-Nœuds principaux à implémenter :
-    - node_classifier : Interroge le LLM avec le prompt de classification pour
-      déterminer l'intention de l'utilisateur.
-    - node_extractor : Extrait les entités et critères de filtrage (réalisateur, genre).
-    - node_sql_query / node_vector_search : Appellent respectivement les outils SQL
-      ou FAISS pour récupérer les données de films pertinents.
-    - node_wikipedia_enrich : Complète les synopsis manquants si nécessaire.
-    - node_rag_synthesizer : Fusionne le contexte, génère la réponse textuelle finale
-      et structure le top 5 des films pour le front-end.
+Complète les données manquantes de la base (synopsis, faits) via une recherche
+Wikipedia ciblée, puis fusionne ces résultats avec les FilmDetail/FilmShort pour
+produire une réponse concise à la question utilisateur, consommée par
+narrator_node.
 
 Dépendances principales :
-    - .state (AgentState)
-    - .prompts (Gabarits d'instructions)
-    - .tools (sql_tools, vector_tools, wiki_tools)
-    - langchain_ollama (Instance locale du LLM)
+    - agents.config (llm_synthesis)
+    - agents.tools.wiki_tools (wikipedia_search)
+    - shared.schemas (AgentState, AgentStep)
 
 Auteur/Responsable : Équipe Agents
 """
@@ -43,6 +33,12 @@ from logger import get_logger, setup_logger
 
 setup_logger()
 logger = get_logger("NODES")
+
+# Plafond du contexte total (tous films confondus) envoyé à llm_synthesis.
+# Le plafond par film (10000 caractères de synopsis Wikipedia) ne suffit pas :
+# avec plusieurs films enrichis en DISCUSSION, la somme peut dépasser la
+# fenêtre de contexte d'un LLM local.
+MAX_SYNTHESIS_CONTEXT_CHARS = 8000
 
 # ==============================================================================
 # PHASE 4 : AGENT WIKIPEDIA
@@ -198,6 +194,12 @@ def synthesis_node(state: AgentState) -> Dict[str, Any]:
         context_blocks.append(block)
 
     full_context = "\n\n---\n\n".join(context_blocks)
+    if len(full_context) > MAX_SYNTHESIS_CONTEXT_CHARS:
+        logger.warning(
+            f"[synthesis_node] Contexte tronqué : {len(full_context)} → "
+            f"{MAX_SYNTHESIS_CONTEXT_CHARS} caractères ({len(films)} film(s))."
+        )
+        full_context = full_context[:MAX_SYNTHESIS_CONTEXT_CHARS] + "\n[...tronqué]"
 
     # Appel llm_synthesis pour répondre précisément à la question utilisateur.
     synthesis_prompt = f"""Tu es un assistant cinéma concis et précis.
