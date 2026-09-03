@@ -166,47 +166,28 @@ Mis à jour au fil des sessions.
 
 ## 🐛 Bugs confirmés — câblage frontend / backend
 
-- [ ] **Cartes de films non affichées quand un seul film est trouvé.**
+- [x] **Cartes de films non affichées quand un seul film est trouvé.**
   L'API renvoie `film` (FilmDetail) quand `len(movies) == 1` et
   `recommendations` (liste) quand il y en a plusieurs
-  ([api/routes.py:200-224](api/routes.py:200)). Le frontend ne lit jamais
-  `event.get("film")` ([frontend/app.py:509-510](frontend/app.py:509)) : dans
-  ce cas `films = []` et l'UI affiche « Aucun film ne correspond à vos
-  critères » alors que l'agent a bien trouvé le film.
-  → Corriger `app.py` pour intégrer `event.get("film")` dans les films à
-  afficher.
+  ([api/routes.py:200-224](api/routes.py:200)). Le frontend intègre désormais
+  `event.get("film")` dans la liste des films à afficher.
 
-- [ ] **Affiches (posters) jamais correctement affichées.**
-  `poster_url=f"{film.poster_path}"` dans
-  [database/queries.py:119](database/queries.py:119) et
-  [:212](database/queries.py:212) réutilise le chemin relatif TMDB
-  (`/xxx.jpg`) sans préfixer `https://image.tmdb.org/t/p/w500`. L'`<img>`
-  généré dans [frontend/components/components.py:95](frontend/components/components.py:95)
-  pointe vers une ressource inexistante sur le domaine Streamlit.
-  → Préfixer `poster_url` (et vérifier `backdrop_url`) avec l'URL de base du
-  CDN TMDB.
+- [x] **Affiches (posters) jamais correctement affichées.**
+  Les requêtes SQL transforment désormais les chemins relatifs en URLs CDN
+  complètes via `TMDB_IMAGE_BASE_URL` avant de les transmettre au frontend.
 
-- [ ] **Sidebar des filtres (réalisateur, genres) toujours cassée.**
-  [frontend/components/components.py:364](frontend/components/components.py:364)
-  et [:396](frontend/components/components.py:396) appellent
-  `{API_URL}/list_real` et `{API_URL}/list_genre` sur l'**API IA** (port
-  8000). Ces routes n'existent que sur l'**API Database** (port 8001, préfixe
-  `/db/`, voir [database/routes_db.py](database/routes_db.py)). Résultat :
-  404 systématique, le sélecteur reste bloqué sur « Tous ».
-  → Soit exposer un proxy `/list_real` et `/list_genre` sur l'API IA, soit
-  donner au frontend une deuxième variable d'env (`DATABASE_API_URL`) pour
-  cibler directement l'API Database.
+- [x] **Sidebar des filtres (réalisateur, genres) toujours cassée.**
+  La sidebar utilise désormais `DATABASE_API_URL` et les endpoints
+  `/db/list_real` et `/db/list_genre` de l'API Database.
 
-- [ ] **Fonctions mortes et cassées dans `api_client.py`** (non appelées par
+- [x] **Fonctions mortes et cassées dans `api_client.py`** (non appelées par
   `app.py` aujourd'hui, mais cassées si utilisées un jour, et couvertes par
   des tests d'intégration qui échoueraient si `--run-integration` était
   activé) :
-  - `get_film_by_id`, `get_realisateurs`, `get_genres` → visent l'API IA au
-    lieu de l'API Database (même bug que la sidebar).
-  - `send_chat_query` (version non-streaming) → appelle `POST /chat/response`,
-    entièrement commenté côté serveur ([api/routes.py:65-118](api/routes.py:65))
-    → 404 garanti.
-  → Décider : les corriger et les câbler, ou les supprimer avec leurs tests.
+  - `get_film_by_id`, `get_realisateurs`, `get_genres` ciblent désormais l'API
+    Database.
+  - `send_chat_query` consomme désormais le flux SSE de
+    `POST /chat/response_stream`.
 
 ## 🟠 Robustesse au démarrage
 

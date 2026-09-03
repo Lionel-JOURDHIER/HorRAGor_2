@@ -475,6 +475,7 @@ def display_chat_interface(filters: dict):
         all_steps = []
         final_answer = None
         final_recommendations = []
+        final_film = None
         error_occurred = False
 
         # Afficher le message de démarrage
@@ -514,6 +515,7 @@ def display_chat_interface(filters: dict):
                 elif "answer" in event:
                     final_answer = event.get("answer", "Aucune réponse générée")
                     final_recommendations = event.get("recommendations", [])
+                    final_film = event.get("film")
                     # Mettre à jour all_steps avec les étapes complètes si disponibles
                     if "steps" in event:
                         all_steps = event["steps"]
@@ -547,7 +549,7 @@ def display_chat_interface(filters: dict):
 
             # Les recommandations sont déjà au format API correct
             # normalize_movie_data() s'occupera de la conversion dans display_movie_card
-            films = final_recommendations
+            films = final_recommendations or ([final_film] if final_film else [])
 
             # Mettre à jour les statistiques
             st.session_state.total_films_recommended += len(films)
@@ -557,7 +559,7 @@ def display_chat_interface(filters: dict):
                 {
                     "role": "assistant",
                     "content": final_answer,
-                    "films": final_recommendations,
+                    "films": films,
                     "etats_agent": all_steps,
                 }
             )
