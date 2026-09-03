@@ -558,16 +558,21 @@ qu'une lecture du seul contenu commité ne montre pas.
   `docker compose` (racine) et un `uv run` depuis `database/`.
   → Un seul `.env` à la racine, chargé par chemin explicite.
 
-- [ ] `.env.example` désynchronisé du code, dans les deux sens :
-  - **Utilisées par le code, absentes du modèle** : `API_URL`,
+- [ ] **Partiellement résolu (par Hanna, sur `dev`), reste ouvert pour le
+  reste.** `.env.example` désynchronisé du code, dans les deux sens :
+  - **Corrigé** : `JWT_SECRET_KEY` (+ `JWT_ALGORITHM`, durées d'expiration)
+    est désormais présent et documenté comme obligatoire dans `.env.example`,
+    **et** effectivement défini dans le `.env` réel de ce poste (vérifié) —
+    le cas « présent dans le modèle, absent du `.env` réel » signalé en § 🔴
+    Sécurité est clos.
+  - **Toujours absentes du modèle**, utilisées par le code : `API_URL`,
     `DATABASE_API_URL`, `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`,
     `LANGFUSE_SECRET_KEY`, `LANGGRAPH_STRICT_MSGPACK`.
-  - **Dans le modèle, lues nulle part** : `POSTGRES_USER/PASSWORD/DB/HOST/PORT`
+  - **Toujours dans le modèle, lues nulle part** : `POSTGRES_USER/PASSWORD/DB/HOST/PORT`
     (aucun service Postgres local dans `docker-compose.yml` — le bloc est
     commenté), `SUPABASE_PROJECT`, `SUPABASE_PUBLISHABLE_KEY`,
     `OLLAMA_MODELS_PATH`.
-  - `JWT_SECRET_KEY` est le cas inverse du précédent : présent dans le modèle,
-    absent du `.env` réel (cf. § Sécurité).
+  - Revérifié le 3 septembre 2026.
 
 ## 🟠 Outillage déclaré mais inexistant
 
@@ -701,12 +706,14 @@ qu'une lecture du seul contenu commité ne montre pas.
 
 ## 🟡 Monitoring — couplages fragiles
 
-- [ ] [monitoring/docker-compose.yml:233](monitoring/docker-compose.yml:233)
-  attache la stack au réseau externe `horragor_2_horragor_net`, nom **dérivé du
-  nom du répertoire de travail** (`HorRAGor_2`). Un clone dans un dossier
-  nommé autrement, ou un `docker compose -p`, et la stack de monitoring refuse
-  de démarrer sans message explicite. → Fixer `name:` sur le réseau dans le
-  `docker-compose.yml` principal et le référencer.
+- [x] **Corrigé (par Hanna, commit sur `dev`).** Le [docker-compose.yml](docker-compose.yml)
+  racine déclare désormais `name: horragor_2` en tête de fichier (commentaire
+  explicite sur cette correction), ce qui fixe le nom du projet Compose
+  indépendamment du nom du répertoire de clone. `monitoring/docker-compose.yml:233`
+  continue de nommer en dur le réseau externe `horragor_2_horragor_net`, mais
+  ce nom est désormais garanti correct par le `name:` fixé côté stack
+  principale, plutôt que dépendant accidentellement du nom du dossier.
+  Revérifié le 3 septembre 2026 après les commits d'Hanna sur `dev`.
 - [ ] [monitoring/prometheus/prometheus.yml:8](monitoring/prometheus/prometheus.yml:8)
   ne scrape que `horragor_api:8000`. `database_api` n'expose d'ailleurs aucune
   métrique : `Instrumentator()` n'est branché que sur
@@ -790,12 +797,26 @@ qu'une lecture du seul contenu commité ne montre pas.
 
 ## 🟡 CI — angles morts confirmés en relisant le workflow
 
-- [ ] Aucun lint en CI ([.github/workflows/docker.yml](.github/workflows/docker.yml)) —
-  cohérent avec l'absence de ruff, mais à traiter en même temps.
-- [ ] Les images sont poussées sur GHCR en `:latest` **dès un push sur `dev`**,
-  sans distinction de canal entre `dev` et `main` : un `:latest` peut donc
-  provenir de `dev`. → Tag distinct par branche, ou push `:latest` réservé à
-  `main`.
-- [ ] Le job `docker` ne dépend que d'un job `test` qui ne teste que `agents`
-  (déjà listé) : un échec `api`/`database`/`frontend` n'empêche aucune
-  publication d'image.
+- [ ] **Toujours ouvert, entrée à corriger.** Aucun lint en CI
+  ([.github/workflows/docker.yml](.github/workflows/docker.yml)) — mais la
+  justification d'origine (« cohérent avec l'absence de ruff ») est devenue
+  fausse : ruff est dépendance de dev des quatre sous-projets depuis
+  `uv add --dev ruff` (§ Outillage déclaré mais inexistant, déjà corrigé).
+  Revérifié le 3 septembre 2026 : le workflow n'a toujours aucune étape
+  `ruff check`/`ruff format --check`, alors que l'outil est disponible.
+- [ ] **Toujours ouvert.** Les images sont poussées sur GHCR en `:latest`
+  **dès un push sur `dev`**, sans distinction de canal entre `dev` et `main` :
+  un `:latest` peut donc provenir de `dev`. Revérifié le 3 septembre 2026 :
+  le job `docker` déclenche toujours sur `push: branches: [dev, main]` et tague
+  sans condition `:${{ github.sha }}` **et** `:latest` pour les trois images
+  (api, database-api, frontend). → Tag distinct par branche, ou push
+  `:latest` réservé à `main`.
+- [x] **Résolu indirectement (par Hanna, commits « fix tests agents » sur
+  `dev`).** Le job `test` du workflow ne testait à l'origine que `agents` ;
+  il exécute désormais `uv sync` + `uv run pytest --cov=... --cov-fail-under=40`
+  séparément pour **agents, api, database et frontend**, chacun avec son
+  upload de couverture. La structure de dépendance n'a pas changé (`docker`
+  dépend toujours d'un seul job `test`), mais comme ce job couvre maintenant
+  les quatre sous-projets, un échec de tests `api`/`database`/`frontend`
+  bloque désormais bien la publication d'image — l'écart signalé n'existe
+  plus. Revérifié le 3 septembre 2026.
