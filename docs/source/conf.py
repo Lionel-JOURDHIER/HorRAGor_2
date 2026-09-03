@@ -35,7 +35,7 @@ language = 'fr'
 
 html_theme = "furo"
 
-html_title = "HorRAGor — Documentation technique"
+html_title = "HorRAGor"
 
 html_theme_options = {
     "light_css_variables": {
@@ -49,3 +49,6 @@ html_theme_options = {
 }
 
 html_static_path = ['_static']
+html_css_files = [
+    "custom.css",
+]
