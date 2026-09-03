@@ -57,9 +57,18 @@ via Ollama.
 - Ollama tourne sur l'hôte, pas dans `docker-compose.yml` (bloc commenté) :
   `OLLAMA_BASE_URL` doit pointer vers `http://host.docker.internal:11434` côté
   conteneur API, pas `http://ollama:11434`.
-- Le volume `horragor_faiss_data` persiste l'index entre redémarrages ; après
-  une modification des données Supabase, il faut `docker volume rm
-  horragor_faiss_data` avant de relancer, sinon l'index reste périmé.
+- L'index FAISS est **embarqué dans l'image `api`** : `COPY . .` copie
+  `faiss_data/` du dépôt vers `/app/faiss_data`, où pointe `FAISS_INDEX_PATH`.
+  Aucun volume n'est monté sur ce chemin, et il ne faut pas en remonter un :
+  un montage y masquerait l'index de l'image (c'est exactement ce que faisaient
+  les deux `volumes:` retirés du service `api`, dont le volume nommé
+  `horragor_faiss_data` — désormais supprimé, un `docker volume rm` sur ce nom
+  ne veut plus rien dire).
+- Corollaire : après une modification des données Supabase, régénérer
+  `faiss_data/` puis **reconstruire l'image** (`docker compose build api`) —
+  un simple `docker compose up -d` réutilise l'index de l'image précédente.
+- `faiss_data/` est le seul index utile : `api/faiss_data/` en est un doublon
+  octet pour octet, exclu du contexte de build et lu par personne.
 
 ## Après validation
 

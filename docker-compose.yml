@@ -93,14 +93,12 @@ services:
     environment:
       # Redirection Ollama vers le service Docker (écrase localhost)
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
-      # Chemins de persistence de l'index FAISS dans le volume
+      # Chemins de l'index FAISS embarqué dans l'image (voir Dockerfile.api).
+      # Aucun volume n'est monté sur /app/faiss_data : un montage y masquerait
+      # l'index de l'image, qui est la source unique.
       - PYTHONPATH=/app
       - FAISS_INDEX_PATH=faiss_data/horragor.index
       - FAISS_MAPPING_PATH=faiss_data/horragor_mapping.json
-
-    volumes:
-      - faiss_data:/app/faiss_data
-      - ./api/faiss_data:/app/faiss_data
 
     ports:
       - "8000:8000"
@@ -133,14 +131,6 @@ services:
     restart: unless-stopped
     networks:
       - horragor_net
-
-# ─── VOLUMES ──────────────────────────────────────────────────────────────────
-volumes:
-  faiss_data:
-    name: horragor_faiss_data
-    # Le volume persiste entre les redémarrages
-    # Pour forcer un rebuild : docker volume rm horragor_faiss_data
-
 
 # ─── RÉSEAU ───────────────────────────────────────────────────────────────────
 networks:
