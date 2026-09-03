@@ -8,7 +8,7 @@
 #
 #                            Navigateur
 #                                 |
-#                un SEUL port publié : 80, sur 127.0.0.1
+#              deux ports publiés : 80 (redirige) et 443, sur 127.0.0.1
 #                                 v
 #                          +--------------+
 #                          |   TRAEFIK    |  <-- lit les labels des conteneurs
@@ -26,19 +26,22 @@
 # Le routage se fait sur le CHEMIN, pas sur le nom d'hôte : tout répond sur
 # `localhost`, donc rien à ajouter dans /etc/hosts ni côté Windows.
 #
-#   http://localhost          -> frontend Streamlit
-#   http://localhost/api      -> API FastAPI
-#   http://localhost/dbapi    -> Database API
+#   https://localhost          -> frontend Streamlit
+#   https://localhost/api      -> API FastAPI
+#   https://localhost/dbapi    -> Database API
 #
-# PAS DE TLS, ET POURQUOI C'EST TENABLE ICI : le certificat auto-signé de
-# Traefik faisait avertir le navigateur à chaque ouverture. On y renonce, mais
-# la protection qui motivait tout ce travail — le refus d'un WebSocket venu
-# d'une autre origine — ne dépend pas du TLS : elle vient de
-# `corsAllowedOrigins` côté Streamlit et fonctionne à l'identique en clair.
-# Ce qu'on perd, c'est le chiffrement : jeton XSRF et contenu de session
-# circulent en clair. D'où le port lié à 127.0.0.1 ci-dessous — le trafic ne
-# quitte jamais la machine. Un déploiement hors du poste de développement
-# impose de remettre le TLS (voir l'historique git de ce fichier).
+# TLS AVEC CERTIFICAT AUTO-SIGNÉ : Traefik termine le TLS avec un certificat
+# qu'il génère lui-même (aucun fichier à fournir, aucune CA à installer sur le
+# poste). Conséquence assumée : le navigateur affiche un avertissement de
+# sécurité à la première ouverture de chaque nouvelle origine (`localhost:443`
+# et le dashboard), qu'il faut accepter manuellement (« Paramètres avancés →
+# Continuer vers localhost »). C'est ce même avertissement qui avait fait
+# retirer le TLS de ce fichier à l'origine ; on l'accepte maintenant pour ne
+# plus laisser le mot de passe circuler en clair, plutôt que d'imposer une CA
+# locale (mkcert) à installer sur chaque poste de l'équipe. Le port 80 reste
+# ouvert uniquement pour rediriger vers 443 (`entrypoints.web.http.redirections`
+# plus bas) — aucune route applicative n'y répond en clair. Port toujours lié à
+# 127.0.0.1 : le trafic ne quitte jamais la machine.
 #
 # POURQUOI LE FRONTEND EST À LA RACINE et non sous /front : Streamlit servi
 # depuis un sous-chemin réclame `server.baseUrlPath`, et c'est son WebSocket
@@ -90,9 +93,22 @@ services:
       # Un conteneur peut appartenir à plusieurs réseaux, donc avoir plusieurs
       # IP. On dit ici à Traefik laquelle utiliser pour joindre les backends.
       - --providers.docker.network=horragor_2_horragor_net
+      # Provider `file` : porte la configuration TLS (traefik/dynamic/tls.yml).
+      # Un certificat n'appartient à aucun conteneur, donc aucun label Docker
+      # ne peut le déclarer — ce provider tourne en parallèle du provider
+      # Docker et leurs configurations fusionnent. `watch=true` recharge à
+      # chaud si le certificat est régénéré (scripts/generate-traefik-cert.sh).
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
 
       # --- Points d'entrée ---
       - --entrypoints.web.address=:80
+      # `web` ne sert plus que de redirection : toute requête HTTP qui y
+      # arrive repart en 301 vers `websecure`, avant même d'atteindre un
+      # router applicatif.
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
 
       # Point d'entrée séparé pour le tableau de bord, publié plus bas sur la
       # boucle locale uniquement. Le dashboard Traefik se sert mal depuis un
@@ -110,11 +126,14 @@ services:
       - --accesslog=true
 
     ports:
-      # Lié à 127.0.0.1 et non à toutes les interfaces : sans TLS, c'est cette
-      # restriction qui garantit que rien ne circule en clair sur le réseau.
-      # Pour ouvrir volontairement l'accès depuis une autre machine, remplacer
-      # par "80:80" — et remettre le TLS avant.
+      # 80 ne sert qu'à la redirection vers 443 (voir `--entrypoints.web...`
+      # ci-dessus) : aucune route applicative n'y est jamais atteinte en
+      # clair. Lié à 127.0.0.1 et non à toutes les interfaces : le trafic ne
+      # quitte jamais la machine. Pour ouvrir volontairement l'accès depuis
+      # une autre machine, remplacer par "80:80"/"443:443" et remplacer le
+      # certificat auto-signé par un certificat reconnu (ACME/Let's Encrypt).
       - "127.0.0.1:80:80"
+      - "127.0.0.1:443:443"
       # Dashboard : même principe, boucle locale uniquement.
       - "127.0.0.1:8080:8080"
 
@@ -123,6 +142,11 @@ services:
       # `:ro` limite Traefik à la lecture des événements et des labels, ce dont
       # il a besoin et rien de plus.
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Certificat de développement (généré par
+      # scripts/generate-traefik-cert.sh, propre à ce poste, non commité) et
+      # configuration TLS du provider `file`.
+      - ./traefik/certs:/etc/traefik/certs:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
 
     labels:
       - "traefik.enable=true"
@@ -216,7 +240,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.horragor-db.rule=Host(`localhost`) && PathPrefix(`/dbapi`)"
-      - "traefik.http.routers.horragor-db.entrypoints=web"
+      - "traefik.http.routers.horragor-db.entrypoints=websecure"
+      - "traefik.http.routers.horragor-db.tls=true"
       # Priorité explicite. Traefik classe sinon les routeurs par longueur de
       # règle, ce qui donnerait le bon résultat ici par accident : on ne laisse
       # pas le routage d'une stack dépendre du nombre de caractères d'une règle.
@@ -282,7 +307,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.horragor-api.rule=Host(`localhost`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.horragor-api.entrypoints=web"
+      - "traefik.http.routers.horragor-api.entrypoints=websecure"
+      - "traefik.http.routers.horragor-api.tls=true"
       - "traefik.http.routers.horragor-api.priority=100"
       - "traefik.http.routers.horragor-api.middlewares=horragor-api-strip"
       - "traefik.http.middlewares.horragor-api-strip.stripprefix.prefixes=/api"
@@ -314,7 +340,8 @@ services:
       # n'ont pas pris. Streamlit sert donc depuis la racine et n'a besoin
       # d'aucun `server.baseUrlPath`.
       - "traefik.http.routers.horragor.rule=Host(`localhost`)"
-      - "traefik.http.routers.horragor.entrypoints=web"
+      - "traefik.http.routers.horragor.entrypoints=websecure"
+      - "traefik.http.routers.horragor.tls=true"
       - "traefik.http.routers.horragor.priority=1"
       - "traefik.http.services.horragor.loadbalancer.server.port=8501"
       # Rien à déclarer pour le WebSocket : Traefik gère l'upgrade HTTP/1.1 de

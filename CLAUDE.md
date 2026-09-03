@@ -17,7 +17,7 @@ via Ollama.
 | | |
 |---|---|
 | Lancer (stack complète) | `docker compose up --build` (premier démarrage), `docker compose up -d` ensuite |
-| Accès | http://localhost (front), http://localhost/api, http://localhost/dbapi, http://127.0.0.1:8080/dashboard/ (Traefik) |
+| Accès | https://localhost (front, certificat auto-signé — avertissement navigateur à accepter), https://localhost/api, https://localhost/dbapi, http://127.0.0.1:8080/dashboard/ (Traefik) |
 | Lint / format | `uv run ruff check` / `uv run ruff format` (dans `api/`, `agents/`, `database/`, `frontend/` — chacun a son propre `pyproject.toml`/`uv.lock`) |
 | Tests | `uv run pytest` (dans chacun des quatre sous-projets) |
 | Activer les hooks (une fois par machine) | `git config core.hooksPath .githooks` |
@@ -60,10 +60,17 @@ via Ollama.
   tout répond sur `localhost`, donc rien à ajouter dans `/etc/hosts`. Le
   frontend est volontairement à la racine : Streamlit sous un sous-chemin
   réclamerait `server.baseUrlPath`, dont le WebSocket se règle mal.
-- **Pas de TLS**, et le port 80 est lié à `127.0.0.1` : c'est cette restriction
-  qui remplace le chiffrement, le trafic ne quitte pas la machine. Ouvrir
-  l'accès depuis une autre machine (`"80:80"`) impose de remettre le TLS
-  d'abord — jeton XSRF et session circulent en clair.
+- **TLS avec certificat auto-signé** (entrypoint `websecure`, port 443) : le
+  port 80 ne sert plus qu'à rediriger vers 443
+  (`entrypoints.web.http.redirections`). Traefik génère son propre certificat
+  — aucun fichier, aucune CA à installer — donc le navigateur avertit à la
+  première ouverture de `localhost` (et du dashboard) : c'est attendu, pas une
+  panne. Choix délibéré plutôt que mkcert (CA locale à installer sur chaque
+  poste de l'équipe) ou une CA reconnue (pas de domaine public en local). Port
+  toujours lié à `127.0.0.1`. Ouvrir l'accès depuis une autre machine
+  (`"443:443"`) impose de remplacer ce certificat par un certificat reconnu
+  (ACME/Let's Encrypt) — un avertissement navigateur accepté par habitude sur
+  le poste de dev devient une faille sur un accès distant.
 - Les deux API tournent derrière un préfixe retiré par Traefik (`stripprefix`).
   `UVICORN_ROOT_PATH` (`/api`, `/dbapi`) leur rend ce préfixe côté FastAPI :
   sans lui, `/docs` appelle `/openapi.json` au lieu de `/api/openapi.json` et
@@ -75,9 +82,9 @@ via Ollama.
 - Le warning WebSocket de Streamlit ne se règle **pas** par Traefik : sa règle
   `Host(...)` ne filtre pas l'en-tête `Origin`, et Traefik v3 n'a pas de
   middleware pour ça. C'est `corsAllowedOrigins` dans
-  `frontend/.streamlit/config.toml` qui le fait, et cette protection ne dépend
-  pas du TLS — elle vaut telle quelle en clair. Y ajouter le domaine de
-  production le jour d'un déploiement.
+  `frontend/.streamlit/config.toml` qui le fait, indépendamment du TLS — seul
+  le schéma déclaré (`https://localhost`) doit rester synchronisé avec celui
+  de Traefik. Y ajouter le domaine de production le jour d'un déploiement.
 - Ollama tourne sur l'hôte, pas dans `docker-compose.yml` (bloc commenté) :
   `OLLAMA_BASE_URL` doit pointer vers `http://host.docker.internal:11434` côté
   conteneur API, pas `http://ollama:11434`.

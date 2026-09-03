@@ -60,6 +60,10 @@ data_backup/
 /data/
 *.sqlite
 
+# --- Certificat TLS de développement (Traefik, propre à chaque poste) ---
+# Généré par scripts/generate-traefik-cert.sh — voir traefik/dynamic/tls.yml.
+/traefik/certs/
+
 monitoring/langfuse/
 
 # sphinx docs
