@@ -28,6 +28,7 @@ dependencies = [
     "aiosqlite>=0.22.1",
     "psycopg2>=2.9.12",
     "furo>=2025.12.19",
+    "python-multipart>=0.0.32",
 ]
 
 [dependency-groups]
