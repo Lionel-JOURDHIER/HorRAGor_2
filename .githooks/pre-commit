@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+#
+# Hook pre-commit partagé — standards-code
+#
+# Installation, une fois par dépôt et par machine :
+#   cp .claude/standards/hooks/pre-commit .githooks/pre-commit
+#   chmod +x .githooks/pre-commit
+#   git config core.hooksPath .githooks
+#
+# Configuration : .githooks/standards.conf (voir standards.conf.exemple).
+# Sans fichier de configuration, le hook ne vérifie que la branche protégée.
+#
+# Contournement ponctuel et assumé : git commit --no-verify
+
+# -f coupe le développement de chemins : sans lui, `for motif in $MOTIFS_INTERDITS`
+# remplace le motif par les fichiers du dossier courant qui lui correspondent, et
+# un fichier interdit rangé ailleurs passe alors sans un mot. Les motifs de `case`
+# ne sont pas concernés, eux continuent de fonctionner.
+set -uf
+
+RACINE=$(git rev-parse --show-toplevel) || exit 0
+CONF="$RACINE/.githooks/standards.conf"
+
+# Rien n'est interdit tant que le dépôt ne le demande explicitement.
+MODE=bloquer
+BRANCHES_PROTEGEES="main master"
+INTERDIRE_PRINT=0
+INTERDIRE_LOGGING=0
+MODULE_LOGGER=""
+RUFF=0
+BIOME_DOSSIER=""
+CHEMINS_EXCLUS=""
+MOTIFS_INTERDITS=""
+
+# Les CR d'un fichier venu de Windows sont retirés avant lecture : sinon
+# MOTIFS_INTERDITS="*.xlsx"\r ne correspond plus à rien et le garde-fou se
+# désactive en silence.
+# shellcheck source=/dev/null
+[ -f "$CONF" ] && . <(tr -d '\r' < "$CONF")
+
+erreurs=0
+signaler() {
+  printf '  %s\n' "$1" >&2
+  erreurs=$((erreurs + 1))
+}
+titre_affiche=0
+titre() {
+  [ "$titre_affiche" -eq 1 ] && return
+  printf '\n[standards-code] refus de commit :\n' >&2
+  titre_affiche=1
+}
+
+# --- Branche protégée ------------------------------------------------------
+branche=$(git symbolic-ref --short -q HEAD || echo "")
+for protegee in $BRANCHES_PROTEGEES; do
+  if [ "$branche" = "$protegee" ]; then
+    titre
+    signaler "commit direct sur '$branche' : passer par feature/* ou hotfix/*"
+  fi
+done
+
+# --- Fichiers indexés ------------------------------------------------------
+FICHIERS=()
+while IFS= read -r -d '' f; do FICHIERS+=("$f"); done \
+  < <(git diff --cached --name-only --diff-filter=d -z)
+
+est_exclu() {
+  local motif
+  for motif in $CHEMINS_EXCLUS; do
+    # shellcheck disable=SC2254
+    case "$1" in $motif) return 0 ;; esac
+  done
+  return 1
+}
+
+PY=()
+JS=()
+for f in "${FICHIERS[@]:-}"; do
+  [ -z "$f" ] && continue
+  est_exclu "$f" && continue
+  case "$f" in
+    *.py) PY+=("$f") ;;
+    *.js) JS+=("$f") ;;
+  esac
+done
+
+# Le contenu vérifié est celui de l'index, pas celui du disque : sinon une
+# modification non indexée peut faire passer ou échouer le hook à tort.
+contenu() { git show ":$1"; }
+
+# --- Fichiers qui ne doivent jamais être committés -------------------------
+for f in "${FICHIERS[@]:-}"; do
+  [ -z "$f" ] && continue
+  for motif in $MOTIFS_INTERDITS; do
+    # shellcheck disable=SC2254
+    case "$f" in
+      $motif)
+        titre
+        signaler "$f : correspond au motif interdit '$motif' (donnée réelle ?)"
+        break
+        ;;
+    esac
+  done
+done
+
+# --- Python : mécanisme de journalisation ----------------------------------
+for f in "${PY[@]:-}"; do
+  [ -z "${f:-}" ] && continue
+  texte=$(contenu "$f")
+
+  if [ "$INTERDIRE_PRINT" -eq 1 ]; then
+    lignes=$(printf '%s\n' "$texte" \
+      | grep -nE '(^|[^A-Za-z0-9_.])print[[:space:]]*\(' \
+      | grep -v 'standards: print autorise' || true)
+    if [ -n "$lignes" ]; then
+      titre
+      signaler "$f : print() interdit, utiliser le logger du projet"
+      printf '%s\n' "$lignes" | sed 's/^/      /' >&2
+    fi
+  fi
+
+  if [ "$INTERDIRE_LOGGING" -eq 1 ]; then
+    if printf '%s\n' "$texte" \
+      | grep -qE '^[[:space:]]*(import logging|from logging import)'; then
+      titre
+      signaler "$f : module logging interdit, utiliser loguru"
+    fi
+  fi
+
+  if [ -n "$MODULE_LOGGER" ] && [ "$f" != "$MODULE_LOGGER" ]; then
+    if printf '%s\n' "$texte" | grep -qE 'logger\.(add|remove)[[:space:]]*\('; then
+      titre
+      signaler "$f : logger.add/remove hors de $MODULE_LOGGER (logs dupliqués)"
+    fi
+  fi
+done
+
+# --- ruff ------------------------------------------------------------------
+# ruff lit le disque, pas l'index : une modification non indexée peut donc
+# influencer le résultat. Compromis assumé, l'alternative coûte un checkout.
+if [ "$RUFF" -eq 1 ] && [ ${#PY[@]} -gt 0 ]; then
+  if command -v uv >/dev/null 2>&1; then
+    if ! uv run ruff check --force-exclude -- "${PY[@]}" >&2; then
+      titre
+      signaler "ruff check a échoué (uv run ruff check --fix .)"
+    fi
+    if ! uv run ruff format --check --force-exclude -- "${PY[@]}" >&2; then
+      titre
+      signaler "ruff format : fichiers non formatés (uv run ruff format .)"
+    fi
+  else
+    printf '[standards-code] uv absent, ruff non exécuté\n' >&2
+  fi
+fi
+
+# --- Biome -----------------------------------------------------------------
+if [ -n "$BIOME_DOSSIER" ] && [ ${#JS[@]} -gt 0 ]; then
+  if [ -d "$RACINE/node_modules" ]; then
+    if ! npx biome check "${JS[@]}" >&2; then
+      titre
+      signaler "biome check a échoué (npx biome check --write $BIOME_DOSSIER)"
+    fi
+  else
+    printf '[standards-code] node_modules absent, biome non exécuté (npm install)\n' >&2
+  fi
+fi
+
+# --- Verdict ---------------------------------------------------------------
+if [ "$erreurs" -gt 0 ]; then
+  if [ "$MODE" = "avertir" ]; then
+    printf '\n[standards-code] %d avertissement(s), commit accepté\n\n' "$erreurs" >&2
+    exit 0
+  fi
+  printf '\n[standards-code] %d problème(s). Corriger, ou --no-verify si assumé.\n\n' "$erreurs" >&2
+  exit 1
+fi
+
+exit 0

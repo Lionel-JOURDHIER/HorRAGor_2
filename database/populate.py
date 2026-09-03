@@ -27,7 +27,7 @@ Auteur/Responsable : Lionel (Epic 1 & 2)
 import os
 
 from dotenv import load_dotenv
-from langchain_ollama import OllamaEmbeddings
+from shared.embeddings import OLLAMA_CLIENT_EMBEDD
 from sqlalchemy import text
 
 from database.connection import engine, get_db
@@ -36,9 +36,9 @@ from database.models import Base, FilmEmbedding
 load_dotenv()
 
 _OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_CLIENT_EMBEDD = OllamaEmbeddings(
-    model="qwen3-embedding:0.6b", base_url=_OLLAMA_URL
-)
+# OLLAMA_CLIENT_EMBEDD = OllamaEmbeddings(
+#     model="qwen3-embedding:0.6b", base_url=_OLLAMA_URL
+# )
 
 
 def fetch_source_films(session) -> list:

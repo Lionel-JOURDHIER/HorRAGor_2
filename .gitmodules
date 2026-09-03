@@ -1,0 +1,3 @@
+[submodule ".claude/standards"]
+	path = .claude/standards
+	url = https://github.com/Lionel-JOURDHIER/standards_code.git

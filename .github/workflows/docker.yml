@@ -1,0 +1,117 @@
+name: Docker CI/CD
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+
+  pull_request:
+    branches:
+      - dev
+      - main
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+
+  # ─────────────────────────────────────────────
+  # 1. TEST
+  # ─────────────────────────────────────────────
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install agents dependencies
+        working-directory: agents
+        run: uv sync
+
+      - name: Run tests
+        working-directory: agents
+        run: uv run pytest
+
+      - name: Build documentation
+        working-directory: docs
+        run: uv run --project ../api sphinx-build -E -b html source build/html
+
+  # ─────────────────────────────────────────────
+  # 2. BUILD + PUSH DOCKER IMAGES
+  # ─────────────────────────────────────────────
+
+  docker:
+    name: Build and Push Docker Images
+    needs: test
+
+    if: github.event_name == 'push'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      # ───────────────── API ─────────────────
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.api
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAME }}/api:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}/api:latest
+
+
+      # ─────────────── DATABASE API ──────────
+
+      - name: Build Database API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.database
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAME }}/database-api:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}/database-api:latest
+
+
+      # ─────────────── FRONTEND ──────────────
+
+      - name: Build Frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.frontend
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAME }}/frontend:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}/frontend:latest

@@ -1,6 +1,6 @@
 # ⚡ HorRAGor — Guide de Démarrage Rapide (Quickstart)
 
-Ce guide permet de lancer et de gérer l'intégralité de la stack locale **HorRAGor** (Ollama GPU + API FastAPI + Frontend Streamlit) à l'aide de Docker Compose.
+Ce guide permet de lancer et de gérer l'intégralité de la stack locale **HorRAGor** (API Database + API IA FastAPI + Frontend Streamlit) à l'aide de Docker Compose. **Ollama tourne sur la machine hôte**, pas dans un conteneur.
 
 ---
 
@@ -8,12 +8,14 @@ Ce guide permet de lancer et de gérer l'intégralité de la stack locale **HorR
 
 Avant de commencer, assurez-vous d'avoir installé sur votre machine hôte :
 1. **Docker** et **Docker Compose** v2+.
-2. **NVIDIA Container Toolkit** (indispensable pour que le conteneur Ollama puisse exploiter la puissance de la carte graphique locale, ex: RTX 4060).
-3. Les modèles Ollama déjà téléchargés en local (évite de devoir re-télécharger des Go de données dans le conteneur).
---- 
+2. **Ollama** installé et démarré localement (`http://localhost:11434`).
+3. Les modèles Ollama déjà téléchargés en local (voir Étape 2).
+4. Un accès à un projet **Supabase** (identifiants du pooler).
+
+---
 ## 🚀 Étape 1 : Configuration de l'Environnement (`.env`)
 
-Créez un fichier `.env` à la racine du projet (au même niveau que le fichier `docker-compose.yml`) et collez-y les configurations suivantes en complétant vos identifiants Supabase et verifier le path pour le dossier .ollama:
+Créez un fichier `.env` à la racine du projet (au même niveau que `docker-compose.yml`) à partir de `.env.example`, et complétez vos identifiants Supabase :
 
 ```toml
 # ─── CONFIGURATION POSTGRES LOCAL ─────────────────────────────────────────────
@@ -32,80 +34,88 @@ SUPABASE_PORT=6543
 SUPABASE_USER=postgres.[PROJET SUPABASE]
 SUPABASE_HOST=aws-1-eu-west-3.pooler.supabase.com
 
-# ─── OLLAMA ───────────────────────────────────────────────────────────────────
-# En local : http://localhost:11434
-# En Docker : http://ollama:11434 (injecté automatiquement par docker-compose)
-OLLAMA_BASE_URL=http://ollama:11434
+# ─── OLLAMA (hôte) ─────────────────────────────────────────────────────────
+# Cette valeur est utilisée si vous lancez l'API hors Docker.
+# Dans docker-compose.yml, le conteneur `api` écrase cette variable avec
+# http://host.docker.internal:11434 pour atteindre l'Ollama de l'hôte.
+OLLAMA_BASE_URL=http://localhost:11434
 
 # ─── FAISS (chemins internes au conteneur) ────────────────────────────────────
 FAISS_INDEX_PATH=/app/faiss_data/horragor.index
 FAISS_MAPPING_PATH=/app/faiss_data/horragor_mapping.json
-
-# ─── STOCKAGE DES MODÈLES OLLAMA (HÔTE) ───────────────────────────────────────
-# Décommentez la ligne qui correspond à votre système d'exploitation :
-
-# Pour les utilisateurs LINUX :
-OLLAMA_MODELS_PATH=/home/[votre utilisateur LINUX]/.ollama
-
-# Pour les utilisateurs WINDOWS (PC) :
-# OLLAMA_MODELS_PATH=C:\Users\[votre nom utilisateur WINDOWS]\.ollama
 ```
-> ⚠️ **NOTE IMPORTANTE :** Assurez-vous d'avoir déjà téléchargé les modèles Ollama sur votre système hôte avant de lancer la stack Docker (ex: `granite4.1:8b`, `qwen3-embedding:0.6b`).
+
+> ⚠️ **NOTE IMPORTANTE :** téléchargez les modèles Ollama sur votre système hôte avant de lancer la stack (voir Étape 2). Le conteneur `api` ne peut pas les télécharger lui-même : il appelle l'Ollama de l'hôte via `host.docker.internal`.
 
 ---
 
-## 📦 Étape 2 : Lancement et Gestion de la Stack
+## 📦 Étape 2 : Modèles Ollama (sur l'hôte)
+
+Ollama s'exécute directement sur la machine hôte, pas dans Docker. Téléchargez les modèles nécessaires en local avant de démarrer la stack :
+
+```bash
+# Modèle de langage
+ollama pull granite4.1:3b
+
+# Modèle d'embedding
+ollama pull qwen3-embedding:0.6b
+```
+
+Ces modèles sont stockés dans `~/.ollama` (ou le chemin configuré) et restent disponibles pour tous vos projets.
+
+---
+
+## 🐳 Étape 3 : Lancement et Gestion de la Stack
+
 ### 🟦 Premier démarrage (Build & Initialisation)
-Cette commande construit les images Docker et déclenche la première synchronisation de l'index FAISS depuis Supabase.
+
 ```bash
 docker compose up --build
 ```
 
+Cette commande construit les images `database_api`, `api` et `frontend`, puis déclenche la synchronisation de l'index FAISS depuis Supabase au démarrage de l'API IA.
+
 ### 🟩 Démarrages suivants (Chargement rapide)
-Une fois l'index FAISS initialisé et persisté dans le volume, les démarrages suivants se font à chaud en environ 2 secondes.
+
+Une fois l'index FAISS initialisé et persisté dans le volume `horragor_faiss_data`, les démarrages suivants sont rapides :
+
 ```bash
 docker compose up -d
 ```
 
 ### 🟧 Forcer un rebuild complet de l'index FAISS
-Si les données sur Supabase ont changé et que vous devez reconstruire l'index vectoriel local à partir de zéro, videz le volume persistant avant de relancer :
+
+Si les données sur Supabase ont changé, videz le volume persistant avant de relancer :
+
 ```bash
 docker volume rm horragor_faiss_data && docker compose up -d
 ```
 
-### 📦 Gestion des modèles Ollama
-Puisque Ollama s'exécute désormais directement sur votre machine hôte, la gestion des modèles se fait localement.
+---
 
-Si vous n'avez pas encore téléchargé les modèles nécessaires, exécutez simplement les commandes suivantes directement dans votre terminal (sans passer par Docker) :
-```bash
-# Téléchargement du modèle de langage
-# ollama pull granite4.1:8b
-ollama pull granite4.1:3b
+## 🌐 Étape 4 : Accès aux Applications
 
-# Téléchargement du modèle d'embedding
-ollama pull qwen3-embedding:0.6b
-```
-Astuce : Une fois téléchargés, ces modèles sont stockés dans le dossier spécifié par la variable OLLAMA_MODELS_PATH (ou le dossier par défaut ~/.ollama). Ils restent disponibles instantanément pour tous vos projets et conteneurs.
-
---- 
-## 🌐 Étape 3 : Accès aux Applications
-
-Une fois la stack démarrée avec succès, les interfaces suivantes sont disponibles :
 | Composant | URL Locale | Description |
 | :--- | :--- | :--- |
 | 🎬 **Frontend** | [http://localhost:8501](http://localhost:8501) | Interface Streamlit pour dialoguer avec l'agent et ajuster les filtres. |
-| ⚙️ **API REST** | [http://localhost:8000/docs](http://localhost:8000/docs) | Documentation Swagger interactive de FastAPI (conçue par Hanna). |
-| 🧠 **Ollama** | [http://localhost:11434](http://localhost:11434) | Endpoint du moteur d'inférence LLM local. |
+| ⚙️ **API IA** | [http://localhost:8000/docs](http://localhost:8000/docs) | Documentation Swagger de l'API IA (agent LangGraph, chat, Wikipedia, monitoring). |
+| 🗄️ **API Database** | [http://localhost:8001/docs](http://localhost:8001/docs) | Documentation Swagger de l'API dédiée aux données (films, genres, réalisateurs). |
+| 🧠 **Ollama** | [http://localhost:11434](http://localhost:11434) | Endpoint du moteur d'inférence LLM, exécuté sur l'hôte. |
+
+---
 
 ## 🛠️ Diagnostics et Maintenance
+
 ### Suivre les logs d'un service spécifique
-Idéal pour analyser le comportement de l'agent LangGraph ou le chargement de l'API de Hanna sans être pollué par les logs d'Ollama :
+
 ```bash
 docker compose logs -f api
+docker compose logs -f database_api
+docker compose logs -f frontend
 ```
 
 ### Arrêter proprement la stack
+
 ```bash
 docker compose down
 ```
-
