@@ -22,7 +22,6 @@ release = '1.0'
 extensions = [
     "sphinx.ext.autodoc",
     "myst_parser",
-    "furo",
     "sphinx.ext.graphviz",
     ]
 
