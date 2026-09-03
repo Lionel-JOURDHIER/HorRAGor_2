@@ -2,6 +2,7 @@ apiVersion: 1
 
 datasources:
   - name: Prometheus
+    uid: afwve5oglmvwgb
     type: prometheus
     access: proxy
     url: http://horragor_prometheus:9090
