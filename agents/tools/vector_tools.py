@@ -20,6 +20,7 @@ Dépendances principales :
 Auteur/Responsable : Équipe Agents / Lionel
 """
 
+import asyncio
 import math
 import sys
 import time
@@ -237,8 +238,13 @@ async def search_similar_movies_by_id(
 
 
 # --- BLOC DE TEST ET DE VERIFICATION DES SCORES ---
-# --- BLOC DE TEST ET DE VERIFICATION DES SCORES ---
-if __name__ == "__main__":
+async def _run_manual_tests() -> None:
+    """Scénarios manuels de vérification des stratégies FAISS (pool SQL vide, petit, grand).
+
+    search_vector_catalog et filter_films_by_criteria sont des @tool async :
+    ils s'invoquent via .ainvoke(...), jamais via .func(...) qui ne renvoie
+    qu'une coroutine non exécutée.
+    """
     from agents.tools.sql_tools import filter_films_by_criteria
     from database.connection import db_session
 
@@ -291,7 +297,9 @@ if __name__ == "__main__":
     query = "un film d'horreur avec une maison hantée"
 
     start = time.perf_counter()
-    results = search_vector_catalog.func(query=query, top_k=5, candidate_ids=None)
+    results = await search_vector_catalog.ainvoke(
+        {"query": query, "top_k": 5, "candidate_ids": None}
+    )
     end = time.perf_counter()
 
     print_results(
@@ -308,11 +316,11 @@ if __name__ == "__main__":
     query = "un film d'horreur dans un hotel"
 
     # On retire le filtre après 2020 pour avoir les vrais films de Kubrick (ex: Shining)
-    candidate_ids = filter_films_by_criteria.func(realisateur="Kubrick")
+    candidate_ids = await filter_films_by_criteria.ainvoke({"realisateur": "Kubrick"})
 
     start = time.perf_counter()
-    results = search_vector_catalog.func(
-        query=query, top_k=5, candidate_ids=candidate_ids
+    results = await search_vector_catalog.ainvoke(
+        {"query": query, "top_k": 5, "candidate_ids": candidate_ids}
     )
     end = time.perf_counter()
 
@@ -330,11 +338,13 @@ if __name__ == "__main__":
     query = "un film d'horreur avec un tueur masqué"
 
     # CORRECTION : On passe bien une liste ["Thriller"] et non une chaîne "Thriller"
-    candidate_ids = filter_films_by_criteria.func(genres_included=["Thriller"])
+    candidate_ids = await filter_films_by_criteria.ainvoke(
+        {"genres_included": ["Thriller"]}
+    )
 
     start = time.perf_counter()
-    results = search_vector_catalog.func(
-        query=query, top_k=5, candidate_ids=candidate_ids
+    results = await search_vector_catalog.ainvoke(
+        {"query": query, "top_k": 5, "candidate_ids": candidate_ids}
     )
     end = time.perf_counter()
 
@@ -352,13 +362,13 @@ if __name__ == "__main__":
     query = "n'importe quel film"
 
     # Filtre impossible volontaire
-    candidate_ids = filter_films_by_criteria.func(
-        realisateur="Kubrick", release_year_min=2025
+    candidate_ids = await filter_films_by_criteria.ainvoke(
+        {"realisateur": "Kubrick", "release_year_min": 2025}
     )
 
     start = time.perf_counter()
-    results = search_vector_catalog.func(
-        query=query, top_k=5, candidate_ids=candidate_ids
+    results = await search_vector_catalog.ainvoke(
+        {"query": query, "top_k": 5, "candidate_ids": candidate_ids}
     )
     end = time.perf_counter()
 
@@ -372,3 +382,7 @@ if __name__ == "__main__":
     print("\n\n==================================================")
     print("✅ FIN DES TESTS CORRIGÉS")
     print("==================================================")
+
+
+if __name__ == "__main__":
+    asyncio.run(_run_manual_tests())

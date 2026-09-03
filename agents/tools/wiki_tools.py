@@ -60,8 +60,8 @@ def _search_wiki(title: str) -> str | None:
 
         return results[0]["title"]
 
-    except Exception as e:
-        print("SEARCH ERROR:", repr(e))
+    except Exception:
+        logger.exception("Erreur lors de la recherche Wikipedia pour '{}'", title)
         raise
 
 def _get_summary(title: str) -> tuple[str | None, str | None]:
@@ -97,8 +97,8 @@ def _get_summary(title: str) -> tuple[str | None, str | None]:
         logger.info("Summary and wiki_url loaded")
         return summary, url
 
-    except Exception as e:
-        logger.error("SUMMARY ERROR:", repr(e))
+    except Exception:
+        logger.exception("Erreur lors de la récupération du résumé pour '{}'", title)
         raise
 
 # MAIN PIPELINE TOOL ---------------------------
@@ -161,4 +161,5 @@ def wikipedia_search(title: str, year: int | None = None) -> dict:
         return {"error": "CONNECTION_ERROR"}
 
     except Exception:
+        logger.exception("Erreur inattendue lors de la recherche Wikipedia pour '{}'", title)
         return {"error": "UNKNOWN_ERROR"}
