@@ -364,6 +364,67 @@ Mis à jour au fil des sessions.
   avec ses propres artefacts de couverture.
 - [x] Un seuil de couverture est déjà appliqué en CI : entrée périmée —
   `--cov-fail-under=40` sur les quatre sous-projets.
+- [x] `agents` : couverture réelle passée de 49% à 95%
+  (`uv run pytest --cov=. --cov-report=term-missing`, 178 tests). Trois
+  fichiers de test portaient `pytestmark = pytest.mark.skip(reason="Временно
+  отключено")` depuis le commit `d61aa9b` (« fix: tests agents », même jour que
+  l'extension CI aux quatre sous-projets), masquant des tests réellement cassés
+  plutôt que de les corriger :
+  - [tests/test_nodes_rag.py](agents/tests/test_nodes_rag.py) et
+    [tests/test_vector_tools.py](agents/tests/test_vector_tools.py) appelaient
+    `.func(...)` sur des `@tool` **async** (`search_vector_node`,
+    `hydratation_node`, `format_cards_node`, `load_film_node` dans
+    `nodes_rag.py` ; `search_vector_catalog`, `search_similar_movies_by_id`
+    dans `vector_tools.py`) — `.func` ne porte que la forme synchrone d'un
+    `@tool` et vaut `None` sur un `@tool async def`, d'où
+    `TypeError: 'NoneType' object is not callable`. Corrigé en `.ainvoke({...})`
+    + `async def test_...` + `@pytest.mark.asyncio`, seule forme déjà en usage
+    dans `test_sql_tools.py`.
+  - Les tests de `validation_node` et `validation_film_node` patchaient
+    `agents.nodes_rag.structured_llm` alors que ces deux nœuds appellent
+    `validation_llm` (deux instances LLM distinctes importées dans
+    `nodes_rag.py`) : le mock n'interceptait rien, et l'appel réel — non
+    mocké — bloquait la suite plus de deux minutes. Corrigé en patchant
+    `validation_llm`.
+  - Les tests de `format_cards_node` patchaient un `agents.nodes_rag.db_session`
+    qui n'existe plus dans le module (`patch` lève une `AttributeError`
+    immédiate sans `create=True`) ; le nœud appelle directement
+    `get_films_short_by_ids`, désormais le bon patch cible.
+  - [tests/test_nodes_wikipedia.py](agents/tests/test_nodes_wikipedia.py) :
+    un seul test cassé, qui vérifiait une troncature du synopsis Wikipedia à
+    3000 caractères alors que le code tronque à 10000
+    (`nodes_wikipedia.py:186`) — et cette valeur seule n'est de toute façon
+    jamais observable : un second plafond (`MAX_SYNTHESIS_CONTEXT_CHARS =
+    8000`, tout le contexte envoyé au LLM, tous films confondus) s'applique
+    après coup et masque le premier dès qu'un seul synopsis dépasse 8000
+    caractères. Réécrit pour vérifier ce second plafond, seul réellement
+    observable en sortie.
+  - `tests/test_vector_tools.py` appelait aussi la Database API réelle
+    (`filter_films_by_criteria`, URL par défaut `http://database_api:8000`,
+    résolvable seulement depuis le réseau Docker) et Ollama via
+    `http://host.docker.internal:11434` (résolvable seulement depuis un
+    conteneur) pour l'embedding de la requête — deux appels réseau réels dans
+    ce qui doit rester une suite unitaire (`rules/tests-python.md` §
+    Isolation ; CLAUDE.md confirme qu'aucun test d'intégration Docker Compose
+    n'existe pour l'instant). Corrigé en mockant `OLLAMA_CLIENT_EMBEDD` et
+    `get_films_short_by_ids`, en ne laissant réelle que la recherche FAISS
+    elle-même sur l'index chargé depuis `faiss_data/`.
+  - Cinq tests (`test_build_filtered_ids_*`) appelaient une fonction
+    `_build_filtered_ids` et un `db_session` jamais importables depuis
+    `agents/` (import commenté, fonction inexistante dans
+    `agents/tools/sql_tools.py` — la logique de filtrage réelle,
+    `get_filtered_ids`, vit dans `database/queries.py`, un sous-projet
+    indépendant qu'`agents/` n'installe pas). Supprimés : ils testaient du
+    code d'un autre sous-projet, inatteignable par construction ici.
+    **Gap réel laissé ouvert** : `get_filtered_ids` (`database/queries.py`)
+    n'a aucun test dans `database/tests/test_queries.py` — à couvrir dans ce
+    sous-projet, pas dans `agents/`.
+  - Reste non couvert dans `agents/` : `chat_terminal.py` (0%, CLI manuelle
+    hors scope), `tools/vector_tools.py` lignes 248-384
+    (`_run_manual_tests`, harnais de vérification manuelle appelé uniquement
+    depuis son `if __name__ == "__main__":`, pas de la logique métier), et
+    quelques branches défensives de `nodes_rag.py` (197-200, 818, 928-935,
+    953).
 
 ## 🟡 Documentation
 

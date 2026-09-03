@@ -1,12 +1,15 @@
 """tests/test_nodes_wikipedia.py"""
 
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
-pytestmark = pytest.mark.skip(reason="Временно отключено")
+from agents.nodes_wikipedia import (
+    MAX_SYNTHESIS_CONTEXT_CHARS,
+    synthesis_node,
+    wikipedia_search_node,
+)
 from langchain_core.messages import AIMessage
-
-from agents.nodes_wikipedia import synthesis_node, wikipedia_search_node
 from shared.schemas import AgentStep
 
 # ==============================================================================
@@ -167,7 +170,7 @@ def test_wikipedia_search_node_release_date_none(base_state):
             "synopsis": "ok",
             "source_url": "",
         }
-        result = wikipedia_search_node(base_state)
+        wikipedia_search_node(base_state)
 
     # year=None doit être passé sans exception
     call_kwargs = mock_wiki.invoke.call_args[0][0]
@@ -176,7 +179,8 @@ def test_wikipedia_search_node_release_date_none(base_state):
 
 def test_wikipedia_search_node_discussion_enrich_ids_vide(base_state):
     """
-    Cas 3 fallback : Branche DISCUSSION mais enrich_ids vide → enrichit retrieved_movies[0].
+    Cas 3 fallback : Branche DISCUSSION mais enrich_ids vide →
+    enrichit retrieved_movies[0].
     """
     film = MockFilmDetail()
     base_state.retrieved_movies = [film]
@@ -283,7 +287,8 @@ def test_synthesis_node_cas2_wikipedia_disponible(base_state):
 
 def test_synthesis_node_cas3_wikipedia_indisponible(base_state):
     """
-    Cas 3 : source=ERROR → données DB seules dans le contexte, pas de synopsis Wikipedia.
+    Cas 3 : source=ERROR → données DB seules dans le contexte,
+    pas de synopsis Wikipedia.
     """
     film = MockFilmDetail()
     base_state.retrieved_movies = [film]
@@ -291,7 +296,7 @@ def test_synthesis_node_cas3_wikipedia_indisponible(base_state):
 
     with patch("agents.nodes_wikipedia.llm_synthesis") as mock_llm:
         mock_llm.invoke.return_value = AIMessage(content="Synthèse DB seule.")
-        result = synthesis_node(base_state)
+        synthesis_node(base_state)
 
     call_content = mock_llm.invoke.call_args[0][0][0].content
     assert "Synopsis Wikipedia" not in call_content
@@ -310,7 +315,7 @@ def test_synthesis_node_cas3_sources_invalides(base_state):
 
         with patch("agents.nodes_wikipedia.llm_synthesis") as mock_llm:
             mock_llm.invoke.return_value = AIMessage(content="ok")
-            result = synthesis_node(base_state)
+            synthesis_node(base_state)
 
         call_content = mock_llm.invoke.call_args[0][0][0].content
         assert "Synopsis Wikipedia" not in call_content, f"Échec pour source={source}"
@@ -361,7 +366,7 @@ def test_synthesis_node_multi_films_contexte(base_state):
 
     with patch("agents.nodes_wikipedia.llm_synthesis") as mock_llm:
         mock_llm.invoke.return_value = AIMessage(content="ok")
-        result = synthesis_node(base_state)
+        synthesis_node(base_state)
 
     call_content = mock_llm.invoke.call_args[0][0][0].content
     assert "Film 1" in call_content
@@ -370,12 +375,13 @@ def test_synthesis_node_multi_films_contexte(base_state):
     assert "---" in call_content
 
 
-def test_synthesis_node_wiki_synopsis_tronque_a_3000(base_state):
+def test_synthesis_node_contexte_tronque_a_8000(base_state):
     """
-    Vérifie que le synopsis Wikipedia est tronqué à 3000 caractères.
+    Vérifie que le contexte total envoyé à llm_synthesis est plafonné à
+    MAX_SYNTHESIS_CONTEXT_CHARS (8000) même avec un synopsis Wikipedia long.
     """
     film = MockFilmDetail()
-    long_synopsis = "x" * 5000
+    long_synopsis = "x" * 15000
     base_state.retrieved_movies = [film]
     base_state.data_enrich = {
         123: {"source": "wikipedia", "synopsis": long_synopsis, "source_url": ""}
@@ -383,12 +389,11 @@ def test_synthesis_node_wiki_synopsis_tronque_a_3000(base_state):
 
     with patch("agents.nodes_wikipedia.llm_synthesis") as mock_llm:
         mock_llm.invoke.return_value = AIMessage(content="ok")
-        result = synthesis_node(base_state)
+        synthesis_node(base_state)
 
     call_content = mock_llm.invoke.call_args[0][0][0].content
-    # Le synopsis tronqué ne doit pas dépasser 3000 'x'
-    assert "x" * 3001 not in call_content
-    assert "x" * 3000 in call_content
+    assert "[...tronqué]" in call_content
+    assert "x" * (MAX_SYNTHESIS_CONTEXT_CHARS + 1) not in call_content
 
 
 def test_synthesis_node_film_sans_attributs_optionnels(base_state):
@@ -473,7 +478,8 @@ def test_synthesis_node_question_dans_prompt(base_state):
 
 def test_wikipedia_search_node_release_date_string(base_state):
     """
-    Vérifie que release_date au format string 'YYYY-MM-DD' est bien parsée en année entière.
+    Vérifie que release_date au format string 'YYYY-MM-DD' est bien parsée
+    en année entière.
     """
     film = MockFilmDetail()  # release_date = "1979-05-25"
     base_state.retrieved_movies = [film]
@@ -484,13 +490,10 @@ def test_wikipedia_search_node_release_date_string(base_state):
             "synopsis": "ok",
             "source_url": "",
         }
-        result = wikipedia_search_node(base_state)
+        wikipedia_search_node(base_state)
 
     call_kwargs = mock_wiki.invoke.call_args[0][0]
     assert call_kwargs["year"] == 1979
-
-
-from datetime import date
 
 
 def test_wikipedia_search_node_release_date_objet_date(base_state):
