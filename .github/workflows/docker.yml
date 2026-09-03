@@ -25,7 +25,12 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      JWT_SECRET_KEY: test-secret-key-for-ci-only
+        JWT_SECRET_KEY: test-secret-key-for-ci-only
+        SUPABASE_USER: test
+        SUPABASE_PASSWORD: test-password-for-ci
+        SUPABASE_HOST: localhost
+        SUPABASE_PORT: "5432"
+        SUPABASE_DB: test
 
     steps:
       - name: Checkout
