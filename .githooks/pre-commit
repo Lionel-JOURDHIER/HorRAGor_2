@@ -138,16 +138,41 @@ done
 # --- ruff ------------------------------------------------------------------
 # ruff lit le disque, pas l'index : une modification non indexée peut donc
 # influencer le résultat. Compromis assumé, l'alternative coûte un checkout.
+#
+# Le dépôt n'a pas de pyproject.toml à la racine (quatre sous-projets
+# indépendants) : chaque fichier Python staged est rattaché au sous-projet
+# dont il dépend (premier segment du chemin) et ruff tourne une fois par
+# sous-projet concerné, via `uv run --project`.
+SOUS_PROJETS_RUFF="api agents database frontend"
+
+fichier_vers_sous_projet() {
+  local f="$1" sp
+  for sp in $SOUS_PROJETS_RUFF; do
+    case "$f" in
+      "$sp"/*) printf '%s\n' "$sp"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
 if [ "$RUFF" -eq 1 ] && [ ${#PY[@]} -gt 0 ]; then
   if command -v uv >/dev/null 2>&1; then
-    if ! uv run ruff check --force-exclude -- "${PY[@]}" >&2; then
-      titre
-      signaler "ruff check a échoué (uv run ruff check --fix .)"
-    fi
-    if ! uv run ruff format --check --force-exclude -- "${PY[@]}" >&2; then
-      titre
-      signaler "ruff format : fichiers non formatés (uv run ruff format .)"
-    fi
+    for sp in $SOUS_PROJETS_RUFF; do
+      PY_SP=()
+      for f in "${PY[@]}"; do
+        [ "$(fichier_vers_sous_projet "$f")" = "$sp" ] && PY_SP+=("$f")
+      done
+      [ ${#PY_SP[@]} -eq 0 ] && continue
+
+      if ! uv run --project "$sp" ruff check --force-exclude -- "${PY_SP[@]}" >&2; then
+        titre
+        signaler "$sp : ruff check a échoué (uv run --project $sp ruff check --fix .)"
+      fi
+      if ! uv run --project "$sp" ruff format --check --force-exclude -- "${PY_SP[@]}" >&2; then
+        titre
+        signaler "$sp : ruff format : fichiers non formatés (uv run --project $sp ruff format .)"
+      fi
+    done
   else
     printf '[standards-code] uv absent, ruff non exécuté\n' >&2
   fi
