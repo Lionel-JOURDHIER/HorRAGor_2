@@ -20,6 +20,7 @@ from shared.schemas import ErrorResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from api.auth_crypto import decrypt_password, get_public_key_pem
 from api.auth_utils import (
     authenticate_user,
     create_access_token,
@@ -45,6 +46,17 @@ logger = get_logger("AUTH_ROUTES")
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
+@router.get("/public-key")
+async def get_public_key():
+    """
+    Exposer la clé publique RSA utilisée pour chiffrer le mot de passe.
+
+    Le frontend chiffre le mot de passe avec cette clé avant de l'envoyer à
+    /auth/register ou /auth/login — voir api/auth_crypto.py.
+    """
+    return {"public_key": get_public_key_pem()}
+
+
 @router.post(
     "/register",
     response_model=AuthResponse,
@@ -58,6 +70,20 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
     Retourne l'utilisateur créé avec ses tokens JWT.
     """
     logger.info(f"Tentative d'inscription : {user_data.email}")
+
+    try:
+        password = decrypt_password(user_data.password)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mot de passe chiffré invalide",
+        )
+
+    if not (8 <= len(password) <= 100):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Le mot de passe doit contenir entre 8 et 100 caractères",
+        )
 
     try:
         # Vérifier si l'email existe déjà
@@ -84,7 +110,7 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
         new_user = User(
             email=user_data.email,
             username=user_data.username,
-            hashed_password=hash_password(user_data.password),
+            hashed_password=hash_password(password),
         )
 
         db.add(new_user)
@@ -132,8 +158,16 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
     """
     logger.info(f"Tentative de connexion : {credentials.email}")
 
+    try:
+        password = decrypt_password(credentials.password)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mot de passe chiffré invalide",
+        )
+
     # Authentifier l'utilisateur
-    user = authenticate_user(credentials.email, credentials.password, db)
+    user = authenticate_user(credentials.email, password, db)
 
     if not user:
         logger.warning(f"Échec de connexion : {credentials.email}")

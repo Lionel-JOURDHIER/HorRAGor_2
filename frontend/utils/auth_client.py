@@ -12,15 +12,16 @@ Fonctions d'interaction avec l'API d'authentification :
 import requests
 from typing import Optional, Dict, Any
 from utils.api_client import get_api_url
+from utils.auth_crypto_client import encrypt_password
 
 def login_user(email: str, password: str) -> Optional[Dict[str, Any]]:
     """
     Authentifie un utilisateur avec email et mot de passe.
-    
+
     Args:
         email: Email de l'utilisateur
         password: Mot de passe
-        
+
     Returns:
         Dictionnaire contenant user, access_token, refresh_token si succès
         None en cas d'échec
@@ -28,7 +29,7 @@ def login_user(email: str, password: str) -> Optional[Dict[str, Any]]:
     try:
         response = requests.post(
             f"{get_api_url()}/auth/login",
-            json={"email": email, "password": password},
+            json={"email": email, "password": encrypt_password(password)},
             timeout=10
         )
         
@@ -58,7 +59,11 @@ def register_user(email: str, username: str, password: str) -> Optional[Dict[str
     try:
         response = requests.post(
             f"{get_api_url()}/auth/register",
-            json={"email": email, "username": username, "password": password},
+            json={
+                "email": email,
+                "username": username,
+                "password": encrypt_password(password),
+            },
             timeout=10
         )
         
