@@ -109,6 +109,18 @@ Pour absorber les requêtes en parallèle (API Database + scripts d'indexation) 
 * **`pool_size=5`** & **`max_overflow=10`** : allocation dynamique des connexions.
 * **`pool_pre_ping=True`** : test systématique de la viabilité de la connexion avant exécution (indispensable pour prévenir les déconnexions intempestives du pooler Supabase).
 
+### Première connexion à Langfuse (traces LLM)
+
+Langfuse (`docker compose -f monitoring/docker-compose.yml up -d`) est initialisé au premier démarrage avec l'utilisateur défini dans `monitoring/.env` (`LANGFUSE_INIT_USER_EMAIL` / `LANGFUSE_INIT_USER_PASSWORD`), mais **sans clé API** tant que `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` / `LANGFUSE_INIT_PROJECT_SECRET_KEY` ne sont pas renseignées.
+
+1. Se connecter sur `http://localhost:3000` avec les identifiants `LANGFUSE_INIT_USER_*` de `monitoring/.env`.
+2. Dans le projet, **Settings → API Keys → Create new API key** : la clé secrète n'est affichée qu'une seule fois à la création, à copier immédiatement.
+3. Reporter la paire `public key` / `secret key` dans le `.env` racine (`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`), consommées par `api/monitoring/langfuse_client.py`.
+4. Recréer le conteneur `api` pour que la nouvelle valeur soit prise en compte — `docker compose restart api` ne relit **pas** `env_file` :
+   ```bash
+   docker compose up -d --force-recreate api
+   ```
+
 ---
 
 ## 🔍 Logique Métier & Requêtes (`database/queries.py`)
