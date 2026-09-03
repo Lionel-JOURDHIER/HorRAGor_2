@@ -6,6 +6,32 @@ L'architecture est entièrement conteneurisée et pensée pour s'exécuter local
 
 ---
 
+## 🌐 Adresses
+
+Une fois la stack lancée (`docker compose up -d`), tout passe par Traefik sur
+`localhost` — le routage se fait par chemin, pas par nom d'hôte, donc rien à
+ajouter dans `/etc/hosts`.
+
+| Élément | Adresse |
+|---|---|
+| Frontend (Streamlit) | http://localhost |
+| API IA | http://localhost/api |
+| Documentation Swagger — API IA | http://localhost/api/docs |
+| API Database | http://localhost/dbapi |
+| Documentation Swagger — API Database | http://localhost/dbapi/docs |
+| Dashboard Traefik | http://127.0.0.1:8080/dashboard/ |
+
+La stack `monitoring/docker-compose.yml` (à lancer séparément) expose en plus :
+
+| Élément | Adresse |
+|---|---|
+| Langfuse (traces LLM) | http://localhost:3000 |
+| Grafana | http://localhost:3001 |
+| Prometheus | http://localhost:9092 |
+| Uptime Kuma | http://localhost:3002 |
+
+---
+
 ## 🛠️ Stack Technique
 
 * **Front-End** : Streamlit (Python)
