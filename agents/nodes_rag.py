@@ -1,39 +1,18 @@
+"""agents/nodes_rag.py
+Nœuds du bloc RAG du graphe LangGraph HorRAGor v3 : classification d'intention,
+extraction des filtres, recherche vectorielle et validation des résultats.
 
-"""agents/nodes.py
-
-Module de définition des nœuds (Nodes) du graphe de l'agent LangGraph HorRAGor v3.
-
-Ce fichier contient exclusivement les boîtes blanches applicatives. Chaque nœud reçoit
-l'état actuel ('AgentState'), exécute son traitement isolé et retourne les modifications
-à fusionner dans l'état global, en respectant scrupuleusement les cibles du router.py.
-
-Nœuds principaux à implémenter :
-
-- node_classifier : Interroge le LLM avec le prompt de classification pour
-  déterminer l'intention de l'utilisateur.
-
-- node_extractor : Extrait les entités et critères de filtrage (réalisateur, genre).
-
-- node_sql_query / node_vector_search : Appellent respectivement les outils SQL
-  ou FAISS pour récupérer les données de films pertinents.
-
-- node_wikipedia_enrich : Complète les synopsis manquants si nécessaire.
-
-- node_rag_synthesizer : Fusionne le contexte, génère la réponse textuelle finale
-  et structure le top 5 des films pour le front-end.
+Chaque nœud reçoit l'état courant (`AgentState`), exécute son traitement isolé
+et retourne les modifications à fusionner dans l'état global, en respectant
+les cibles de routage définies dans `agents/router.py`.
 
 Dépendances principales :
-
-- .state (AgentState)
-
-- .prompts (Gabarits d'instructions)
-
-- .tools (sql_tools, vector_tools, wiki_tools)
-
-- langchain_ollama (Instance locale du LLM)
+    - agents.config (llm, structured_llm, validation_llm)
+    - agents.prompts (gabarits d'instructions)
+    - agents.tools.sql_tools, agents.tools.vector_tools
+    - shared.schemas (AgentState, AgentStep, ChatFilters)
 
 Auteur/Responsable : Équipe Agents
-
 """
 
 
@@ -65,8 +44,6 @@ from shared.schemas import AgentState, AgentStep, ChatFilters
 setup_logger()
 logger = get_logger("NODES")
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-FAISS_INDEX_PATH = str(BASE_DIR / "data" / "faiss_index")
 CATALOG_GENRES = {
     "Action",
     "Adventure",

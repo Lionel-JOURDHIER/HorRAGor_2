@@ -79,7 +79,7 @@ def main():
     print_header("🎬 HORRAGOR - DÉMARRAGE AVEC AUTHENTIFICATION")
     
     # Vérifier le répertoire de travail
-    project_root = Path(__file__).parent
+    project_root = Path(__file__).resolve().parent.parent
     os.chdir(project_root)
     print(f"📁 Répertoire de travail : {project_root}")
     
@@ -150,13 +150,13 @@ def main():
     # ===== ÉTAPE 4 : Lancer les tests =====
     print_step(4, "Lancement des tests d'authentification")
     
-    if (project_root / "test_auth.py").exists():
+    if (project_root / "scripts" / "verifier_auth.py").exists():
         try:
-            run_command([sys.executable, "test_auth.py"], check=False)
+            run_command([sys.executable, "scripts/verifier_auth.py"], check=False)
         except Exception as e:
             print(f"⚠️ Erreur lors des tests : {e}")
     else:
-        print("⚠️ Fichier test_auth.py non trouvé, tests ignorés")
+        print("⚠️ Fichier scripts/verifier_auth.py non trouvé, tests ignorés")
     
     # ===== ÉTAPE 5 : Démarrer le frontend =====
     print_step(5, "Démarrage du frontend Streamlit")

@@ -1,5 +1,6 @@
 @echo off
-REM Script de démarrage rapide pour tester l'EPIC 10 (Windows)
+REM Script de démarrage rapide pour tester l'EPIC 10 (Windows) — à lancer
+REM depuis la racine du dépôt : scripts\start_with_auth.bat
 
 echo 🚀 === Démarrage de HorRAGor avec authentification ===
 echo.
@@ -26,7 +27,7 @@ echo.
 
 REM 4. Lancer les tests
 echo 4️⃣ Lancement des tests d'authentification...
-python test_auth.py
+python scripts\verifier_auth.py
 echo.
 
 REM 5. Démarrer le frontend

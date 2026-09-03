@@ -366,9 +366,12 @@ Mis à jour au fil des sessions.
 
 ## Dette déjà connue (hors scope Partie 3, cf. CLAUDE.md)
 
-- [ ] `SUPABASE_PASSWORD` avec valeur par défaut placeholder dans
-  [database/connection.py](database/connection.py) au lieu d'un refus de
-  démarrage explicite (fail-closed).
+- [x] **Déjà corrigé, entrée obsolète.** `SUPABASE_PASSWORD` dans
+  [database/connection.py](database/connection.py) refuse déjà le démarrage
+  (`if "<MOT_DE_PASSE>" in DATABASE_URL: raise ValueError(...)`) — vérifié via
+  `git log` (correctif déjà en place, commit `4f948ad`). Le `CLAUDE.md` reste à
+  corriger séparément (sa section « Dette existante » décrit encore l'ancien
+  comportement).
 
 ---
 
@@ -606,111 +609,95 @@ qu'une lecture du seul contenu commité ne montre pas.
 
 ## 🟠 Duplication de code — `api/schemas.py` est un fork périmé de `shared/schemas.py`
 
-- [ ] [api/schemas.py](api/schemas.py) redéfinit **15 classes** déjà présentes
-  dans [shared/schemas.py](shared/schemas.py) (`HealthResponse`,
-  `ErrorResponse`, `DirectorsResponse`, `GenresResponse`, `FilmShort`,
-  `FilmSearchResponse`, `FilmDetail`, `ChatFilters`, `AgentStep`, `AgentState`,
-  `ChatRequest`, `ChatStatusResponse`, `ChatResponse`, `WikipediaResponse`,
-  `WikipediaRequest`) et n'ajoute réellement que les six schémas
+- [x] **Corrigé.** [api/schemas.py](api/schemas.py) réduit aux six schémas
   d'authentification (`UserRegister`, `UserLogin`, `Token`, `TokenRefresh`,
-  `UserResponse`, `AuthResponse`).
-  - **Les deux copies ont déjà divergé** : le `FilmShort` de `api/schemas.py`
-    n'a ni `synopsis` ni `judge_feedback`, et tout le fichier est resté à
-    l'ancien style `Optional[X]` / `List[X]` quand `shared/schemas.py` est passé
-    à `X | None` / `list[X]`.
-  - Seul [api/auth_routes.py:28](api/auth_routes.py:28) importe
-    `api.schemas` — et uniquement pour les schémas d'auth. Tout le reste du
-    dépôt (api, agents, database, tests) importe `shared.schemas`.
-  - → Réduire `api/schemas.py` aux seuls schémas d'authentification (ou les
-    déplacer dans `shared/`), et supprimer les 15 doublons.
-  - Docstring à corriger dans le même lot : [agents/router.py:110](agents/router.py:110)
-    référence encore `api.schemas (AgentState)` alors que le fichier importe
-    `shared.schemas`.
+  `UserResponse`, `AuthResponse`), les 15 doublons supprimés. En-tête réécrit
+  pour expliquer la répartition avec `shared/schemas.py`.
+  [api/auth_routes.py](api/auth_routes.py) importe désormais `ErrorResponse`
+  depuis `shared.schemas`. Docstring corrigée dans le même lot :
+  [agents/router.py:110](agents/router.py:110) référence maintenant
+  `shared.schemas (AgentState)`.
 
 ## 🟠 Code mort et en-têtes périmés (suite de la section « Dette de lisibilité »)
 
-- [ ] [agents/nodes_rag.py:68-69](agents/nodes_rag.py:68) : `BASE_DIR` et
-  `FAISS_INDEX_PATH = str(BASE_DIR / "data" / "faiss_index")` ne sont utilisés
-  nulle part dans le fichier, et le chemin pointé (`data/faiss_index`) n'existe
-  pas dans le dépôt. Pire, la constante porte le nom de la variable
-  d'environnement réellement utilisée ailleurs
-  ([api/main.py:39](api/main.py:39)) avec une valeur différente — piège de
-  lecture.
-- [ ] [agents/nodes_rag.py:2](agents/nodes_rag.py:2) : même en-tête périmé que
-  celui déjà corrigé sur `nodes_wikipedia.py` et `nodes_narrateur.py` — le
-  fichier commence par `"""agents/nodes.py`. La docstring décrit en plus des
-  « nœuds principaux **à implémenter** » sous des noms qui n'existent plus
-  (`node_classifier`, `node_extractor`, `node_sql_query`,
-  `node_wikipedia_enrich`) alors que les nœuds réels s'appellent
-  `intent_classifier_node`, `merge_filters_node`, `search_vector_node`…
-  C'est une spécification abandonnée présentée comme de la documentation.
+- [x] **Corrigé.** [agents/nodes_rag.py](agents/nodes_rag.py) : `BASE_DIR` et
+  `FAISS_INDEX_PATH` supprimés (inutilisés, confirmé par recherche de
+  référence). En-tête réécrit — supprime la description des « nœuds
+  principaux à implémenter » sous des noms abandonnés, décrit les nœuds
+  réellement présents et corrige les dépendances listées.
 - [x] `agents/state.py` : confirmé supprimé du disque et de l'index git — la
   réserve « à faire manuellement » de la section précédente est levée.
-- [ ] [api/README.md](api/README.md) est **vide (0 octet)** alors que
-  [api/pyproject.toml](api/pyproject.toml) le déclare en `readme = "README.md"`.
+- [x] **Corrigé.** [api/README.md](api/README.md) était vide (0 octet) ;
+  rédigé (objet du module, arborescence, renvoi vers `shared/schemas.py`,
+  démarrage, tests), sur le modèle de `database/README.md`.
 
 ## 🟡 Scripts et tests orphelins à la racine
 
-- [ ] Trois scripts à la racine doublonnent le chemin de lancement de
-  `docker-compose.yml` et ne sont couverts par rien :
-  - [start.py](start.py) + [start_with_auth.sh](start_with_auth.sh) +
-    [start_with_auth.bat](start_with_auth.bat) : lanceur alternatif hors Docker
-    (création des tables d'auth, API en arrière-plan, tests, Streamlit), avec
-    39 `print()`. Un quatrième lanceur existe en plus dans
-    [frontend/start.py](frontend/start.py).
-  - [test_auth.py](test_auth.py) et
-    [test_synopsis_enrichment.py](test_synopsis_enrichment.py) : scripts
-    manuels tapant sur une API **déjà lancée** (`http://localhost:8000`), mais
-    nommés `test_*.py` et contenant des fonctions `test_*` au niveau module.
-    Un `pytest` lancé depuis la racine les collecte et échoue faute d'API — et
-    un `.pytest_cache/` traîne justement à la racine, signe que le cas s'est
-    produit. Le `CLAUDE.md` place les tests « par sous-projet, dans son propre
-    dossier `tests/` ».
-  - → Soit les ranger en `scripts/` avec un nom qui n'est pas `test_*`, soit
-    les supprimer si `docker compose` couvre le besoin.
-- [ ] [frontend/test_app.py](frontend/test_app.py) : 11 tests jamais exécutés —
-  [frontend/pytest.ini](frontend/pytest.ini) fixe `testpaths = tests`, et le
-  fichier est à la racine de `frontend/`. Sa docstring documente en plus une
-  installation `pip install pytest pytest-mock` absente du `pyproject.toml`
-  (cf. l'item couverture frontend déjà listé).
-- [ ] Coquille de nom de fichier : `api/tests/test_chat_servise.py`
-  → `test_chat_service.py`.
-- [ ] `api/tests/test_wiki.py` (47 lignes) et `agents/tests/test_wiki.py`
-  (22 lignes) testent le même outil Wikipédia (`agents/tools/wiki_tools.py`)
-  depuis deux sous-projets, avec des contenus différents. À consolider côté
-  `agents/`, propriétaire de l'outil.
-- [ ] `frontend/pytest.ini` cohabite avec `frontend/pyproject.toml` alors que
-  les trois autres sous-projets configurent pytest dans le `pyproject.toml`
-  (`[tool.pytest.ini_options]`). Deux emplacements pour la même configuration.
+- [x] **Rangés dans [scripts/](scripts/)** (choix validé avec l'utilisateur).
+  [start.py](scripts/start.py), [start_with_auth.sh](scripts/start_with_auth.sh),
+  [start_with_auth.bat](scripts/start_with_auth.bat) déplacés par `git mv`,
+  chemins internes corrigés pour le nouvel emplacement (racine du dépôt un
+  cran au-dessus). `test_auth.py` → [scripts/verifier_auth.py](scripts/verifier_auth.py)
+  et `test_synopsis_enrichment.py` →
+  [scripts/verifier_synopsis_enrichment.py](scripts/verifier_synopsis_enrichment.py) :
+  renommés hors du motif `test_*.py` (plus de collecte accidentelle par
+  pytest), lanceurs mis à jour pour référencer le nouveau chemin.
+  `frontend/start.py` non touché : lanceur propre à ce sous-projet, hors
+  scope de ce doublon-là.
+- [x] **Supprimé.** [frontend/test_app.py](frontend/test_app.py) confirmé
+  superflu : ses classes (`TestApiClient`, `TestComponents`, `TestIntegration`)
+  sont une ébauche antérieure, moins complète, de ce qui vit désormais
+  proprement dans `frontend/tests/test_api_client.py`, `test_components.py`,
+  `test_integration.py`.
+- [x] **Corrigé.** `api/tests/test_chat_servise.py` renommé
+  `test_chat_service.py` (`git mv`, pas de changement de contenu).
+- [x] **Renommé, pas fusionné.** Lecture complète des deux fichiers : ce ne
+  sont **pas** de vrais doublons — `api/tests/test_wiki.py` teste la route
+  FastAPI (`TestClient`), `agents/tests/test_wiki.py` teste l'outil brut. Les
+  fusionner aurait perdu une couche de couverture. Renommé en
+  [api/tests/test_wikipedia_route.py](api/tests/test_wikipedia_route.py) pour
+  lever l'ambiguïté du nom.
+- [x] **Corrigé.** `frontend/pytest.ini` supprimé, son contenu fusionné dans
+  `frontend/pyproject.toml` (`[tool.pytest.ini_options]`), aligné sur les
+  trois autres sous-projets. Vérifié : `uv run pytest -q` depuis `frontend/`
+  charge bien `pyproject.toml` (`configfile: pyproject.toml`) et les tests
+  passent.
 
 ## 🟡 Déclarations de dépendances incohérentes entre sous-projets
 
-- [ ] [frontend/requirements.txt](frontend/requirements.txt) duplique les
-  dépendances du `pyproject.toml` en s'annonçant comme « alternative » — et a
-  déjà dérivé (`httpx` manquant). Le `uv.lock` existe : le `requirements.txt`
-  est une troisième source de vérité sans utilisateur.
-- [ ] `pytest-asyncio` est déclaré en dépendance **d'exécution** (pas de dev)
-  dans [api/pyproject.toml:28](api/pyproject.toml:28) et
-  [agents/pyproject.toml:17](agents/pyproject.toml:17) — il part donc en image.
-- [ ] `supabase>=2.30.1` ([api/pyproject.toml:24](api/pyproject.toml:24)) n'est
-  importé nulle part dans le dépôt (`grep -rn "import supabase"` ne remonte
-  rien) : l'accès Supabase passe par SQLAlchemy/psycopg2. Dépendance à retirer.
-- [ ] `psycopg2` (compilation depuis les sources) côté `agents/` et
-  `database/`, `psycopg2-binary` côté `api/` et dans les trois Dockerfiles —
-  même besoin, deux paquets.
-- [ ] `dotenv>=0.9.9` dans `agents/` et `database/` là où `api/` et `frontend/`
-  utilisent `python-dotenv` : `dotenv` est un paquet tiers distinct (simple
-  redirection vers `python-dotenv`), à ne pas laisser dans un lock.
-- [ ] `[tool.setuptools]` déclare des périmètres qui se chevauchent :
-  `agents/pyproject.toml` empaquette `["database", "agents", "api",
-  "frontend"]`, `database/pyproject.toml` empaquette `["database", "agents"]`,
-  `api/pyproject.toml` inclut `api*`, `database*`, `agents*`. Chaque
-  sous-projet prétend empaqueter les autres.
-- [ ] `frontend/` n'a pas de `.python-version` alors que les trois autres
-  épinglent `3.11`.
-- [ ] `api/monitoring/` n'a pas de `__init__.py` (contrairement à
-  `api/modules/`) : l'import ne tient qu'aux packages implicites et
-  `[tool.setuptools.packages.find]` ne le retiendrait pas dans une roue.
+- [x] **Supprimé.** `frontend/requirements.txt` retiré : `uv.lock` est la
+  seule source de vérité, conforme à `.claude/rules/python.md`.
+- [x] **Corrigé.** `pytest-asyncio` déplacé en dépendance de dev
+  (`uv remove pytest-asyncio && uv add --dev pytest-asyncio`) dans
+  `api/pyproject.toml` et `agents/pyproject.toml`.
+- [x] **Corrigé.** `supabase` retiré d'`api/pyproject.toml`
+  (`uv remove supabase`, 24 paquets transitifs en moins) — confirmé inutilisé
+  par recherche de référence dans tout le dépôt.
+- [x] **Unifié sur `psycopg2` (source).** `api/pyproject.toml` déclarait
+  `psycopg2-binary` ; remplacé par `psycopg2` pour s'aligner sur `agents/` et
+  `database/` — c'est le choix recommandé par le projet en production
+  (`psycopg2-binary` n'est officiellement conseillé que pour le
+  développement/test). `Dockerfile.api` installait déjà `build-essential`
+  pour faiss : `libpq-dev` ajouté pour compléter la compilation, sans nouveau
+  besoin de toolchain. `uv sync` et `uv run pytest` vérifiés dans `api/`
+  après le changement.
+- [x] **Corrigé.** `dotenv` remplacé par `python-dotenv` dans `agents/` et
+  `database/` (`uv remove dotenv && uv add python-dotenv`) — les deux
+  exposent la même API (`from dotenv import load_dotenv`), aucun code
+  appelant à modifier.
+- [x] **Corrigé.** Les périmètres `[tool.setuptools]`/`packages.find`
+  réalignés sur les imports réels (vérifiés par recherche de référence) :
+  `agents/pyproject.toml` empaquette désormais `["agents", "database", "api",
+  "shared"]` (retiré `frontend`, jamais importé nulle part ; ajouté `shared`,
+  omis alors qu'`agents` l'importe) ; `database/pyproject.toml` empaquette
+  `["database", "shared"]` (retiré `agents`, que `database` n'importe pas) ;
+  `api/pyproject.toml` inclut désormais aussi `shared*`. `shared/` était
+  omis des trois déclarations bien qu'importé par les trois sous-projets —
+  bug réel au-delà du simple chevauchement signalé initialement.
+- [x] **Corrigé.** `frontend/.python-version` créé (`3.11`), aligné sur les
+  trois autres sous-projets.
+- [x] **Corrigé.** `api/monitoring/__init__.py` créé, sur le modèle de
+  `api/modules/__init__.py`.
 
 ## 🟡 Monitoring — couplages fragiles
 
@@ -741,18 +728,23 @@ qu'une lecture du seul contenu commité ne montre pas.
 
 ## 🟡 `.gitignore` — motifs trop larges
 
-- [ ] `bin/`, `lib/`, `include/`, `env/` ([.gitignore:9-13](.gitignore:9))
-  ignorent ces noms **à n'importe quel niveau** : un futur `frontend/lib/` ou
-  `database/bin/` de code source disparaîtrait de `git status` sans un mot.
-  À restreindre à la racine (`/bin/`, `/lib/`…) comme c'est déjà fait pour
-  `/build/` et `/dist/`.
-- [ ] `*.env` ignore tout fichier finissant par `.env` (`prod.env`,
-  `staging.env`) : voulu ici, mais à ne pas confondre avec `.env*`, qui aurait
-  au contraire masqué `.env.example`. Rien à corriger, à ne pas « simplifier ».
-- [ ] Le cahier des charges lui-même
-  (`HorRAGor BOT Partie 3.pdf`, 1,3 Mo) est **non suivi et non ignoré** : il
-  apparaît en `??` dans chaque `git status`. À ignorer explicitement (il n'a pas
-  à entrer dans le dépôt) ou à ranger hors du répertoire de travail.
+- [x] **Corrigé.** `bin/`, `lib/`, `include/`, `env/` restreints à la racine
+  (`/bin/`, `/lib/`, `/include/`, `/env/`), même convention que `/build/` et
+  `/dist/`. `.pytest_cache/` ajouté au passage (traînait, non ignoré).
+  **Bug supplémentaire trouvé et corrigé, hors périmètre initial de cet
+  item** (socle § priorité 1 : un risque de perte de données/incohérence se
+  corrige même hors scope) : un bloc de marqueurs de conflit Git non résolu
+  (`<<<<<<< HEAD` / `=======` / `>>>>>>> 83ad3f4...`) était committé dans le
+  fichier, neutralisant silencieusement les règles `coverage*.xml`/
+  `htmlcov*/` qu'il encadrait. Marqueurs retirés, les deux jeux de règles
+  conservés (ce n'était pas un vrai conflit de contenu, juste une fusion non
+  terminée).
+- [x] `*.env` : confirmé volontaire, rien à corriger — laissé tel quel comme
+  demandé par l'entrée d'origine.
+- [x] **Entrée obsolète.** `HorRAGor BOT Partie 3.pdf` est en réalité déjà
+  suivi (`git ls-files "*.pdf"` le confirme, commité dans `83ad3f4`) : le
+  `??` décrit dans cet item ne reflète plus l'état du dépôt. Aucune action
+  `.gitignore` nécessaire.
 
 ## 🟡 Artefacts régénérables commités
 
