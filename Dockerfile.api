@@ -53,6 +53,8 @@ RUN uv pip install --system --no-cache \
 
 # Copie du code source complet
 COPY . .
+# L'application lit l'index à la racine du conteneur, pas sous /app/api.
+COPY api/faiss_data ./faiss_data
 
 EXPOSE 8000
 

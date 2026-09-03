@@ -82,9 +82,6 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
     movie = normalize_movie_data(movie)
 
     with st.container():
-        # Container avec style amélioré
-        st.markdown('<div class="movie-card">', unsafe_allow_html=True)
-
         col1, col2 = st.columns([1, 2])
 
         with col1:
@@ -254,12 +251,31 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
                 with st.expander("⚖️ Validation du juge", expanded=False):
                     st.markdown(movie["judge_feedback"])
 
-        st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
 
 
+def display_movie_count(movies: List[Dict[str, Any]]) -> None:
+    """Affiche le compteur de films avant les détails et les cartes."""
+    st.markdown(
+        f"""
+    <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2));
+                padding: 20px; border-radius: 15px; margin-bottom: 25px;
+                border: 2px solid rgba(255, 71, 87, 0.4);
+                box-shadow: 0 5px 25px rgba(255, 71, 87, 0.3);">
+        <p style="margin: 0; font-size: 1.2em; color: #ffffff; font-weight: 700;">
+            <strong style="color: #ff4757;">🎯 {len(movies)} film(s) trouvé(s)</strong>
+            correspondant à vos critères
+        </p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+
 def display_movie_list(
-    movies: List[Dict[str, Any]], title: str = "🎬 Films recommandés"
+    movies: List[Dict[str, Any]],
+    title: str = "🎬 Films recommandés",
+    show_count: bool = True,
 ) -> None:
     """
     Affiche une liste de films sous forme de cartes compactes.
@@ -286,21 +302,8 @@ def display_movie_list(
     if title:
         st.markdown(f"## {title}")
 
-    # En-tête avec compteur animé
-    st.markdown(
-        f"""
-    <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2)); 
-                padding: 20px; border-radius: 15px; margin-bottom: 25px;
-                border: 2px solid rgba(255, 71, 87, 0.4);
-                box-shadow: 0 5px 25px rgba(255, 71, 87, 0.3);">
-        <p style="margin: 0; font-size: 1.2em; color: #ffffff; font-weight: 700;">
-            <strong style="color: #ff4757;">🎯 {len(movies)} film(s) trouvé(s)</strong> 
-            correspondant à vos critères
-        </p>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
+    if show_count:
+        display_movie_count(movies)
 
     # Affichage des films avec numérotation
     for idx, movie in enumerate(movies, 1):
