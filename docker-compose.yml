@@ -1,8 +1,137 @@
 # docker-compose.yml
-# Lance l'ensemble du stack HorRAGor : Ollama (GPU), API FastAPI, Frontend Streamlit
-# Prérequis : nvidia-container-toolkit installé, modèles Ollama déjà téléchargés en local
+# Lance l'ensemble du stack HorRAGor : Traefik (reverse proxy), API FastAPI,
+# Database API, Frontend Streamlit. Ollama tourne sur l'hôte (bloc commenté).
+#
+# ===========================================================================
+#  ARCHITECTURE : tout passe par Traefik, sur un seul port
+# ===========================================================================
+#
+#                            Navigateur
+#                                 |
+#                un SEUL port publié : 80, sur 127.0.0.1
+#                                 v
+#                          +--------------+
+#                          |   TRAEFIK    |  <-- lit les labels des conteneurs
+#                          +--------------+      via le socket Docker
+#                          /       |       \
+#          /  (racine)    /        |        \   /dbapi
+#                        v      /api        v
+#                 +----------+   v    +--------------+
+#                 | FRONTEND | +-----+| DATABASE_API |
+#                 |(Streamlit| | API || FastAPI 8000 |
+#                 |   8501)  | |8000 |+--------------+
+#                 +----------+ +-----+
+#                        (INTERNES, aucun port publié)
+#
+# Le routage se fait sur le CHEMIN, pas sur le nom d'hôte : tout répond sur
+# `localhost`, donc rien à ajouter dans /etc/hosts ni côté Windows.
+#
+#   http://localhost          -> frontend Streamlit
+#   http://localhost/api      -> API FastAPI
+#   http://localhost/dbapi    -> Database API
+#
+# PAS DE TLS, ET POURQUOI C'EST TENABLE ICI : le certificat auto-signé de
+# Traefik faisait avertir le navigateur à chaque ouverture. On y renonce, mais
+# la protection qui motivait tout ce travail — le refus d'un WebSocket venu
+# d'une autre origine — ne dépend pas du TLS : elle vient de
+# `corsAllowedOrigins` côté Streamlit et fonctionne à l'identique en clair.
+# Ce qu'on perd, c'est le chiffrement : jeton XSRF et contenu de session
+# circulent en clair. D'où le port lié à 127.0.0.1 ci-dessous — le trafic ne
+# quitte jamais la machine. Un déploiement hors du poste de développement
+# impose de remettre le TLS (voir l'historique git de ce fichier).
+#
+# POURQUOI LE FRONTEND EST À LA RACINE et non sous /front : Streamlit servi
+# depuis un sous-chemin réclame `server.baseUrlPath`, et c'est son WebSocket
+# (/_stcore/stream) qui se règle mal dans cette configuration. En le laissant
+# à la racine, seules les deux API portent un préfixe — et une API FastAPI
+# derrière un préfixe est un cas parfaitement balisé (`root_path`).
+#
+# Aucun des trois services n'a de section `ports:` : ils sont injoignables
+# depuis la machine hôte. La seule porte d'entrée, c'est Traefik.
+#
+# POURQUOI CE CHANGEMENT : Streamlit avertissait au démarrage que, avec
+# `enableCORS = false`, il acceptait une connexion WebSocket depuis n'importe
+# quelle origine — et que `enableXsrfProtection` n'y change rien, puisque
+# l'ouverture d'un WebSocket ne réclame pas de jeton XSRF. Traefik règle
+# l'exposition (plus de port ouvert sur internet) et le TLS ; le contrôle de
+# l'en-tête `Origin`, lui, reste côté Streamlit dans
+# `frontend/.streamlit/config.toml` (Traefik v3 n'a pas de middleware pour ça).
+# ===========================================================================
+
+# Nom du projet Compose figé. Sans cette ligne, Compose déduit le nom du dossier
+# courant : le réseau s'appellerait `horragor_2_horragor_net` sur ce poste et
+# autrement ailleurs. Or `monitoring/docker-compose.yml` référence ce réseau en
+# `external` avec ce nom exact — le figer ici, c'est garantir que la stack de
+# monitoring continue de le trouver quel que soit le nom du dossier cloné.
+name: horragor_2
 
 services:
+
+  # =========================================================================
+  #  0. TRAEFIK — reverse proxy, seul point d'entrée de l'architecture
+  # =========================================================================
+  traefik:
+    # Version épinglée, jamais `latest` : Docker 29 a cessé d'accepter les
+    # anciennes versions de son API, et les Traefik jusqu'à la v3.5 réclamaient
+    # l'API 1.24. Symptôme : Traefik démarre normalement mais AUCUNE route
+    # n'est créée, tout répond « 404 page not found ». À partir de la v3.6 la
+    # version d'API est négociée automatiquement.
+    image: traefik:v3.6
+    container_name: horragor_traefik
+    restart: unless-stopped
+
+    command:
+      # --- Provider : d'où Traefik apprend-il l'existence des services ? ---
+      - --providers.docker=true
+      # Par défaut AUCUN conteneur n'est exposé : il faut le demander avec
+      # `traefik.enable=true`. Sans cette ligne, tout conteneur démarré sur la
+      # machine se retrouverait publié.
+      - --providers.docker.exposedbydefault=false
+      # Un conteneur peut appartenir à plusieurs réseaux, donc avoir plusieurs
+      # IP. On dit ici à Traefik laquelle utiliser pour joindre les backends.
+      - --providers.docker.network=horragor_2_horragor_net
+
+      # --- Points d'entrée ---
+      - --entrypoints.web.address=:80
+
+      # Point d'entrée séparé pour le tableau de bord, publié plus bas sur la
+      # boucle locale uniquement. Le dashboard Traefik se sert mal depuis un
+      # sous-chemin (il réclame /dashboard/ ET /api/) : lui donner son propre
+      # port évite ce piège sans rien exposer à l'extérieur.
+      - --entrypoints.dashboard.address=:8080
+
+      # --- Tableau de bord (développement) ---
+      # `api.dashboard` seul n'ouvre rien : le dashboard n'est joignable que par
+      # le routeur déclaré plus bas en labels. On n'utilise PAS
+      # `--api.insecure=true`, qui le publierait sans routeur ni contrôle.
+      - --api.dashboard=true
+
+      - --log.level=INFO
+      - --accesslog=true
+
+    ports:
+      # Lié à 127.0.0.1 et non à toutes les interfaces : sans TLS, c'est cette
+      # restriction qui garantit que rien ne circule en clair sur le réseau.
+      # Pour ouvrir volontairement l'accès depuis une autre machine, remplacer
+      # par "80:80" — et remettre le TLS avant.
+      - "127.0.0.1:80:80"
+      # Dashboard : même principe, boucle locale uniquement.
+      - "127.0.0.1:8080:8080"
+
+    volumes:
+      # Lecture seule. Le socket Docker donne un contrôle total sur la machine :
+      # `:ro` limite Traefik à la lecture des événements et des labels, ce dont
+      # il a besoin et rien de plus.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.dashboard.entrypoints=dashboard"
+      - "traefik.http.routers.dashboard.service=api@internal"
+
+    networks:
+      - horragor_net
 
   # # ─── 1. OLLAMA ─────────────────────────────────────────────────────────────
   # ollama:
@@ -61,9 +190,20 @@ services:
 
     environment:
       - PYTHONPATH=/app
+      # Traefik retire le préfixe `/dbapi` avant de transmettre la requête : les
+      # routes restent donc `/db/health` côté application. Mais FastAPI, lui,
+      # doit connaître ce préfixe pour construire des URL justes dans /docs et
+      # openapi.json — sinon la page de documentation appelle `/openapi.json`
+      # au lieu de `/dbapi/openapi.json` et s'affiche vide.
+      # `UVICORN_ROOT_PATH` est lu par la ligne de commande d'uvicorn
+      # (préfixe d'environnement UVICORN_), ce qui évite de figer le chemin du
+      # reverse proxy dans le Dockerfile.
+      - UVICORN_ROOT_PATH=/dbapi
 
-    ports:
-      - "8001:8000"
+    # Plus de `ports:` — l'ancien « 8001:8000 » exposait la base sur toutes les
+    # interfaces de la machine. Le service reste joignable en interne sur
+    # `http://database_api:8000` (c'est ce qu'utilise le frontend) et, depuis un
+    # navigateur, sur http://localhost/dbapi.
 
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/db/health || exit 1"]
@@ -72,6 +212,20 @@ services:
       retries: 5
 
     restart: unless-stopped
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.horragor-db.rule=Host(`localhost`) && PathPrefix(`/dbapi`)"
+      - "traefik.http.routers.horragor-db.entrypoints=web"
+      # Priorité explicite. Traefik classe sinon les routeurs par longueur de
+      # règle, ce qui donnerait le bon résultat ici par accident : on ne laisse
+      # pas le routage d'une stack dépendre du nombre de caractères d'une règle.
+      - "traefik.http.routers.horragor-db.priority=100"
+      - "traefik.http.routers.horragor-db.middlewares=horragor-db-strip"
+      - "traefik.http.middlewares.horragor-db-strip.stripprefix.prefixes=/dbapi"
+      # Le conteneur écoute sur 8000. Ce port n'étant pas publié, Traefik ne
+      # peut pas le deviner : il faut le lui dire explicitement.
+      - "traefik.http.services.horragor-db.loadbalancer.server.port=8000"
 
     networks:
       - horragor_net
@@ -99,9 +253,14 @@ services:
       - PYTHONPATH=/app
       - FAISS_INDEX_PATH=faiss_data/horragor.index
       - FAISS_MAPPING_PATH=faiss_data/horragor_mapping.json
+      # Voir la note sur `UVICORN_ROOT_PATH` du service database_api.
+      - UVICORN_ROOT_PATH=/api
 
-    ports:
-      - "8000:8000"
+    # Plus de `ports:`. Attention : `/metrics` n'est donc plus joignable depuis
+    # l'hôte sur localhost:8000 — c'est désormais http://localhost/api/metrics.
+    # Prometheus, lui, scrute `horragor_api:8000` DEPUIS le réseau Docker (voir
+    # monitoring/prometheus/prometheus.yml) : il n'a jamais dépendu du port
+    # publié, ne passe pas par Traefik, et continue de fonctionner tel quel.
 
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
@@ -112,8 +271,18 @@ services:
 
     restart: unless-stopped
 
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.horragor-api.rule=Host(`localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.horragor-api.entrypoints=web"
+      - "traefik.http.routers.horragor-api.priority=100"
+      - "traefik.http.routers.horragor-api.middlewares=horragor-api-strip"
+      - "traefik.http.middlewares.horragor-api-strip.stripprefix.prefixes=/api"
+      - "traefik.http.services.horragor-api.loadbalancer.server.port=8000"
+
     networks:
       - horragor_net
+
   # ─── 3. FRONTEND STREAMLIT ─────────────────────────────────────────────────
   frontend:
     build:
@@ -124,11 +293,26 @@ services:
       api:
         condition: service_healthy
     environment:
+      # Appels serveur-à-serveur, à l'intérieur du réseau Docker : ils ne
+      # passent pas par Traefik et ne changent pas.
       - API_URL=http://api:8000
       - DATABASE_API_URL=http://database_api:8000
-    ports:
-      - "8501:8501"
+
     restart: unless-stopped
+
+    labels:
+      - "traefik.enable=true"
+      # Routeur attrape-tout : reçoit ce que les deux règles /api et /dbapi
+      # n'ont pas pris. Streamlit sert donc depuis la racine et n'a besoin
+      # d'aucun `server.baseUrlPath`.
+      - "traefik.http.routers.horragor.rule=Host(`localhost`)"
+      - "traefik.http.routers.horragor.entrypoints=web"
+      - "traefik.http.routers.horragor.priority=1"
+      - "traefik.http.services.horragor.loadbalancer.server.port=8501"
+      # Rien à déclarer pour le WebSocket : Traefik gère l'upgrade HTTP/1.1 de
+      # façon transparente, contrairement à nginx qui réclame un
+      # `proxy_set_header Upgrade` explicite.
+
     networks:
       - horragor_net
 
