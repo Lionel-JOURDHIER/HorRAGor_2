@@ -164,7 +164,7 @@ Mis à jour au fil des sessions.
   `agents/nodes_narrateur.py` commencent tous les deux par
   `"""agents/nodes.py` (copié-collé d'un fichier renommé/scindé depuis).
   Réécrits pour décrire le contenu réel de chaque fichier.
-- [ ] `agents/state.py` est un fichier mort : entièrement composé de code
+- [x] `agents/state.py` est un fichier mort : entièrement composé de code
   commenté (ancienne définition de `AgentState`/`AgentStep`, remplacée par
   `shared/schemas.py`), aucune référence ailleurs dans le dépôt
   (`grep -rn "agents.state"` ne remonte rien hors de lui-même). À supprimer
@@ -232,15 +232,6 @@ Mis à jour au fil des sessions.
   → Corriger `app.py` pour intégrer `event.get("film")` dans les films à
   afficher.
 
-- [ ] **Affiches (posters) jamais correctement affichées.**
-  `poster_url=f"{film.poster_path}"` dans
-  [database/queries.py:119](database/queries.py:119) et
-  [:212](database/queries.py:212) réutilise le chemin relatif TMDB
-  (`/xxx.jpg`) sans préfixer `https://image.tmdb.org/t/p/w500`. L'`<img>`
-  généré dans [frontend/components/components.py:95](frontend/components/components.py:95)
-  pointe vers une ressource inexistante sur le domaine Streamlit.
-  → Préfixer `poster_url` (et vérifier `backdrop_url`) avec l'URL de base du
-  CDN TMDB.
 
 - [ ] **Sidebar des filtres (réalisateur, genres) toujours cassée.**
   [frontend/components/components.py:364](frontend/components/components.py:364)
