@@ -10,31 +10,27 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Dépendances système
+# Dépendances système (libpq-dev + build-essential : psycopg2 se compile
+# depuis les sources d'après database/pyproject.toml, contrairement à la
+# variante psycopg2-binary qu'installait l'ancienne liste manuelle)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    build-essential \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Gestionnaire de dépendances
 RUN pip install --no-cache-dir uv
 
-# Dépendances Python
+# Dépendances Python — installées depuis le lock, sans installer le paquet
+# "database" lui-même (le code n'est pas encore copié à cette étape).
 COPY database/pyproject.toml database/uv.lock ./database/
 
-RUN uv pip install --system --no-cache \
-    fastapi \
-    uvicorn[standard] \
-    sqlalchemy \
-    psycopg2-binary \
-    pgvector \
-    pydantic \
-    python-dotenv \
-    loguru \
-    SQLAlchemy
+RUN uv sync --project database --frozen --no-dev --no-install-project
 
 # Copie du projet
 COPY . .
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "database.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--project", "database", "uvicorn", "database.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -10,17 +10,19 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir uv
 
-# Copie et installation des dépendances frontend uniquement
-COPY frontend/pyproject.toml* frontend/uv.lock* ./frontend/
+# Copie et installation des dépendances frontend uniquement, depuis le lock —
+# sans installer le paquet "frontend" lui-même (le code n'est pas encore
+# copié à cette étape).
+COPY frontend/pyproject.toml frontend/uv.lock ./
 
-RUN uv pip install --system --no-cache streamlit requests httpx python-dotenv 
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copie du code frontend
 COPY frontend/ ./
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "app.py", \
+CMD ["uv", "run", "streamlit", "run", "app.py", \
      "--server.port=8501", \
      "--server.address=0.0.0.0", \
      "--server.headless=true"]
