@@ -1,18 +1,19 @@
 """
-Script de test pour vérifier l'enrichissement automatique du synopsis via Wikipedia.
+Script de vérification manuelle de l'enrichissement automatique du synopsis
+via Wikipedia — à lancer depuis la racine du dépôt.
 
 Usage:
-    python test_synopsis_enrichment.py [tmdb_id]
-    
+    python scripts/verifier_synopsis_enrichment.py [tmdb_id]
+
 Exemple:
-    python test_synopsis_enrichment.py 539
+    python scripts/verifier_synopsis_enrichment.py 539
 """
 
 import sys
 from pathlib import Path
 
-# Ajouter le répertoire parent au path
-root_path = Path(__file__).resolve().parent
+# Ajoute la racine du dépôt au path (ce script vit dans scripts/)
+root_path = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root_path))
 
 from agents.tools.wiki_tools import wikipedia_search
@@ -82,7 +83,7 @@ def test_synopsis_enrichment(tmdb_id: int):
 def main():
     """Point d'entrée du script."""
     if len(sys.argv) < 2:
-        print("Usage: python test_synopsis_enrichment.py [tmdb_id]")
+        print("Usage: python scripts/verifier_synopsis_enrichment.py [tmdb_id]")
         print("\nExemples de films à tester :")
         print("  - 539 : Psycho (1960)")
         print("  - 694 : The Shining (1980)")
