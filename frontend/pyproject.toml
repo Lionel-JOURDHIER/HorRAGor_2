@@ -11,3 +11,8 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pillow>=10.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.1.0",
+]

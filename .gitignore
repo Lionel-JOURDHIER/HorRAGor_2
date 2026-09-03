@@ -57,4 +57,9 @@ data_backup/
 
 monitoring/langfuse/
 
+# sphinx docs
 docs/build/
+
+# Test coverage
+coverage*.xml
+htmlcov*/
