@@ -6,16 +6,17 @@
 .venv/
 venv/
 ENV/
-env/
-bin/
-lib/
-include/
+/env/
+/bin/
+/lib/
+/include/
 /build/
 /dist/
 *.egg-info/
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
 
 # --- Variables d'Environnement (Sécurité Supabase / API) ---
 .env
@@ -64,11 +65,9 @@ monitoring/langfuse/
 # sphinx docs
 docs/build/
 
-<<<<<<< HEAD
 # Test coverage
 coverage*.xml
 htmlcov*/
-=======
+
 # --- Images de travail (overlays de correction de diagrammes, non destinées au dépôt) ---
 slide*_corrections.png
->>>>>>> 83ad3f47b016ecbdff26220a8d5adc674ae574d1

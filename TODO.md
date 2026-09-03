@@ -215,15 +215,15 @@ Mis à jour au fil des sessions.
   de l'API pour un simple artefact de développement. `print()` remplacé par
   le logger. Génération encadrée par un `try/except` : un échec journalise un
   warning sans empêcher le graphe compilé d'être retourné et utilisé.
-- [ ] `os.environ["LANGGRAPH_STRICT_MSGPACK"] = "false"`
-  ([agents/graph.py:58](agents/graph.py:58)) : désactive globalement la
-  vérification stricte du msgpack pour faire taire les avertissements
-  « Deserializing unregistered type... This will be blocked in a future
-  version » (vus en logs pour `ChatFilters`, `AgentStep`, `FilmShort`) au lieu
-  d'enregistrer ces types comme modules msgpack autorisés. Non traité :
-  contournement qui cassera silencieusement dès qu'une version future de
-  LangGraph rendra le mode strict obligatoire ; nécessite d'identifier
-  précisément les types à enregistrer plutôt que de désactiver le contrôle.
+- [x] `os.environ["LANGGRAPH_STRICT_MSGPACK"] = "false"`
+  ([agents/graph.py](agents/graph.py)) : remplacé par un enregistrement
+  explicite des types Pydantic sérialisés dans `AgentState` (`ChatFilters`,
+  `AgentStep`, `FilmShort`) via
+  `JsonPlusSerializer(allowed_msgpack_modules=[...])`, injecté dans le
+  `SqliteSaver` synchrone (`agents/graph.py`) et dans l'`AsyncSqliteSaver` de
+  l'API (`api/main.py`). Vérifié par un round-trip de sérialisation
+  (avertissements en erreurs) et en conditions réelles (rebuild Docker,
+  aucun avertissement « Deserializing unregistered type » dans les logs).
 
 ## 🐛 Bugs confirmés — câblage frontend / backend
 
@@ -274,17 +274,17 @@ Mis à jour au fil des sessions.
 
 ## 🟠 Robustesse au démarrage
 
-- [ ] **Pas de reconstruction automatique de l'index FAISS.**
-  [api/main.py](api/main.py:51) appelle uniquement `load_index()` au
-  démarrage et lève `RuntimeError` si les fichiers sont absents.
-  `build_index()` est du code mort, commenté dans
-  [database/faiss_service.py:49](database/faiss_service.py:49). Sur un clone
-  neuf sans `faiss_data/` pré-généré, le conteneur `api` ne démarre pas —
-  contrairement à ce que documente le QUICKSTART ("déclenche la première
-  synchronisation... depuis Supabase").
-  → Soit documenter l'étape manuelle (`uv run database/populate.py` avant le
-  premier `docker compose up`), soit ré-activer `build_index()` au démarrage
-  si l'index est absent.
+- [x] **Pas de reconstruction automatique de l'index FAISS.**
+  `build_index()` et `load_or_build()` implémentés dans
+  [database/faiss_service.py](database/faiss_service.py) (les trois tests
+  déjà écrits pour cette fonctionnalité étaient commentés, réactivés sans
+  changement). [api/main.py](api/main.py) lève désormais un fallback : si
+  `load_index()` échoue au démarrage, l'index est reconstruit depuis Supabase
+  (`db_session()` + `build_index()`) puis persisté sur disque
+  (`save_index()`) avant de démarrer l'API ; une base Supabase vide fait
+  toujours échouer le démarrage, avec un message explicite. Corrige au
+  passage un bug réel dans `agents/chat_terminal.py`, qui appelait déjà
+  `build_index()` alors que la méthode n'existait pas.
 
 ## 🔴 Sécurité (Épilogue MLOps du cahier des charges)
 
@@ -328,15 +328,17 @@ Mis à jour au fil des sessions.
 ## 🟠 Tests — couverture ≥ 80% (API IA, API Database, UI)
 
 - [x] `database` : 100% (htmlcov).
-- [ ] `api` (API IA) : aucun rapport de couverture généré, à vérifier.
-- [ ] `frontend` (UI) : `pytest`/`pytest-cov` **absents** de
-  [frontend/pyproject.toml](frontend/pyproject.toml) malgré l'existence de
-  tests ([frontend/tests/](frontend/tests/), [frontend/test_app.py](frontend/test_app.py))
-  — à déclarer avant de pouvoir mesurer la couverture.
-- [ ] CI ([.github/workflows/docker.yml](.github/workflows/docker.yml)) ne
-  lance les tests que pour `agents` avant le build/push Docker — `api`,
-  `database`, `frontend` ne sont jamais testés en CI.
-- [ ] Aucun seuil de couverture appliqué en CI.
+- [x] `api` (API IA) : entrée périmée — mesuré localement à 79% de couverture
+  (`uv run pytest --cov=. --cov-report=term-missing`), déjà bien au-dessus du
+  seuil CI de 40%.
+- [x] `frontend` (UI) : entrée périmée — `pytest-cov>=7.1.0` est déjà déclaré
+  dans [frontend/pyproject.toml](frontend/pyproject.toml).
+- [x] CI ([.github/workflows/docker.yml](.github/workflows/docker.yml)) :
+  entrée périmée — lance déjà `uv sync` + `uv run pytest --cov=...` pour les
+  **quatre** sous-projets (`agents`, `api`, `database`, `frontend`), chacun
+  avec ses propres artefacts de couverture.
+- [x] Un seuil de couverture est déjà appliqué en CI : entrée périmée —
+  `--cov-fail-under=40` sur les quatre sous-projets.
 
 ## 🟡 Documentation
 
@@ -364,9 +366,12 @@ Mis à jour au fil des sessions.
 
 ## Dette déjà connue (hors scope Partie 3, cf. CLAUDE.md)
 
-- [ ] `SUPABASE_PASSWORD` avec valeur par défaut placeholder dans
-  [database/connection.py](database/connection.py) au lieu d'un refus de
-  démarrage explicite (fail-closed).
+- [x] **Déjà corrigé, entrée obsolète.** `SUPABASE_PASSWORD` dans
+  [database/connection.py](database/connection.py) refuse déjà le démarrage
+  (`if "<MOT_DE_PASSE>" in DATABASE_URL: raise ValueError(...)`) — vérifié via
+  `git log` (correctif déjà en place, commit `4f948ad`). Le `CLAUDE.md` reste à
+  corriger séparément (sa section « Dette existante » décrit encore l'ancien
+  comportement).
 
 ---
 
@@ -566,146 +571,133 @@ qu'une lecture du seul contenu commité ne montre pas.
 
 ## 🟠 Outillage déclaré mais inexistant
 
-- [ ] **`ruff` n'est une dépendance d'aucun des quatre sous-projets.**
-  `CLAUDE.md` documente `uv run ruff check` / `uv run ruff format` comme la
-  commande de lint « dans `api/`, `agents/`, `database/`, `frontend/` », mais
-  ruff n'apparaît dans aucun `pyproject.toml`, aucun `uv.lock`, aucun `.venv`,
-  et il n'existe aucune section `[tool.ruff]`. La commande documentée échoue.
-  → Soit ajouter `ruff` en dépendance de dev des quatre sous-projets (ajout
-  d'outil : à valider avant, socle § priorité 2), soit retirer la commande du
-  `CLAUDE.md`.
+- [x] **`ruff` n'est une dépendance d'aucun des quatre sous-projets.**
+  Ajouté en dépendance de dev (`uv add --dev ruff`) dans les quatre
+  `pyproject.toml`, avec une configuration minimale identique
+  (`[tool.ruff]` : `line-length = 88`, `target-version = "py311"` ;
+  `[tool.ruff.lint]` : `select = ["E", "W", "F", "I"]`). `D` (docstrings)
+  volontairement omis pour l'instant, en commentaire dans chaque fichier :
+  l'activer sur le code existant ferait échouer le hook sur la quasi-totalité
+  des fichiers (mesuré : 118+305+81+387 = 891 violations rien qu'avec
+  `E,W,F,I`) — à revoir après une passe de mise en conformité des docstrings
+  dédiée.
 
-- [ ] **Le hook pre-commit est actif mais sa configuration est le modèle
-  d'exemple, non adaptée au projet.** `core.hooksPath` pointe bien sur
-  `.githooks`, mais [.githooks/standards.conf](.githooks/standards.conf) est
-  livré tel quel :
-  - `INTERDIRE_PRINT=0`, `INTERDIRE_LOGGING=0`, `MODULE_LOGGER=""`, `RUFF=0` —
-    soit les quatre garde-fous désactivés, alors que ce sont précisément les
-    règles que le `CLAUDE.md` de ce dépôt énonce (loguru obligatoire, jamais de
-    `print()` ni de `logging`, configuration centralisée dans `logger.py`).
-  - `CHEMINS_EXCLUS="Reference/* donnees/*"` et
-    `MOTIFS_INTERDITS="sources/* *.xlsx config.json .env"` : chemins d'un autre
-    projet, aucun de ces dossiers n'existe ici.
-  - Le hook ne vérifie donc aujourd'hui **que** l'interdiction de commit direct
-    sur `main`/`master`.
-  - Effet mesurable : **165 `print()`** subsistent hors tests dans le code suivi
-    — `start.py` (39), `test_auth.py` (42), `test_synopsis_enrichment.py` (29),
-    `agents/tools/vector_tools.py` (17), `database/faiss_service.py` (13),
-    `database/queries.py` (13), `frontend/start.py` (13),
-    `agents/chat_terminal.py` (11), `database/populate.py` (10),
-    `frontend/utils/api_client.py` (8), `frontend/utils/auth_client.py` (5),
-    `database/create_auth_tables.py` (5).
-  - Point positif vérifié : aucun `import logging`, et `logger.add/remove`
-    n'apparaît que dans [logger.py](logger.py) — les deux règles tiennent
-    d'elles-mêmes malgré le hook muet.
+- [x] **Le hook pre-commit est actif mais sa configuration est le modèle
+  d'exemple, non adaptée au projet.** [.githooks/standards.conf](.githooks/standards.conf)
+  mis à jour :
+  - `INTERDIRE_LOGGING=1`, `MODULE_LOGGER="logger.py"`, `RUFF=1`.
+  - `INTERDIRE_PRINT` laissé à `0`, avec la raison en commentaire dans le
+    fichier : 165 `print()` préexistants dans une douzaine de fichiers
+    (`start.py`, `test_auth.py`, `database/faiss_service.py`, etc.) —
+    l'activer bloquerait tout commit futur qui les touche ; à revoir après
+    une passe de nettoyage dédiée.
+  - `CHEMINS_EXCLUS=""` et `MOTIFS_INTERDITS="*.env"` : les valeurs d'exemple
+    (`Reference/*`, `donnees/*`, `sources/*`, `.xlsx`...) ne correspondent à
+    rien dans ce dépôt ; `*.env` (avec joker) couvre le `.env` racine et ceux
+    des sous-dossiers, contrairement au motif littéral précédent.
+  - Le dépôt n'ayant pas de `pyproject.toml` à la racine, [.githooks/pre-commit](.githooks/pre-commit)
+    a été adapté pour lancer `uv run --project <sous-projet> ruff check`/
+    `ruff format --check` séparément sur `api/`, `agents/`, `database/`,
+    `frontend/` selon le sous-projet de chaque fichier staged, plutôt qu'un
+    unique appel `uv run ruff` depuis la racine (qui n'aurait trouvé aucune
+    configuration).
+  - Vérifié en conditions réelles : `bash .githooks/pre-commit` sur un commit
+    réel touchant les quatre sous-projets passe (`EXIT=0`) après correction
+    des violations ruff préexistantes dans les fichiers concernés
+    (`agents/graph.py`, `database/faiss_service.py`,
+    `database/tests/test_faiss_service.py`).
 
 ## 🟠 Duplication de code — `api/schemas.py` est un fork périmé de `shared/schemas.py`
 
-- [ ] [api/schemas.py](api/schemas.py) redéfinit **15 classes** déjà présentes
-  dans [shared/schemas.py](shared/schemas.py) (`HealthResponse`,
-  `ErrorResponse`, `DirectorsResponse`, `GenresResponse`, `FilmShort`,
-  `FilmSearchResponse`, `FilmDetail`, `ChatFilters`, `AgentStep`, `AgentState`,
-  `ChatRequest`, `ChatStatusResponse`, `ChatResponse`, `WikipediaResponse`,
-  `WikipediaRequest`) et n'ajoute réellement que les six schémas
+- [x] **Corrigé.** [api/schemas.py](api/schemas.py) réduit aux six schémas
   d'authentification (`UserRegister`, `UserLogin`, `Token`, `TokenRefresh`,
-  `UserResponse`, `AuthResponse`).
-  - **Les deux copies ont déjà divergé** : le `FilmShort` de `api/schemas.py`
-    n'a ni `synopsis` ni `judge_feedback`, et tout le fichier est resté à
-    l'ancien style `Optional[X]` / `List[X]` quand `shared/schemas.py` est passé
-    à `X | None` / `list[X]`.
-  - Seul [api/auth_routes.py:28](api/auth_routes.py:28) importe
-    `api.schemas` — et uniquement pour les schémas d'auth. Tout le reste du
-    dépôt (api, agents, database, tests) importe `shared.schemas`.
-  - → Réduire `api/schemas.py` aux seuls schémas d'authentification (ou les
-    déplacer dans `shared/`), et supprimer les 15 doublons.
-  - Docstring à corriger dans le même lot : [agents/router.py:110](agents/router.py:110)
-    référence encore `api.schemas (AgentState)` alors que le fichier importe
-    `shared.schemas`.
+  `UserResponse`, `AuthResponse`), les 15 doublons supprimés. En-tête réécrit
+  pour expliquer la répartition avec `shared/schemas.py`.
+  [api/auth_routes.py](api/auth_routes.py) importe désormais `ErrorResponse`
+  depuis `shared.schemas`. Docstring corrigée dans le même lot :
+  [agents/router.py:110](agents/router.py:110) référence maintenant
+  `shared.schemas (AgentState)`.
 
 ## 🟠 Code mort et en-têtes périmés (suite de la section « Dette de lisibilité »)
 
-- [ ] [agents/nodes_rag.py:68-69](agents/nodes_rag.py:68) : `BASE_DIR` et
-  `FAISS_INDEX_PATH = str(BASE_DIR / "data" / "faiss_index")` ne sont utilisés
-  nulle part dans le fichier, et le chemin pointé (`data/faiss_index`) n'existe
-  pas dans le dépôt. Pire, la constante porte le nom de la variable
-  d'environnement réellement utilisée ailleurs
-  ([api/main.py:39](api/main.py:39)) avec une valeur différente — piège de
-  lecture.
-- [ ] [agents/nodes_rag.py:2](agents/nodes_rag.py:2) : même en-tête périmé que
-  celui déjà corrigé sur `nodes_wikipedia.py` et `nodes_narrateur.py` — le
-  fichier commence par `"""agents/nodes.py`. La docstring décrit en plus des
-  « nœuds principaux **à implémenter** » sous des noms qui n'existent plus
-  (`node_classifier`, `node_extractor`, `node_sql_query`,
-  `node_wikipedia_enrich`) alors que les nœuds réels s'appellent
-  `intent_classifier_node`, `merge_filters_node`, `search_vector_node`…
-  C'est une spécification abandonnée présentée comme de la documentation.
+- [x] **Corrigé.** [agents/nodes_rag.py](agents/nodes_rag.py) : `BASE_DIR` et
+  `FAISS_INDEX_PATH` supprimés (inutilisés, confirmé par recherche de
+  référence). En-tête réécrit — supprime la description des « nœuds
+  principaux à implémenter » sous des noms abandonnés, décrit les nœuds
+  réellement présents et corrige les dépendances listées.
 - [x] `agents/state.py` : confirmé supprimé du disque et de l'index git — la
   réserve « à faire manuellement » de la section précédente est levée.
-- [ ] [api/README.md](api/README.md) est **vide (0 octet)** alors que
-  [api/pyproject.toml](api/pyproject.toml) le déclare en `readme = "README.md"`.
+- [x] **Corrigé.** [api/README.md](api/README.md) était vide (0 octet) ;
+  rédigé (objet du module, arborescence, renvoi vers `shared/schemas.py`,
+  démarrage, tests), sur le modèle de `database/README.md`.
 
 ## 🟡 Scripts et tests orphelins à la racine
 
-- [ ] Trois scripts à la racine doublonnent le chemin de lancement de
-  `docker-compose.yml` et ne sont couverts par rien :
-  - [start.py](start.py) + [start_with_auth.sh](start_with_auth.sh) +
-    [start_with_auth.bat](start_with_auth.bat) : lanceur alternatif hors Docker
-    (création des tables d'auth, API en arrière-plan, tests, Streamlit), avec
-    39 `print()`. Un quatrième lanceur existe en plus dans
-    [frontend/start.py](frontend/start.py).
-  - [test_auth.py](test_auth.py) et
-    [test_synopsis_enrichment.py](test_synopsis_enrichment.py) : scripts
-    manuels tapant sur une API **déjà lancée** (`http://localhost:8000`), mais
-    nommés `test_*.py` et contenant des fonctions `test_*` au niveau module.
-    Un `pytest` lancé depuis la racine les collecte et échoue faute d'API — et
-    un `.pytest_cache/` traîne justement à la racine, signe que le cas s'est
-    produit. Le `CLAUDE.md` place les tests « par sous-projet, dans son propre
-    dossier `tests/` ».
-  - → Soit les ranger en `scripts/` avec un nom qui n'est pas `test_*`, soit
-    les supprimer si `docker compose` couvre le besoin.
-- [ ] [frontend/test_app.py](frontend/test_app.py) : 11 tests jamais exécutés —
-  [frontend/pytest.ini](frontend/pytest.ini) fixe `testpaths = tests`, et le
-  fichier est à la racine de `frontend/`. Sa docstring documente en plus une
-  installation `pip install pytest pytest-mock` absente du `pyproject.toml`
-  (cf. l'item couverture frontend déjà listé).
-- [ ] Coquille de nom de fichier : `api/tests/test_chat_servise.py`
-  → `test_chat_service.py`.
-- [ ] `api/tests/test_wiki.py` (47 lignes) et `agents/tests/test_wiki.py`
-  (22 lignes) testent le même outil Wikipédia (`agents/tools/wiki_tools.py`)
-  depuis deux sous-projets, avec des contenus différents. À consolider côté
-  `agents/`, propriétaire de l'outil.
-- [ ] `frontend/pytest.ini` cohabite avec `frontend/pyproject.toml` alors que
-  les trois autres sous-projets configurent pytest dans le `pyproject.toml`
-  (`[tool.pytest.ini_options]`). Deux emplacements pour la même configuration.
+- [x] **Rangés dans [scripts/](scripts/)** (choix validé avec l'utilisateur).
+  [start.py](scripts/start.py), [start_with_auth.sh](scripts/start_with_auth.sh),
+  [start_with_auth.bat](scripts/start_with_auth.bat) déplacés par `git mv`,
+  chemins internes corrigés pour le nouvel emplacement (racine du dépôt un
+  cran au-dessus). `test_auth.py` → [scripts/verifier_auth.py](scripts/verifier_auth.py)
+  et `test_synopsis_enrichment.py` →
+  [scripts/verifier_synopsis_enrichment.py](scripts/verifier_synopsis_enrichment.py) :
+  renommés hors du motif `test_*.py` (plus de collecte accidentelle par
+  pytest), lanceurs mis à jour pour référencer le nouveau chemin.
+  `frontend/start.py` non touché : lanceur propre à ce sous-projet, hors
+  scope de ce doublon-là.
+- [x] **Supprimé.** [frontend/test_app.py](frontend/test_app.py) confirmé
+  superflu : ses classes (`TestApiClient`, `TestComponents`, `TestIntegration`)
+  sont une ébauche antérieure, moins complète, de ce qui vit désormais
+  proprement dans `frontend/tests/test_api_client.py`, `test_components.py`,
+  `test_integration.py`.
+- [x] **Corrigé.** `api/tests/test_chat_servise.py` renommé
+  `test_chat_service.py` (`git mv`, pas de changement de contenu).
+- [x] **Renommé, pas fusionné.** Lecture complète des deux fichiers : ce ne
+  sont **pas** de vrais doublons — `api/tests/test_wiki.py` teste la route
+  FastAPI (`TestClient`), `agents/tests/test_wiki.py` teste l'outil brut. Les
+  fusionner aurait perdu une couche de couverture. Renommé en
+  [api/tests/test_wikipedia_route.py](api/tests/test_wikipedia_route.py) pour
+  lever l'ambiguïté du nom.
+- [x] **Corrigé.** `frontend/pytest.ini` supprimé, son contenu fusionné dans
+  `frontend/pyproject.toml` (`[tool.pytest.ini_options]`), aligné sur les
+  trois autres sous-projets. Vérifié : `uv run pytest -q` depuis `frontend/`
+  charge bien `pyproject.toml` (`configfile: pyproject.toml`) et les tests
+  passent.
 
 ## 🟡 Déclarations de dépendances incohérentes entre sous-projets
 
-- [ ] [frontend/requirements.txt](frontend/requirements.txt) duplique les
-  dépendances du `pyproject.toml` en s'annonçant comme « alternative » — et a
-  déjà dérivé (`httpx` manquant). Le `uv.lock` existe : le `requirements.txt`
-  est une troisième source de vérité sans utilisateur.
-- [ ] `pytest-asyncio` est déclaré en dépendance **d'exécution** (pas de dev)
-  dans [api/pyproject.toml:28](api/pyproject.toml:28) et
-  [agents/pyproject.toml:17](agents/pyproject.toml:17) — il part donc en image.
-- [ ] `supabase>=2.30.1` ([api/pyproject.toml:24](api/pyproject.toml:24)) n'est
-  importé nulle part dans le dépôt (`grep -rn "import supabase"` ne remonte
-  rien) : l'accès Supabase passe par SQLAlchemy/psycopg2. Dépendance à retirer.
-- [ ] `psycopg2` (compilation depuis les sources) côté `agents/` et
-  `database/`, `psycopg2-binary` côté `api/` et dans les trois Dockerfiles —
-  même besoin, deux paquets.
-- [ ] `dotenv>=0.9.9` dans `agents/` et `database/` là où `api/` et `frontend/`
-  utilisent `python-dotenv` : `dotenv` est un paquet tiers distinct (simple
-  redirection vers `python-dotenv`), à ne pas laisser dans un lock.
-- [ ] `[tool.setuptools]` déclare des périmètres qui se chevauchent :
-  `agents/pyproject.toml` empaquette `["database", "agents", "api",
-  "frontend"]`, `database/pyproject.toml` empaquette `["database", "agents"]`,
-  `api/pyproject.toml` inclut `api*`, `database*`, `agents*`. Chaque
-  sous-projet prétend empaqueter les autres.
-- [ ] `frontend/` n'a pas de `.python-version` alors que les trois autres
-  épinglent `3.11`.
-- [ ] `api/monitoring/` n'a pas de `__init__.py` (contrairement à
-  `api/modules/`) : l'import ne tient qu'aux packages implicites et
-  `[tool.setuptools.packages.find]` ne le retiendrait pas dans une roue.
+- [x] **Supprimé.** `frontend/requirements.txt` retiré : `uv.lock` est la
+  seule source de vérité, conforme à `.claude/rules/python.md`.
+- [x] **Corrigé.** `pytest-asyncio` déplacé en dépendance de dev
+  (`uv remove pytest-asyncio && uv add --dev pytest-asyncio`) dans
+  `api/pyproject.toml` et `agents/pyproject.toml`.
+- [x] **Corrigé.** `supabase` retiré d'`api/pyproject.toml`
+  (`uv remove supabase`, 24 paquets transitifs en moins) — confirmé inutilisé
+  par recherche de référence dans tout le dépôt.
+- [x] **Unifié sur `psycopg2` (source).** `api/pyproject.toml` déclarait
+  `psycopg2-binary` ; remplacé par `psycopg2` pour s'aligner sur `agents/` et
+  `database/` — c'est le choix recommandé par le projet en production
+  (`psycopg2-binary` n'est officiellement conseillé que pour le
+  développement/test). `Dockerfile.api` installait déjà `build-essential`
+  pour faiss : `libpq-dev` ajouté pour compléter la compilation, sans nouveau
+  besoin de toolchain. `uv sync` et `uv run pytest` vérifiés dans `api/`
+  après le changement.
+- [x] **Corrigé.** `dotenv` remplacé par `python-dotenv` dans `agents/` et
+  `database/` (`uv remove dotenv && uv add python-dotenv`) — les deux
+  exposent la même API (`from dotenv import load_dotenv`), aucun code
+  appelant à modifier.
+- [x] **Corrigé.** Les périmètres `[tool.setuptools]`/`packages.find`
+  réalignés sur les imports réels (vérifiés par recherche de référence) :
+  `agents/pyproject.toml` empaquette désormais `["agents", "database", "api",
+  "shared"]` (retiré `frontend`, jamais importé nulle part ; ajouté `shared`,
+  omis alors qu'`agents` l'importe) ; `database/pyproject.toml` empaquette
+  `["database", "shared"]` (retiré `agents`, que `database` n'importe pas) ;
+  `api/pyproject.toml` inclut désormais aussi `shared*`. `shared/` était
+  omis des trois déclarations bien qu'importé par les trois sous-projets —
+  bug réel au-delà du simple chevauchement signalé initialement.
+- [x] **Corrigé.** `frontend/.python-version` créé (`3.11`), aligné sur les
+  trois autres sous-projets.
+- [x] **Corrigé.** `api/monitoring/__init__.py` créé, sur le modèle de
+  `api/modules/__init__.py`.
 
 ## 🟡 Monitoring — couplages fragiles
 
@@ -736,18 +728,23 @@ qu'une lecture du seul contenu commité ne montre pas.
 
 ## 🟡 `.gitignore` — motifs trop larges
 
-- [ ] `bin/`, `lib/`, `include/`, `env/` ([.gitignore:9-13](.gitignore:9))
-  ignorent ces noms **à n'importe quel niveau** : un futur `frontend/lib/` ou
-  `database/bin/` de code source disparaîtrait de `git status` sans un mot.
-  À restreindre à la racine (`/bin/`, `/lib/`…) comme c'est déjà fait pour
-  `/build/` et `/dist/`.
-- [ ] `*.env` ignore tout fichier finissant par `.env` (`prod.env`,
-  `staging.env`) : voulu ici, mais à ne pas confondre avec `.env*`, qui aurait
-  au contraire masqué `.env.example`. Rien à corriger, à ne pas « simplifier ».
-- [ ] Le cahier des charges lui-même
-  (`HorRAGor BOT Partie 3.pdf`, 1,3 Mo) est **non suivi et non ignoré** : il
-  apparaît en `??` dans chaque `git status`. À ignorer explicitement (il n'a pas
-  à entrer dans le dépôt) ou à ranger hors du répertoire de travail.
+- [x] **Corrigé.** `bin/`, `lib/`, `include/`, `env/` restreints à la racine
+  (`/bin/`, `/lib/`, `/include/`, `/env/`), même convention que `/build/` et
+  `/dist/`. `.pytest_cache/` ajouté au passage (traînait, non ignoré).
+  **Bug supplémentaire trouvé et corrigé, hors périmètre initial de cet
+  item** (socle § priorité 1 : un risque de perte de données/incohérence se
+  corrige même hors scope) : un bloc de marqueurs de conflit Git non résolu
+  (`<<<<<<< HEAD` / `=======` / `>>>>>>> 83ad3f4...`) était committé dans le
+  fichier, neutralisant silencieusement les règles `coverage*.xml`/
+  `htmlcov*/` qu'il encadrait. Marqueurs retirés, les deux jeux de règles
+  conservés (ce n'était pas un vrai conflit de contenu, juste une fusion non
+  terminée).
+- [x] `*.env` : confirmé volontaire, rien à corriger — laissé tel quel comme
+  demandé par l'entrée d'origine.
+- [x] **Entrée obsolète.** `HorRAGor BOT Partie 3.pdf` est en réalité déjà
+  suivi (`git ls-files "*.pdf"` le confirme, commité dans `83ad3f4`) : le
+  `??` décrit dans cet item ne reflète plus l'état du dépôt. Aucune action
+  `.gitignore` nécessaire.
 
 ## 🟡 Artefacts régénérables commités
 

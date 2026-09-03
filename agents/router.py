@@ -107,7 +107,7 @@ Variables d'état clés :
 
 Dépendances principales :
 
-- api.schemas (AgentState)
+- shared.schemas (AgentState)
 - agents.nodes (Cibles de routage pour le constructeur du graphe)
 
 
