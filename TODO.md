@@ -250,6 +250,28 @@ Mis à jour au fil des sessions.
   - `send_chat_query` consomme désormais le flux SSE de
     `POST /chat/response_stream`.
 
+- [x] **Fil de discussion d'un compte visible après connexion sur un autre,
+  dans le même onglet Streamlit.** Signalé en usage réel après le fix de
+  mémoire par utilisateur ci-dessous : la mémoire de l'agent (checkpointer
+  SQLite) était bien isolée par compte, mais l'affichage
+  (`st.session_state.messages` dans
+  [frontend/components/auth_components.py](frontend/components/auth_components.py))
+  n'était jamais réinitialisé au changement d'identité — seuls
+  `access_token`/`refresh_token`/`user` l'étaient à la déconnexion.
+  Corrigé : `messages` et les statistiques affichées sont vidés à chaque
+  connexion, inscription et déconnexion.
+- [x] **Aucune restauration de l'historique affiché à la reconnexion.**
+  Conséquence attendue du point précédent une fois corrigé : l'écran repart
+  vide à chaque connexion, alors que la mémoire de l'agent, elle, est
+  conservée côté serveur. `AgentState` n'accumule pas les tours
+  (`user_query`/`answer` sont écrasés à chaque appel), donc pas d'historique
+  direct à lire. Ajouté : `get_conversation_history()`
+  ([api/modules/chat_service.py](api/modules/chat_service.py)) rejoue
+  l'historique des checkpoints du thread pour reconstruire les paires
+  question/réponse, exposé via `GET /chat/history`
+  ([api/routes.py](api/routes.py)) et consommé par le frontend à la
+  connexion pour repeupler l'affichage.
+
 ## 🟠 Robustesse au démarrage
 
 - [ ] **Pas de reconstruction automatique de l'index FAISS.**
@@ -410,21 +432,24 @@ qu'une lecture du seul contenu commité ne montre pas.
     impose un rebuild de l'image `api`, et chaque image publiée porte les
     ~250 Mo de l'index.
 
-- [ ] **Les `uv.lock` sont copiés dans les images puis jamais utilisés.**
-  Les trois Dockerfiles copient `pyproject.toml` + `uv.lock`
-  ([Dockerfile.api:25-26](Dockerfile.api:25),
-  [Dockerfile.database:22](Dockerfile.database:22),
-  [Dockerfile.frontend:14](Dockerfile.frontend:14)) « pour profiter du cache
-  Docker », puis installent via une liste `uv pip install --system` écrite à la
-  main et **sans aucune version épinglée**. Les images ne tournent donc pas sur
-  les versions verrouillées testées en local et en CI — exactement ce que le
-  socle commun interdit (« une CI qui installe sans verrou ne teste plus la même
-  chose que le poste de développement »).
-  - Conséquence directe : la liste manuelle dérive déjà du `pyproject.toml`.
-    `supabase` (déclaré dans [api/pyproject.toml:24](api/pyproject.toml:24))
-    n'est pas installé dans l'image ; `pillow` (déclaré côté frontend) non plus.
-  - → `uv sync --frozen --no-dev` (ou `uv pip install --system -r`) à partir du
-    lock, et suppression de la liste manuelle.
+- [x] **Les `uv.lock` sont copiés dans les images puis jamais utilisés.**
+  Les trois Dockerfiles installent désormais depuis le lock
+  (`uv sync --frozen --no-dev --no-install-project`,
+  [Dockerfile.api:33](Dockerfile.api:33),
+  [Dockerfile.database:29](Dockerfile.database:29),
+  [Dockerfile.frontend:18](Dockerfile.frontend:18)), la liste manuelle
+  `uv pip install --system` a disparu.
+  - La dérive était réelle : `database/pyproject.toml` ne déclarait ni
+    `fastapi` ni `uvicorn` alors que `database/main.py` les importe — masqué
+    jusqu'ici par la liste manuelle qui les incluait à la main. Corrigé par
+    `uv add "fastapi>=0.136.3" "uvicorn[standard]>=0.49.0"` dans `database/`.
+  - Autre dérive : `database/pyproject.toml` déclare `psycopg2` (compilation
+    depuis les sources) alors que la liste manuelle installait
+    `psycopg2-binary` (précompilé), masquant le besoin de `build-essential` +
+    `libpq-dev`. Ajoutés à [Dockerfile.database](Dockerfile.database).
+  - Vérifié : les trois images buildent et démarrent en `(healthy)`
+    (`docker compose ps`), `/health` et `/db/health` répondent, import direct
+    de `agents.graph`/`api.main` confirmé dans le conteneur `api`.
 
 - [x] **`.dockerignore` quasi vide : ~1 Go envoyé au démon à chaque build.**
   [.dockerignore](.dockerignore) ne contient que `.git`, `.venv`,
@@ -502,14 +527,21 @@ qu'une lecture du seul contenu commité ne montre pas.
     (`load_dotenv()` remonte depuis le fichier appelant) ; il lit désormais
     les mêmes valeurs depuis l'environnement.
 
-- [ ] `sqlalchemy` installé deux fois dans [Dockerfile.database:27](Dockerfile.database:27)
+- [x] `sqlalchemy` installé deux fois dans [Dockerfile.database:27](Dockerfile.database:27)
   et [Dockerfile.database:33](Dockerfile.database:33) (`sqlalchemy` puis
   `SQLAlchemy`) — sans effet mais signe que la liste manuelle n'est pas relue.
+  Résolu de fait avec la liste manuelle disparue : `sqlalchemy` n'apparaît
+  plus qu'une fois, dans [database/pyproject.toml](database/pyproject.toml).
 
-- [ ] Incohérence de lancement entre images : `api` et `database` démarrent via
+- [x] Incohérence de lancement entre images : `api` et `database` démarrent via
   `uv run uvicorn ...` alors que les dépendances ont été installées avec
   `uv pip install --system` (aucun projet uv à `/app`), tandis que `frontend`
   appelle `streamlit` directement. Un seul mécanisme suffirait.
+  Unifié : les trois images installent leurs dépendances via `uv sync` dans un
+  vrai `.venv` d'image, et démarrent via `uv run` — `--project api`/
+  `--project database` pour ces deux-là (le code source vit à `/app`, un cran
+  au-dessus du projet uv), directement pour `frontend` (`pyproject.toml`/
+  `uv.lock` copiés à la racine `/app` du conteneur).
 
 ## 🟠 Trois sources de vérité pour les secrets
 
@@ -694,12 +726,13 @@ qu'une lecture du seul contenu commité ne montre pas.
   seule ligne y sert réellement (`.env*`, qui masque `monitoring/.env`). À
   réduire à ce qui concerne ce projet, ou à supprimer au profit du
   `.gitignore` racine.
-- [ ] `uid: afwve5oglmvwgb` ajouté en dur dans
-  [monitoring/grafana/provisioning/datasources/prometheus.yml](monitoring/grafana/provisioning/datasources/prometheus.yml)
-  (modification non commitée à ce jour) : un UID généré par une instance
-  Grafana locale, figé dans le provisioning. À conserver seulement s'il est
-  référencé par [monitoring/grafana/dashboards/horragor.json](monitoring/grafana/dashboards/horragor.json),
-  et à documenter dans ce cas.
+- [x] `uid: afwve5oglmvwgb` ajouté en dur dans
+  [monitoring/grafana/provisioning/datasources/prometheus.yml](monitoring/grafana/provisioning/datasources/prometheus.yml) :
+  confirmé référencé 6 fois par
+  [monitoring/grafana/dashboards/horragor.json](monitoring/grafana/dashboards/horragor.json) —
+  sans lui, le provisioning en génère un aléatoire à chaque démarrage et
+  casse ces références. Commité (`fix : fixe l'UID du datasource Prometheus
+  dans Grafana`).
 
 ## 🟡 `.gitignore` — motifs trop larges
 
