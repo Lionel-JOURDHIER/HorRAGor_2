@@ -4,6 +4,7 @@ Application Web Front-End Streamlit - Interface Utilisateur de HorRAGor.
 Ce module est le point d'entrée de l'interface graphique conçue par Flavie.
 
 Fonctionnalités principales :
+    - Système d'authentification : Connexion et inscription des utilisateurs (Epic 10 - Flavie)
     - Formulaire de Préférences Globales : Implémente les sélections physiques
       pour enrichir toutes les demandes :
         * Sélecteur du Réalisateur (alimenté par '/list_réal').
@@ -17,7 +18,7 @@ Dépendances principales :
     - streamlit (st.sidebar, st.slider, st.multiselect, st.chat_input)
     - requests
 
-Auteur : Flavie (Epic 7)
+Auteurs : Flavie (Epic 7 & Epic 10)
 """
 
 import streamlit as st
@@ -26,6 +27,11 @@ from components.components import (
     display_agent_status,
     display_chat_message,
     display_movie_list,
+)
+from components.auth_components import (
+    check_authentication,
+    logout_button,
+    render_login_page,
 )
 from utils.api_client import (
     check_health,
@@ -469,6 +475,7 @@ def display_chat_interface(filters: dict):
         all_steps = []
         final_answer = None
         final_recommendations = []
+        final_film = None
         error_occurred = False
 
         # Afficher le message de démarrage
@@ -508,6 +515,7 @@ def display_chat_interface(filters: dict):
                 elif "answer" in event:
                     final_answer = event.get("answer", "Aucune réponse générée")
                     final_recommendations = event.get("recommendations", [])
+                    final_film = event.get("film")
                     # Mettre à jour all_steps avec les étapes complètes si disponibles
                     if "steps" in event:
                         all_steps = event["steps"]
@@ -541,7 +549,7 @@ def display_chat_interface(filters: dict):
 
             # Les recommandations sont déjà au format API correct
             # normalize_movie_data() s'occupera de la conversion dans display_movie_card
-            films = final_recommendations
+            films = final_recommendations or ([final_film] if final_film else [])
 
             # Mettre à jour les statistiques
             st.session_state.total_films_recommended += len(films)
@@ -551,7 +559,7 @@ def display_chat_interface(filters: dict):
                 {
                     "role": "assistant",
                     "content": final_answer,
-                    "films": final_recommendations,
+                    "films": films,
                     "etats_agent": all_steps,
                 }
             )
@@ -593,6 +601,17 @@ def main():
     # Initialisation
     init_session_state()
 
+    # ===== VÉRIFICATION D'AUTHENTIFICATION (EPIC 10) =====
+    if not check_authentication():
+        # Si l'utilisateur n'est pas connecté, afficher la page de login
+        render_login_page()
+        return
+    
+    # Si l'utilisateur est connecté, afficher le bouton de déconnexion
+    logout_button()
+    
+    # ===== APPLICATION PRINCIPALE =====
+    
     # Vérification de l'API (DOIT être appelé AVANT display_header pour mettre à jour api_status)
     check_api_status()
 

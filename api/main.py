@@ -10,6 +10,7 @@ from fastapi import Request
 
 from api.monitoring.langfuse_client import langfuse
 from api.routes_monitoring import router as monitoring_router
+from api.auth_routes import router as auth_router
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from fastapi import FastAPI
@@ -128,3 +129,4 @@ async def langfuse_middleware(request: Request, call_next):
 
 app.include_router(router)
 app.include_router(monitoring_router)
+app.include_router(auth_router)

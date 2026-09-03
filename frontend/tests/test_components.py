@@ -105,6 +105,32 @@ class TestMovieCardDisplay:
         except Exception as e:
             assert False, f"display_movie_card a levé une exception: {e}"
 
+    @patch("components.components.st")
+    def test_display_movie_card_affiche_feedback_du_juge(self, mock_st):
+        """Le feedback du juge est affiché dans la fiche du film."""
+        from components.components import display_movie_card
+
+        mock_st.container.return_value.__enter__.return_value = MagicMock()
+        mock_st.columns.return_value = [MagicMock(), MagicMock()]
+
+        display_movie_card(
+            {
+                "title": "The Shining",
+                "judge_feedback": "Le film correspond aux critères.",
+            }
+        )
+
+        rendered_text = " ".join(
+            str(call.args[0])
+            for call in mock_st.markdown.call_args_list
+            if call.args
+        )
+        expander_titles = [
+            call.args[0] for call in mock_st.expander.call_args_list if call.args
+        ]
+        assert "⚖️ Validation du juge" in expander_titles
+        assert "Le film correspond aux critères." in rendered_text
+
 
 class TestMovieListDisplay:
     """Tests d'affichage de listes de films."""

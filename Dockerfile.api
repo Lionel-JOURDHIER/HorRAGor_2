@@ -43,6 +43,9 @@ RUN uv pip install --system --no-cache \
     requests \
     wikipedia \
     loguru \
+    "bcrypt<4.1" \
+    "passlib[bcrypt]" \
+    "python-jose[cryptography]" \
     SQLAlchemy \
     psycopg2-binary \
     prometheus-fastapi-instrumentator
