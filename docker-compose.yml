@@ -255,6 +255,14 @@ services:
       - FAISS_MAPPING_PATH=faiss_data/horragor_mapping.json
       # Voir la note sur `UVICORN_ROOT_PATH` du service database_api.
       - UVICORN_ROOT_PATH=/api
+      # Mémoire de conversation LangGraph (checkpointer SQLite), un thread
+      # par utilisateur. Monté en volume nommé pour survivre aux redémarrages
+      # du conteneur — contrairement à l'index FAISS, ce fichier grossit avec
+      # l'usage et n'a pas sa place dans l'image.
+      - CHECKPOINT_DB_PATH=/app/data/checkpoints.sqlite
+
+    volumes:
+      - horragor_checkpoints:/app/data
 
     # Plus de `ports:`. Attention : `/metrics` n'est donc plus joignable depuis
     # l'hôte sur localhost:8000 — c'est désormais http://localhost/api/metrics.
@@ -320,3 +328,10 @@ services:
 networks:
   horragor_net:
     driver: bridge
+
+# ─── VOLUMES ──────────────────────────────────────────────────────────────────
+volumes:
+  # Mémoire de conversation LangGraph (checkpointer SQLite), un thread par
+  # utilisateur. Survit à `docker compose down` — contrairement à l'index
+  # FAISS, ce fichier n'est pas régénérable depuis Supabase.
+  horragor_checkpoints:

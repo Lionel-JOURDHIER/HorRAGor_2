@@ -1,8 +1,24 @@
 # api/tests/test_routeschat.py
 import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
+from api.auth_utils import get_current_user
+from api.main import app
 from api.modules.chat_service import run_agent_stream_final
+
+FAKE_USER = SimpleNamespace(id=1, email="test@example.com", is_active=True)
+
+
+@pytest.fixture(autouse=True)
+def override_current_user():
+    """/chat/response_stream exige un utilisateur authentifié (thread_id
+    dérivé de son id) — on court-circuite la dépendance pour ces tests."""
+    app.dependency_overrides[get_current_user] = lambda: FAKE_USER
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 # ---------------------------------------------------------
@@ -12,7 +28,7 @@ from api.modules.chat_service import run_agent_stream_final
 @patch("api.routes.run_agent_stream_final")
 def test_chat_response_stream_single_film(mock_stream, client):
 
-    async def fake_stream(request):
+    async def fake_stream(request, user):
         yield {
             "type": "step",
             "node": "search_vector_node",
@@ -103,7 +119,7 @@ def test_chat_response_stream_single_film(mock_stream, client):
 @patch("api.routes.run_agent_stream_final")
 def test_chat_response_stream_recommendations(mock_stream, client):
 
-    async def fake_stream(request):
+    async def fake_stream(request, user):
         yield {
             "type": "final",
             "result": {

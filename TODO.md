@@ -180,14 +180,19 @@ Mis à jour au fil des sessions.
   `.func(...)` sans `await` — plante s'il est exécuté directement. Logique
   déplacée dans `async def _run_manual_tests()`, appels convertis en
   `.ainvoke(...)`, exécutée via `asyncio.run()`.
-- [ ] `_checkpointer = InMemorySaver()`
+- [x] `_checkpointer = InMemorySaver()`
   ([agents/graph.py:63](agents/graph.py:63)) : toute la mémoire de
   conversation (dont `last_displayed_movies_id`, nécessaire pour discuter
-  d'un film déjà affiché) est perdue à chaque redémarrage du conteneur — pas
-  de backend de persistance configuré. Non traité : nécessite de choisir et
-  d'ajouter un backend de checkpoint persistant (SQLite/Postgres via
-  `langgraph-checkpoint-*`), une dépendance nouvelle à valider avant tout
-  ajout (socle commun § priorité 2).
+  d'un film déjà affiché) était perdue à chaque redémarrage du conteneur.
+  Corrigé : `SqliteSaver` (`langgraph-checkpoint-sqlite`, ajouté en
+  dépendance de `agents/` et `api/` après validation), fichier persisté via
+  `CHECKPOINT_DB_PATH` (défaut `data/checkpoints.sqlite`), monté en volume
+  nommé `horragor_checkpoints` sur `/app/data` dans
+  [docker-compose.yml](docker-compose.yml) — survit à `docker compose down`,
+  contrairement à l'index FAISS qui reste volontairement embarqué dans
+  l'image. Traité en même temps que le bug de mémoire partagée entre
+  utilisateurs (section Sécurité ci-dessus), puisque les deux se recoupaient
+  sur le même mécanisme de `thread_id`.
 - [x] Contexte potentiellement surdimensionné envoyé à `llm_synthesis`
   ([agents/nodes_wikipedia.py:184](agents/nodes_wikipedia.py:184)) : jusqu'à
   10 000 caractères de synopsis Wikipédia par film, sans troncature globale
@@ -268,12 +273,35 @@ Mis à jour au fil des sessions.
   validation et révocation des refresh tokens, stockés en base
   (`database/tables/refresh_tokens.py`) ; `python-jose` est une dépendance
   directe (pas seulement transitive).
-- [ ] Communication **chiffrée** frontend → API — HTTP simple actuellement.
-- [ ] **Réseau privé étanche pour `database_api`** — le port est publié
-  directement sur l'hôte (`8001:8000` dans
-  [docker-compose.yml:65](docker-compose.yml:65)) alors que le cahier des
-  charges exige qu'il soit strictement inaccessible depuis l'extérieur du
-  cluster.
+- [x] Communication **chiffrée** frontend → API — résolu par la mise en place
+  de Traefik (`chore : place la stack derrière un reverse proxy Traefik`) :
+  plus aucun service applicatif n'expose de port, seul `127.0.0.1:80` l'est,
+  ce qui remplace le TLS tant que le trafic ne quitte pas la machine (cf.
+  [CLAUDE.md](CLAUDE.md) § Pièges déjà payés). Un vrai TLS reste à poser le
+  jour d'un déploiement multi-machines.
+- [x] **Réseau privé étanche pour `database_api`** — résolu par le même
+  changement Traefik : `database_api` n'a plus de section `ports:`, il n'est
+  joignable qu'en interne (`http://database_api:8000`) et via
+  `http://localhost/dbapi`.
+- [x] **Clé de signature JWT en dur et divulguée** (voir section « Relecture
+  du dossier complet » ci-dessous) — corrigé : fail-closed sur
+  `JWT_SECRET_KEY` dans [api/auth_config.py](api/auth_config.py), nouvelle
+  clé générée et posée dans le `.env` local, les 10 refresh tokens actifs
+  émis sous l'ancienne clé ont été révoqués.
+- [x] **Mémoire de conversation partagée entre tous les utilisateurs.** Bug
+  trouvé en creusant l'item `InMemorySaver()` ci-dessous, plus grave que
+  prévu : [api/modules/chat_service.py:86-96](api/modules/chat_service.py:86)
+  calculait le `thread_id` depuis `chat_request.session_id`, un champ que
+  `ChatRequest` ne définit pas — `getattr` échouait donc toujours et
+  retombait sur une constante fixe `"thread_de_test_fixe_12345"` : tous les
+  utilisateurs partageaient la même mémoire de conversation, et
+  `/chat/response_stream` n'était protégé par aucune authentification.
+  Corrigé : `/chat/response_stream` exige désormais un utilisateur
+  authentifié (`Depends(get_current_user)`), et le `thread_id` est dérivé de
+  son id (`f"user_{user.id}"`) — un thread par utilisateur. Frontend mis à
+  jour pour transmettre l'access token (`Authorization: Bearer`) sur cet
+  appel, déjà disponible en session puisque le login est obligatoire pour
+  accéder au chat.
 
 ## 🟠 Tests — couverture ≥ 80% (API IA, API Database, UI)
 
@@ -329,7 +357,9 @@ qu'une lecture du seul contenu commité ne montre pas.
 
 ## 🔴 Sécurité — critique, non listé jusqu'ici
 
-- [ ] **Clé de signature JWT en dur dans le dépôt, et effectivement utilisée.**
+- [x] **Clé de signature JWT en dur dans le dépôt, et effectivement utilisée.**
+  Corrigé le 3 septembre 2026 — voir l'entrée en tête de la section
+  « 🔴 Sécurité (Épilogue MLOps) » plus haut pour le détail du correctif.
   [api/auth_config.py:19](api/auth_config.py:19) :
   `os.getenv("JWT_SECRET_KEY", "votre_cle_secrete_tres_longue_et_complexe_changez_moi_en_production")`.
   Or `JWT_SECRET_KEY` est **absent du `.env` de ce poste** (il n'existe que dans
