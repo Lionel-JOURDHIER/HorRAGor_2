@@ -9,6 +9,41 @@ Fonctions :
 
 import streamlit as st
 from utils.auth_client import login_user, register_user, get_current_user, logout_user as api_logout
+from utils.api_client import get_chat_history
+
+# Historique et statistiques affichés à l'écran, propres à l'utilisateur
+# connecté : à réinitialiser à chaque changement d'identité (connexion,
+# inscription, déconnexion), sinon le fil de discussion d'un compte reste
+# visible après bascule vers un autre compte dans le même onglet Streamlit.
+_CHAT_SESSION_KEYS = [
+    "messages",
+    "chat_history",
+    "total_queries",
+    "total_films_recommended",
+    "last_query_time",
+    "favorite_genre",
+    "preset_question",
+]
+
+
+def _reset_chat_session() -> None:
+    """Vide l'historique de discussion et les statistiques de la session."""
+    for key in _CHAT_SESSION_KEYS:
+        if key in st.session_state:
+            del st.session_state[key]
+
+
+def _restore_chat_history(access_token: str) -> None:
+    """Repeuple l'affichage avec la conversation persistée de l'utilisateur.
+
+    Appelée juste après une connexion ou une inscription réussie, une fois
+    la session vidée par `_reset_chat_session`.
+    """
+    history = get_chat_history(access_token)
+    st.session_state.messages = history
+    st.session_state.total_films_recommended = sum(
+        len(message.get("films") or []) for message in history
+    )
 
 
 def check_authentication() -> bool:
@@ -51,7 +86,9 @@ def logout_button():
                     for key in ["access_token", "refresh_token", "user"]:
                         if key in st.session_state:
                             del st.session_state[key]
-                    
+
+                    _reset_chat_session()
+
                     st.rerun()
 
 
@@ -139,10 +176,12 @@ def render_login_form():
                 result = login_user(email, password)
             
             if result:
+                _reset_chat_session()
                 st.session_state["access_token"] = result["access_token"]
                 st.session_state["refresh_token"] = result["refresh_token"]
                 st.session_state["user"] = result["user"]
-                
+                _restore_chat_history(result["access_token"])
+
                 st.success(f"✅ Bienvenue {result['user']['username']} !")
                 st.balloons()
                 st.rerun()
@@ -186,10 +225,12 @@ def render_register_form():
                 result = register_user(email, username, password)
             
             if result:
+                _reset_chat_session()
                 st.session_state["access_token"] = result["access_token"]
                 st.session_state["refresh_token"] = result["refresh_token"]
                 st.session_state["user"] = result["user"]
-                
+
+                # Aucun historique à restaurer : le compte vient d'être créé.
                 st.success(f"✅ Compte créé ! Bienvenue {result['user']['username']} !")
                 st.balloons()
                 st.rerun()

@@ -193,6 +193,65 @@ def get_graph_config(chat_request: ChatRequest, user: Any) -> dict[str, Any]:
 #     return graph.astream(initial_state, config=config, stream_mode="updates")
 
 
+async def get_conversation_history(user: Any) -> list[dict[str, Any]]:
+    """Reconstruit l'historique affichable de la conversation d'un utilisateur.
+
+    L'état LangGraph n'accumule pas les tours : `user_query`/`answer` sont
+    écrasés à chaque nouvel appel de `graph.astream`. On rejoue donc
+    l'historique des checkpoints du thread (`aget_state_history`, du plus
+    récent au plus ancien) pour retrouver, dans l'ordre chronologique,
+    chaque paire question/réponse effectivement affichée à l'utilisateur.
+
+    Args:
+        user: Utilisateur authentifié courant (database.tables.users.User).
+
+    Returns:
+        Messages {"role", "content", "films"?} dans l'ordre chronologique,
+        au format attendu par `st.session_state.messages` côté frontend.
+    """
+    config = {"configurable": {"thread_id": f"user_{user.id}"}}
+    checkpoints = [snap async for snap in graph.aget_state_history(config)]
+    checkpoints.reverse()  # ordre chronologique (le plus ancien d'abord)
+
+    history: list[dict[str, Any]] = []
+    pending_query: str | None = None
+    pending_answer: str | None = None
+    pending_films: list[Any] = []
+
+    def flush_pending() -> None:
+        if pending_query is None:
+            return
+        history.append({"role": "user", "content": pending_query})
+        history.append(
+            {
+                "role": "assistant",
+                "content": pending_answer or "",
+                "films": [
+                    (f.model_dump() if hasattr(f, "model_dump") else f)
+                    for f in pending_films
+                ],
+            }
+        )
+
+    for snapshot in checkpoints:
+        values = snapshot.values
+        query = values.get("user_query")
+
+        if query and query != pending_query:
+            flush_pending()
+            pending_query = query
+            pending_answer = None
+            pending_films = []
+
+        if values.get("answer"):
+            pending_answer = values["answer"]
+        if values.get("retrieved_movies"):
+            pending_films = values["retrieved_movies"]
+
+    flush_pending()
+    return history
+
+
 async def run_agent_stream_final(chat_request, user):
     """
     Stream workflow execution and aggregate the final state.
