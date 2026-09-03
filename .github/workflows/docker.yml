@@ -253,7 +253,8 @@ jobs:
           """
 
           for name, coverage in rows:
-            content += f"   * - {name}\n     - {coverage:.0f} %\n"
+            content += f"| {name:<14} | {coverage:>8.0f} % |\n"
+            content += "+----------------+------------+\n"
 
           content += """
           L'objectif du projet est d'atteindre une couverture d'au moins **80 %**

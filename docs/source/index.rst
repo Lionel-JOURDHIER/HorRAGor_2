@@ -6,7 +6,6 @@
 HorRAGor
 ========
 
-Documentation technique du projet HorRAGor.
 
 
 .. toctree::
