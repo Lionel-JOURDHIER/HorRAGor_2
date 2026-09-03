@@ -56,3 +56,5 @@ data_backup/
 *mapping.json
 
 monitoring/langfuse/
+
+docs/build/
