@@ -1,4 +1,6 @@
+
 """agents/nodes.py
+
 Module de définition des nœuds (Nodes) du graphe de l'agent LangGraph HorRAGor v3.
 
 Ce fichier contient exclusivement les boîtes blanches applicatives. Chaque nœud reçoit
@@ -6,23 +8,34 @@ l'état actuel ('AgentState'), exécute son traitement isolé et retourne les mo
 à fusionner dans l'état global, en respectant scrupuleusement les cibles du router.py.
 
 Nœuds principaux à implémenter :
-    - node_classifier : Interroge le LLM avec le prompt de classification pour
-      déterminer l'intention de l'utilisateur.
-    - node_extractor : Extrait les entités et critères de filtrage (réalisateur, genre).
-    - node_sql_query / node_vector_search : Appellent respectivement les outils SQL
-      ou FAISS pour récupérer les données de films pertinents.
-    - node_wikipedia_enrich : Complète les synopsis manquants si nécessaire.
-    - node_rag_synthesizer : Fusionne le contexte, génère la réponse textuelle finale
-      et structure le top 5 des films pour le front-end.
+
+- node_classifier : Interroge le LLM avec le prompt de classification pour
+  déterminer l'intention de l'utilisateur.
+
+- node_extractor : Extrait les entités et critères de filtrage (réalisateur, genre).
+
+- node_sql_query / node_vector_search : Appellent respectivement les outils SQL
+  ou FAISS pour récupérer les données de films pertinents.
+
+- node_wikipedia_enrich : Complète les synopsis manquants si nécessaire.
+
+- node_rag_synthesizer : Fusionne le contexte, génère la réponse textuelle finale
+  et structure le top 5 des films pour le front-end.
 
 Dépendances principales :
-    - .state (AgentState)
-    - .prompts (Gabarits d'instructions)
-    - .tools (sql_tools, vector_tools, wiki_tools)
-    - langchain_ollama (Instance locale du LLM)
+
+- .state (AgentState)
+
+- .prompts (Gabarits d'instructions)
+
+- .tools (sql_tools, vector_tools, wiki_tools)
+
+- langchain_ollama (Instance locale du LLM)
 
 Auteur/Responsable : Équipe Agents
+
 """
+
 
 import sys
 from pathlib import Path
@@ -235,13 +248,15 @@ def intent_classifier_node(state: AgentState) -> dict[str, Any]:
 
 
 def title_router_node(state: AgentState) -> dict[str, Any]:
+
     """
     Détecte la présence d'un titre de film dans la requête.
 
     Ce nœud utilise un LLM spécialisé pour analyser l'entrée textuelle de l'utilisateur.
     Selon le résultat, il aiguille le graphe vers deux stratégies distinctes :
-      - Processus A (Direct) : Recherche focalisée sur un titre exact.
-      - Processus B (Hybride) : Recherche multicritères via filtres relationnels.
+
+    - Processus A (Direct) : Recherche focalisée sur un titre exact.
+    - Processus B (Hybride) : Recherche multicritères via filtres relationnels.
 
     Args:
         state (AgentState): L'état courant du graphe LangGraph.
@@ -249,6 +264,7 @@ def title_router_node(state: AgentState) -> dict[str, Any]:
     Returns:
         Dict[str, Any]: Les clés d'état à mettre à jour pour l'arête conditionnelle.
     """
+
     logger.info(
         f"[title_router_node] Début de title_router_node. Analyse de la requête utilisateur : '{state.user_query}'"
     )
