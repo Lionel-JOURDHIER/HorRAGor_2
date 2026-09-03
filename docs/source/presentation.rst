@@ -36,48 +36,57 @@ Architecture générale
 
 Le fonctionnement global de l'application peut être résumé ainsi :
 
-.. code-block:: text
+.. graphviz::
 
-   Utilisateur
-        |
-        v
-   Streamlit
-        |
-        v
-   API FastAPI
-        |
-        v
-   Graphe LangGraph
-        |
-        +-------------------+
-        |                   |
-        v                   v
-   API Database       Recherche Wikipedia
-        |
-        +-----------+
-        |           |
-        v           v
-   PostgreSQL      FAISS
+   digraph architecture {
+       rankdir=TB;
+
+       utilisateur [label="Utilisateur"];
+       frontend [label="Streamlit"];
+       api [label="API FastAPI"];
+       langgraph [label="Graphe LangGraph"];
+       database [label="API Database"];
+       postgres [label="PostgreSQL"];
+       faiss [label="FAISS"];
+       wikipedia [label="Wikipedia"];
+
+       utilisateur -> frontend;
+       frontend -> api;
+       api -> langgraph;
+       langgraph -> database;
+       langgraph -> wikipedia;
+       database -> postgres;
+       database -> faiss;
+   }
 
 Technologies
 ------------
 
 Le projet utilise principalement les technologies suivantes :
 
-* **Python**
-* **FastAPI**
-* **Streamlit**
-* **LangGraph**
-* **LangChain**
-* **Ollama**
-* **FAISS**
-* **PostgreSQL**
-* **SQLAlchemy**
-* **Docker**
-* **Prometheus**
-* **Grafana**
-* **Uptime Kuma**
-* **Langfuse**
++----------------+----------------------------+
+| Technologie    | Utilisation                |
++================+============================+
+| Python         | Langage principal           |
++----------------+----------------------------+
+| FastAPI        | API d'intelligence          |
++----------------+----------------------------+
+| Streamlit      | Interface utilisateur       |
++----------------+----------------------------+
+| LangGraph      | Orchestration multi-agent   |
++----------------+----------------------------+
+| LangChain      | Framework LLM/RAG            |
++----------------+----------------------------+
+| Ollama         | Modèle de langage local     |
++----------------+----------------------------+
+| FAISS          | Recherche vectorielle       |
++----------------+----------------------------+
+| PostgreSQL     | Base de données              |
++----------------+----------------------------+
+| Docker         | Conteneurisation             |
++----------------+----------------------------+
+| Langfuse       | Monitoring IA                |
++----------------+----------------------------+
 
 Fonctionnement
 --------------

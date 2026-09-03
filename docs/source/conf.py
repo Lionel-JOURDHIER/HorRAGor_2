@@ -22,6 +22,8 @@ release = '1.0'
 extensions = [
     "sphinx.ext.autodoc",
     "myst_parser",
+    "furo",
+    "sphinx.ext.graphviz",
     ]
 
 templates_path = ['_templates']
@@ -32,5 +34,19 @@ language = 'fr'
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
+html_theme = "furo"
+
+html_title = "HorRAGor — Documentation technique"
+
+html_theme_options = {
+    "light_css_variables": {
+        "color-brand-primary": "#7c3aed",
+        "color-brand-content": "#6d28d9",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#a78bfa",
+        "color-brand-content": "#c4b5fd",
+    },
+}
+
 html_static_path = ['_static']

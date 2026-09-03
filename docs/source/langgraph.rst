@@ -6,6 +6,6 @@ Graphe HorRAGor
 
 Le graphe multi-agent de HorRAGor est basé sur LangGraph.
 
-.. image:: ../../agents/HorRAGor_graph.png
+.. image:: ../../HorRAGor_graph.png
    :alt: Cartographie du graphe multi-agent HorRAGor
    :align: center
