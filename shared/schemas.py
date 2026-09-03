@@ -75,6 +75,7 @@ class FilmShort(BaseModel):
     similarity_score: float | None = None
     poster_url: str | None = None
     synopsis: str | None = None
+    judge_feedback: str | None = None
 
 
 class FilmSearchResponse(BaseModel):
@@ -115,6 +116,7 @@ class FilmDetail(BaseModel):
     aggregated_score: float | None = None
 
     collection: str | None = None
+    judge_feedback: str | None = None
 
 
 class FilmFilterRequest(BaseModel):
@@ -225,6 +227,7 @@ class AgentState(BaseModel):
         default_factory=dict
     )  # posé par wikipedia_search_node
     data_enriched: str | None = None
+    judge_feedback: str | None = None
 
 
 # CHAT REQUESTS RESPONSE --------------------------------------------------

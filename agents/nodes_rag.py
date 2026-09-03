@@ -620,6 +620,8 @@ def validation_node(state: AgentState) -> dict[str, Any]:
             is_relevant=True, has_missing_info=False, feedback="Fallback"
         )
 
+    film.judge_feedback = result.feedback
+
     # Cas 2 : Le résultat est validé et il ne manque pas d'informations
     if result.is_relevant and not result.has_missing_info:
         status = "valid"
@@ -627,7 +629,11 @@ def validation_node(state: AgentState) -> dict[str, Any]:
             "[validation_node] Validation Réussie : La réponse est pertinente et complète."
         )
         steps.append(AgentStep(step="validation_direct", status=status))
-        return {"current_step": status, "steps": steps}
+        return {
+            "current_step": status,
+            "steps": steps,
+            "judge_feedback": result.feedback,
+        }
 
     # Cas 3 : Le résultat est validé et il manque des informations
     elif result.is_relevant and result.has_missing_info:
@@ -636,7 +642,11 @@ def validation_node(state: AgentState) -> dict[str, Any]:
             "[validation_node] Validation Réussie : La réponse est pertinente mais incomplète."
         )
         steps.append(AgentStep(step="validation_direct", status=status))
-        return {"current_step": status, "steps": steps}
+        return {
+            "current_step": status,
+            "steps": steps,
+            "judge_feedback": result.feedback,
+        }
 
     # Le résultat est invalide.
     else:
@@ -653,6 +663,7 @@ def validation_node(state: AgentState) -> dict[str, Any]:
             "steps": steps,
             "retry_count": state.retry_count + 1,
             "answer": result.corrected_title,
+            "judge_feedback": result.feedback,
         }
 
         # Extraction générique depuis les guillemets simples du feedback
@@ -722,6 +733,9 @@ async def format_cards_node(state: AgentState) -> dict[str, Any]:
         return {"retrieved_movies": [], "current_step": "no_results", "steps": steps}
 
     last_displayed_movies_id = [f.tmdb_id for f in films]
+    if state.judge_feedback:
+        for film in films:
+            film.judge_feedback = state.judge_feedback
     logger.info(
         f"[format_cards_node] Sauvegarde de la liste des films affichés : {last_displayed_movies_id}"
     )
@@ -796,6 +810,9 @@ def validation_film_node(state: AgentState) -> dict[str, Any]:
             feedback="Fallback",
         )
 
+    for film in state.retrieved_movies:
+        film.judge_feedback = result.feedback
+
     # Verification qu'il n'y a pas de doublons dans la liste envoyée par le LLM.
     valid_titles_set = {t.split(" (")[0].strip() for t in result.valid_titles}
 
@@ -809,6 +826,7 @@ def validation_film_node(state: AgentState) -> dict[str, Any]:
             "current_step": "valid",
             "retrieved_movies": state.retrieved_movies,
             "steps": steps,
+            "judge_feedback": result.feedback,
         }
 
     # Cas 3 : PASS partiel : il y a des films validés mais pas tous,
@@ -826,6 +844,7 @@ def validation_film_node(state: AgentState) -> dict[str, Any]:
             "current_step": "valid_partial",
             "retrieved_movies": filtered_movies,
             "steps": steps,
+            "judge_feedback": result.feedback,
         }
 
     # Cas 4 : FAIL Aucun films cohérents détecté par le LLM
@@ -843,6 +862,7 @@ def validation_film_node(state: AgentState) -> dict[str, Any]:
             "current_step": "invalid_coherence",
             "steps": steps,
             "retry_count": state.retry_count + 1,
+            "judge_feedback": result.feedback,
         }
 
 

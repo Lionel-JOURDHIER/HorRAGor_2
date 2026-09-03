@@ -246,6 +246,10 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
                         unsafe_allow_html=True,
                     )
 
+            if show_details and movie.get("judge_feedback"):
+                with st.expander("⚖️ Validation du juge", expanded=False):
+                    st.markdown(movie["judge_feedback"])
+
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
 
