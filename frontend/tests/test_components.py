@@ -131,6 +131,33 @@ class TestMovieCardDisplay:
         assert "⚖️ Validation du juge" in expander_titles
         assert "Le film correspond aux critères." in rendered_text
 
+    @patch("components.components.st")
+    def test_display_movie_card_aligne_les_genres_en_une_ligne(self, mock_st):
+        """Les genres reçus avec des retours à la ligne sont aplatis."""
+        from components.components import display_movie_card
+
+        mock_st.container.return_value.__enter__.return_value = MagicMock()
+        mock_st.columns.return_value = [MagicMock(), MagicMock()]
+
+        display_movie_card(
+            {
+                "title": "The Shining",
+                "genres": "Horror\nMystery\nScience Fiction",
+            },
+            show_details=False,
+        )
+
+        rendered_text = " ".join(
+            str(call.args[0])
+            for call in mock_st.markdown.call_args_list
+            if call.args
+        )
+        assert all(
+            genre in rendered_text
+            for genre in ("Horror", "Mystery", "Science Fiction")
+        )
+        assert "Horror\nMystery\nScience Fiction" not in rendered_text
+
 
 class TestMovieListDisplay:
     """Tests d'affichage de listes de films."""
