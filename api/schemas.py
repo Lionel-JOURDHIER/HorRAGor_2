@@ -23,14 +23,20 @@ class UserRegister(BaseModel):
         pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
     )
     username: str = Field(min_length=3, max_length=100)
-    password: str = Field(min_length=8, max_length=100)
+    # Mot de passe chiffré côté client (RSA-OAEP/SHA-256, base64) avec la clé
+    # publique de GET /auth/public-key — voir api/auth_crypto.py. La longueur
+    # réelle du mot de passe en clair est vérifiée après déchiffrement dans
+    # api/auth_routes.py, pas ici : ces bornes ne portent que sur le
+    # chiffré (256 octets pour une clé RSA-2048, ~344 caractères en base64).
+    password: str = Field(min_length=1, max_length=512)
 
 
 class UserLogin(BaseModel):
     """User login request."""
 
     email: str = Field(min_length=3, max_length=255)
-    password: str = Field(min_length=1, max_length=100)
+    # Mot de passe chiffré côté client, voir UserRegister.password.
+    password: str = Field(min_length=1, max_length=512)
 
 
 class Token(BaseModel):
