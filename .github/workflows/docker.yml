@@ -32,6 +32,21 @@ jobs:
         SUPABASE_PORT: "5432"
         SUPABASE_DB: test
 
+    services:
+        postgres:
+            image: postgres:16
+            env:
+                POSTGRES_USER: test
+                POSTGRES_PASSWORD: test-password-for-ci
+                POSTGRES_DB: test
+            ports:
+            - 5432:5432
+            options: >-
+                --health-cmd pg_isready
+                --health-interval 10s
+                --health-timeout 5s
+                --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,6 +112,7 @@ jobs:
       - name: Install Database dependencies
         working-directory: database
         run: uv sync
+
 
       - name: Run Database tests
         working-directory: database
@@ -228,23 +244,23 @@ jobs:
               rows.append((name, coverage))
 
           content = """Couverture des tests
-            ====================
+          ====================
 
-            La couverture des tests des différents composants du projet est présentée
-            ci-dessous.
+          La couverture des tests des différents composants du projet est présentée
+          ci-dessous.
 
-            .. list-table::
+          .. list-table::
             :header-rows: 1
             :widths: 30 20
 
             * - Composant
-                - Couverture
+              - Couverture
             """
 
-                    for name, coverage in rows:
-                        content += f"   * - {name}\n     - {coverage:.0f} %\n"
+            for name, coverage in rows:
+                content += f"   * - {name}\n     - {coverage:.0f} %\n"
 
-                    content += """
+            content += """
             L'objectif du projet est d'atteindre une couverture d'au moins **80 %**
             pour les API et l'interface utilisateur.
 
@@ -252,11 +268,11 @@ jobs:
             CI/CD GitHub Actions.
             """
 
-                    Path("docs/source/coverage.rst").write_text(
-                        content,
-                        encoding="utf-8"
-                    )
-                    PY
+            Path("docs/source/coverage.rst").write_text(
+                content,
+                encoding="utf-8"
+            )
+            PY
 
       - name: Build Sphinx documentation
         working-directory: docs
