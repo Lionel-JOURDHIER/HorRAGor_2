@@ -51,31 +51,27 @@ def test_normalize_steps_none():
 # get_graph_config
 # ----------------------------
 
-def test_get_graph_config_with_session_id():
-    request = SimpleNamespace(
-        message="hello",
-        session_id="session-123"
-    )
+def test_get_graph_config_thread_id_from_user():
+    request = SimpleNamespace(message="hello")
+    user = SimpleNamespace(id=42)
 
-    config = chat_service.get_graph_config(request)
+    config = chat_service.get_graph_config(request, user)
 
-    assert config["configurable"]["thread_id"] == "session-123"
+    assert config["configurable"]["thread_id"] == "user_42"
     assert config["recursion_limit"] == 15
     assert "callbacks" in config
     assert "metadata" in config
 
 
-def test_get_graph_config_without_session_id():
-    request = SimpleNamespace(
-        message="hello",
-        session_id=None
-    )
+def test_get_graph_config_different_users_get_different_threads():
+    request = SimpleNamespace(message="hello")
 
-    config = chat_service.get_graph_config(request)
+    config_a = chat_service.get_graph_config(request, SimpleNamespace(id=1))
+    config_b = chat_service.get_graph_config(request, SimpleNamespace(id=2))
 
     assert (
-        config["configurable"]["thread_id"]
-        == "thread_de_test_fixe_12345"
+        config_a["configurable"]["thread_id"]
+        != config_b["configurable"]["thread_id"]
     )
 
 

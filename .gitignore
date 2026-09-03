@@ -55,6 +55,13 @@ data_backup/
 *.index
 *mapping.json
 
+# --- Mémoire de conversation LangGraph (checkpointer SQLite, données utilisateur) ---
+/data/
+*.sqlite
+
 monitoring/langfuse/
 
 docs/build/
+
+# --- Images de travail (overlays de correction de diagrammes, non destinées au dépôt) ---
+slide*_corrections.png

@@ -16,7 +16,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration JWT
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "votre_cle_secrete_tres_longue_et_complexe_changez_moi_en_production")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not JWT_SECRET_KEY:
+    raise RuntimeError(
+        "JWT_SECRET_KEY absente de l'environnement : aucune valeur par défaut "
+        "n'est utilisée, une clé de signature devinable rendrait tous les "
+        "tokens forgeables. Définir JWT_SECRET_KEY dans le .env avant de "
+        "démarrer l'API."
+    )
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 # Durées de vie des tokens

@@ -41,6 +41,8 @@ SUPABASE_HOST=aws-1-eu-west-3.pooler.supabase.com
 OLLAMA_BASE_URL=http://localhost:11434
 
 # ─── FAISS (chemins internes au conteneur) ────────────────────────────────────
+# Rappel : docker-compose.yml écrase ces deux valeurs pour le conteneur `api`
+# (chemins relatifs à /app). Elles ne servent qu'à un lancement hors Docker.
 FAISS_INDEX_PATH=/app/faiss_data/horragor.index
 FAISS_MAPPING_PATH=/app/faiss_data/horragor_mapping.json
 ```
@@ -73,22 +75,24 @@ Ces modèles sont stockés dans `~/.ollama` (ou le chemin configuré) et restent
 docker compose up --build
 ```
 
-Cette commande construit les images `database_api`, `api` et `frontend`, puis déclenche la synchronisation de l'index FAISS depuis Supabase au démarrage de l'API IA.
+Cette commande construit les images `database_api`, `api` et `frontend`. L'index FAISS présent dans `faiss_data/` à la racine du dépôt est **copié dans l'image `api`** au moment du build : le conteneur le charge depuis `/app/faiss_data/`, sans volume ni synchronisation au démarrage.
+
+> ⚠️ L'index n'est pas reconstruit automatiquement. `faiss_data/horragor.index` doit exister avant le build, sinon l'API refuse de démarrer.
 
 ### 🟩 Démarrages suivants (Chargement rapide)
 
-Une fois l'index FAISS initialisé et persisté dans le volume `horragor_faiss_data`, les démarrages suivants sont rapides :
+L'index étant dans l'image, les démarrages suivants ne refont aucun travail d'indexation :
 
 ```bash
 docker compose up -d
 ```
 
-### 🟧 Forcer un rebuild complet de l'index FAISS
+### 🟧 Rafraîchir l'index FAISS
 
-Si les données sur Supabase ont changé, videz le volume persistant avant de relancer :
+Si les données sur Supabase ont changé, régénérez `faiss_data/` puis reconstruisez l'image `api` — c'est le build qui embarque l'index, un simple `up -d` réutiliserait l'ancien :
 
 ```bash
-docker volume rm horragor_faiss_data && docker compose up -d
+docker compose build api && docker compose up -d
 ```
 
 ---

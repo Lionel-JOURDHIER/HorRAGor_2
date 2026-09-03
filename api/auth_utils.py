@@ -239,18 +239,26 @@ async def get_current_user(
         HTTPException: Si le token est invalide ou l'utilisateur n'existe pas
     """
     token = credentials.credentials
-    
+
     # Décoder le token
     payload = decode_access_token(token)
-    
-    # Récupérer l'ID utilisateur
-    user_id: int = payload.get("sub")
-    if user_id is None:
+
+    # Récupérer l'ID utilisateur (la claim "sub" est une chaîne, cf. RFC 7519)
+    raw_user_id = payload.get("sub")
+    if raw_user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token invalide"
         )
-    
+
+    try:
+        user_id = int(raw_user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalide"
+        )
+
     # Récupérer l'utilisateur en base
     user = db.query(User).filter(User.id == user_id).first()
     

@@ -1,5 +1,71 @@
+# .dockerignore
+#
+# Contexte de build commun aux trois images (api, database, frontend), toutes
+# construites depuis la racine du dépôt.
+#
+# Deux différences assumées avec le .gitignore, qui interdisent de le recopier :
+#   - un motif sans préfixe ne s'applique qu'à la racine du contexte, d'où les
+#     **/ systématiques (`.venv` seul laissait passer agents/.venv, api/.venv,
+#     frontend/.venv et database/.venv, soit ~900 Mo) ;
+#   - l'index FAISS est exclu ici alors qu'il est nécessaire à l'image api :
+#     c'est Dockerfile.api.dockerignore qui le réintègre pour cette seule image.
+
+# --- Dépôt, outillage et conventions : sans usage à l'exécution -------------
 .git
-.venv
-__pycache__/
-*.pyc
-.env
+.gitignore
+.gitmodules
+.dockerignore
+.githooks
+.github
+.claude
+.vscode
+
+# --- Secrets ---------------------------------------------------------------
+# Aucun fichier d'environnement n'entre dans une image : les valeurs sont
+# injectées au démarrage par `env_file` / `environment` de docker-compose.
+# Un .env copié dans une couche reste lisible par quiconque tire l'image
+# depuis GHCR, y compris après suppression du fichier dans une couche suivante.
+# Le `.env` racine était déjà exclu, mais database/.env et agents/tools/.env
+# (mêmes identifiants Supabase) partaient dans l'image via `COPY . .`.
+**/.env
+**/.env.*
+**/*.env
+
+# --- Environnements virtuels et caches Python ------------------------------
+**/.venv
+**/venv
+**/ENV
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.ipynb_checkpoints
+
+# --- Artefacts régénérables ------------------------------------------------
+**/htmlcov
+**/.coverage
+coverage.xml
+docs/build
+**/*.egg-info
+
+# --- Journaux --------------------------------------------------------------
+**/logs
+**/*.log
+
+# --- Données volumineuses --------------------------------------------------
+# Index FAISS : réintégré pour la seule image api (voir en-tête).
+# api/faiss_data/ est un doublon octet pour octet de faiss_data/ et n'est lu
+# par personne dans le conteneur : exclu dans tous les cas.
+faiss_data
+api/faiss_data
+database/data_backup
+
+# --- Documents et images de travail ---------------------------------------
+# Aucun asset image n'est servi depuis le dépôt : les affiches viennent du CDN
+# TMDB et `page_icon` est un emoji.
+*.pptx
+*.pdf
+**/*.png
+**/*.jpg
+graph.mmd
+**/graph.mmd

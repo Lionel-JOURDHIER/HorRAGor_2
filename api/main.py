@@ -6,8 +6,13 @@ Point d'entrée principal de l'API REST FastAPI.
 
 import os
 from contextlib import asynccontextmanager
-from fastapi import Request
+from pathlib import Path
 
+from fastapi import Request
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+from agents.graph import CHECKPOINT_DB_PATH
+from api.modules.chat_service import init_graph
 from api.monitoring.langfuse_client import langfuse
 from api.routes_monitoring import router as monitoring_router
 from api.auth_routes import router as auth_router
@@ -30,6 +35,10 @@ async def lifespan(app: FastAPI):
     Cycle de vie de l'API.
 
     - Charge l'index FAISS depuis les fichiers persistés.
+    - Ouvre le checkpointer SQLite async de la mémoire de conversation
+      LangGraph et compile le graphe (doit se faire ici : un
+      AsyncSqliteSaver a besoin d'une boucle asyncio active, absente à
+      l'import du module).
     - Aucun accès direct à SQLAlchemy ou Supabase.
     """
 
@@ -67,7 +76,13 @@ async def lifespan(app: FastAPI):
         f"Index FAISS chargé : {faiss_global_service.index.ntotal} films."
     )
 
-    yield
+    Path(CHECKPOINT_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+
+    async with AsyncSqliteSaver.from_conn_string(CHECKPOINT_DB_PATH) as checkpointer:
+        init_graph(checkpointer)
+        logger.info("Graphe LangGraph compilé avec le checkpointer SQLite async.")
+
+        yield
 
     logger.info("Arrêt de l'API.")
 
