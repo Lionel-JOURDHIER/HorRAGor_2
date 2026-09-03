@@ -20,6 +20,7 @@ dependencies = [
 dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
+    "ruff>=0.16.5",
 ]
 
 [tool.coverage.report]
@@ -32,3 +33,14 @@ exclude_lines = [
 [tool.setuptools]
 package-dir = {"" = "."}
 packages = ["database", "agents"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+# D (docstrings) volontairement omis pour l'instant : le code existant n'a
+# pas encore été mis à niveau, l'activer ferait échouer le hook pre-commit
+# sur la quasi-totalité des fichiers. À ajouter une fois une passe de mise
+# en conformité des docstrings faite séparément.
+select = ["E", "W", "F", "I"]
