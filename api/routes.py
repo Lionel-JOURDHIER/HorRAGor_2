@@ -14,18 +14,21 @@ La base de données est accessible uniquement via Database API.
 
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from agents.tools.wiki_tools import wikipedia_search
 
+from api.auth_utils import get_current_user
 from api.modules.chat_service import (
     # run_agent,
     # run_agent_stream,
+    get_conversation_history,
     run_agent_stream_final,
 )
 from api.modules.database_client import get_film
+from database.tables.users import User
 
 from shared.schemas import (
     AgentStep,
@@ -179,9 +182,14 @@ async def health():
 
 
 @router.post("/chat/response_stream", tags=["Agent"])
-async def chat_stream_final(request: ChatRequest):
+async def chat_stream_final(
+    request: ChatRequest, current_user: User = Depends(get_current_user)
+):
     """
     Stream agent execution steps and final response.
+
+    Requires authentication : la mémoire de conversation LangGraph
+    (thread_id du checkpointer) est indexée sur l'utilisateur courant.
 
     SSE event types:
     - step: intermediate execution state
@@ -195,7 +203,7 @@ async def chat_stream_final(request: ChatRequest):
 
     async def event_generator():
         try:
-            stream = run_agent_stream_final(request)
+            stream = run_agent_stream_final(request, current_user)
             async for event in stream:
                 # STEP EVENTS
                 if event["type"] == "step":
@@ -274,6 +282,21 @@ async def chat_stream_final(request: ChatRequest):
             yield (f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n")
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.get("/chat/history", tags=["Agent"])
+async def chat_history(current_user: User = Depends(get_current_user)):
+    """
+    Retourne l'historique de conversation persisté pour l'utilisateur courant.
+
+    Reconstruit depuis le checkpointer LangGraph (thread_id = user_{id}), au
+    format attendu par le frontend pour repeupler l'affichage à la connexion.
+
+    Returns:
+        {"history": [...]}, liste vide si l'utilisateur n'a encore aucune
+        conversation enregistrée.
+    """
+    return {"history": await get_conversation_history(current_user)}
 
 
 # WIKIPEDIA ----------------------------------------------------

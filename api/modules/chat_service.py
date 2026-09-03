@@ -36,7 +36,25 @@ from shared.schemas import ChatFilters, ChatRequest
 setup_logger()
 logger = get_logger("CHAT_SERVICE")
 
-graph = build_my_graph()
+# Construit par `init_graph()` au démarrage de l'API (lifespan de
+# api/main.py), avec un checkpointer async — construire le graphe ici, à
+# l'import du module, ne peut pas fonctionner : il faut un AsyncSqliteSaver
+# déjà ouvert, ce qui suppose une boucle asyncio active.
+graph = None
+
+
+def init_graph(checkpointer) -> None:
+    """Compile le graphe LangGraph avec le checkpointer fourni.
+
+    Appelé une fois au démarrage de l'API, depuis le lifespan de
+    `api/main.py`, une fois l'`AsyncSqliteSaver` ouvert.
+
+    Args:
+        checkpointer: Backend de persistance async pour la mémoire de
+            conversation (langgraph.checkpoint.sqlite.aio.AsyncSqliteSaver).
+    """
+    global graph
+    graph = build_my_graph(checkpointer=checkpointer)
 
 
 def normalize_steps(steps: list[Any] | None) -> list[dict]:
@@ -76,36 +94,31 @@ def normalize_steps(steps: list[Any] | None) -> list[dict]:
     return result
 
 
-def get_graph_config(chat_request: ChatRequest) -> dict[str, Any]:
+def get_graph_config(chat_request: ChatRequest, user: Any) -> dict[str, Any]:
     """
     Génère le dictionnaire de configuration requis par LangGraph.
-    Si le front n'envoie pas de session_id, applique un identifiant
-    fixe par défaut pour tester la persistance (InMemorySaver).
-    """
-    # 1. On récupère proprement l'ID de session
-    session_id = getattr(chat_request, "session_id", None)
-    is_new_session = False
 
-    # 2. Si aucun ID n'est fourni, on génère un ID unique temporaire par requête
-    #    pour éviter les collisions (ou on lève une erreur si la session est obligatoire)
-    if not session_id:
-        session_id = "thread_de_test_fixe_12345"
-        is_new_session = True
-        logger.warning(
-            f"Aucun session_id fourni. Génération d'un ID temporaire : {session_id}"
-        )
+    Le thread_id du checkpointer est l'identifiant de l'utilisateur
+    authentifié : chaque utilisateur a sa propre mémoire de conversation,
+    persistée entre les redémarrages (checkpointer SQLite).
+
+    Args:
+        chat_request: Requête utilisateur (message, filtres).
+        user: Utilisateur authentifié courant (database.tables.users.User).
+
+    Returns:
+        Configuration transmise à `graph.astream`.
+    """
+    thread_id = f"user_{user.id}"
 
     logger.info(
-        "═" * 60 + "\n"
-        f"🚀 [NOUVELLE REQUÊTE CHAT]\n"
-        f"   • Session ID : '{session_id}' {'🟢 (Généré/Anonyme)' if is_new_session else '🔵 (Persistant)'}\n"
-        f'   • Message    : "{chat_request.message}"\n' + "═" * 60
+        f"[NOUVELLE REQUÊTE CHAT] utilisateur={user.id} thread_id={thread_id} "
+        f'message="{chat_request.message}"'
     )
 
-    # 3. Votre configuration nettoyée
     return {
-        "recursion_limit": 15,  # 💡 Augmenté à 15 au cas où Wikipédia + RAG fassent beaucoup d'aller-retours
-        "configurable": {"thread_id": session_id},
+        "recursion_limit": 15,  # Marge pour les aller-retours RAG + Wikipédia
+        "configurable": {"thread_id": thread_id},
         "callbacks": [langfuse_handler],
         "metadata": {
             "application": "HorRAGor",
@@ -180,17 +193,78 @@ def get_graph_config(chat_request: ChatRequest) -> dict[str, Any]:
 #     return graph.astream(initial_state, config=config, stream_mode="updates")
 
 
-async def run_agent_stream_final(chat_request):
+async def get_conversation_history(user: Any) -> list[dict[str, Any]]:
+    """Reconstruit l'historique affichable de la conversation d'un utilisateur.
+
+    L'état LangGraph n'accumule pas les tours : `user_query`/`answer` sont
+    écrasés à chaque nouvel appel de `graph.astream`. On rejoue donc
+    l'historique des checkpoints du thread (`aget_state_history`, du plus
+    récent au plus ancien) pour retrouver, dans l'ordre chronologique,
+    chaque paire question/réponse effectivement affichée à l'utilisateur.
+
+    Args:
+        user: Utilisateur authentifié courant (database.tables.users.User).
+
+    Returns:
+        Messages {"role", "content", "films"?} dans l'ordre chronologique,
+        au format attendu par `st.session_state.messages` côté frontend.
+    """
+    config = {"configurable": {"thread_id": f"user_{user.id}"}}
+    checkpoints = [snap async for snap in graph.aget_state_history(config)]
+    checkpoints.reverse()  # ordre chronologique (le plus ancien d'abord)
+
+    history: list[dict[str, Any]] = []
+    pending_query: str | None = None
+    pending_answer: str | None = None
+    pending_films: list[Any] = []
+
+    def flush_pending() -> None:
+        if pending_query is None:
+            return
+        history.append({"role": "user", "content": pending_query})
+        history.append(
+            {
+                "role": "assistant",
+                "content": pending_answer or "",
+                "films": [
+                    (f.model_dump() if hasattr(f, "model_dump") else f)
+                    for f in pending_films
+                ],
+            }
+        )
+
+    for snapshot in checkpoints:
+        values = snapshot.values
+        query = values.get("user_query")
+
+        if query and query != pending_query:
+            flush_pending()
+            pending_query = query
+            pending_answer = None
+            pending_films = []
+
+        if values.get("answer"):
+            pending_answer = values["answer"]
+        if values.get("retrieved_movies"):
+            pending_films = values["retrieved_movies"]
+
+    flush_pending()
+    return history
+
+
+async def run_agent_stream_final(chat_request, user):
     """
     Stream workflow execution and aggregate the final state.
 
-    Yields:
-        dict: Step and final events generated during workflow execution.
-
     Args:
         chat_request: User request containing message and filters.
+        user: Authenticated user (database.tables.users.User), utilisé pour
+            dériver le thread_id du checkpointer LangGraph.
+
+    Yields:
+        dict: Step and final events generated during workflow execution.
     """
-    
+
     initial_state = {
         "user_query": chat_request.message,
         "initial_filters": chat_request.filters or ChatFilters(),
@@ -204,7 +278,7 @@ async def run_agent_stream_final(chat_request):
     }
 
 
-    config = get_graph_config(chat_request)
+    config = get_graph_config(chat_request, user)
 
     stream = graph.astream(initial_state, config=config, stream_mode="updates")
 

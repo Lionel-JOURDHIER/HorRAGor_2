@@ -94,7 +94,7 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
         logger.info(f"Utilisateur créé avec succès : {new_user.id} - {new_user.email}")
         
         # Créer les tokens
-        access_token = create_access_token(data={"sub": new_user.id, "email": new_user.email})
+        access_token = create_access_token(data={"sub": str(new_user.id), "email": new_user.email})
         refresh_token = create_refresh_token(new_user.id, db)
         
         return AuthResponse(
@@ -145,7 +145,7 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
     logger.info(f"Connexion réussie : {user.id} - {user.email}")
     
     # Créer les tokens
-    access_token = create_access_token(data={"sub": user.id, "email": user.email})
+    access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
     refresh_token = create_refresh_token(user.id, db)
     
     return AuthResponse(
@@ -194,7 +194,7 @@ async def refresh_token(token_data: TokenRefresh, db: Session = Depends(get_db))
     revoke_refresh_token(token_data.refresh_token, db)
     
     # Créer de nouveaux tokens
-    access_token = create_access_token(data={"sub": user.id, "email": user.email})
+    access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
     new_refresh_token = create_refresh_token(user.id, db)
     
     return Token(
