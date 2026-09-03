@@ -1,10 +1,12 @@
-# Présentation du projet
+Présentation du projet
+======================
 
 HorRAGor est une application de recherche et de recommandation de films
 d'horreur basée sur une architecture **RAG (Retrieval-Augmented Generation)**
 et un système **multi-agent développé avec LangGraph**.
 
-## Objectif
+Objectif
+--------
 
 L'objectif de HorRAGor est de permettre à l'utilisateur d'interroger une
 base de données cinématographique en langage naturel et d'obtenir des
@@ -14,7 +16,8 @@ L'application permet notamment de rechercher des films selon différents
 critères et de poser des questions nécessitant une combinaison de recherche
 dans les données, de recherche vectorielle et de génération de texte.
 
-## Architecture
+Architecture
+------------
 
 HorRAGor est organisé en plusieurs composants indépendants :
 
@@ -28,53 +31,65 @@ HorRAGor est organisé en plusieurs composants indépendants :
 * **Monitoring** : Prometheus, Grafana, Uptime Kuma et Langfuse permettent
   de surveiller les différents composants et le graphe multi-agent.
 
-## Architecture générale
+Architecture générale
+---------------------
 
 Le fonctionnement global de l'application peut être résumé ainsi :
 
-.. code-block:: text
+.. graphviz::
 
-Utilisateur
-|
-v
-Streamlit
-|
-v
-API FastAPI
-|
-v
-Graphe LangGraph
-|
-+-------------------+
-|                   |
-v                   v
-API Database       Recherche Wikipedia
-|
-+-----------+
-|           |
-v           v
-PostgreSQL     FAISS
+   digraph architecture {
+       rankdir=TB;
 
-## Technologies
+       utilisateur [label="Utilisateur"];
+       frontend [label="Streamlit"];
+       api [label="API FastAPI"];
+       langgraph [label="Graphe LangGraph"];
+       database [label="API Database"];
+       postgres [label="PostgreSQL"];
+       faiss [label="FAISS"];
+       wikipedia [label="Wikipedia"];
+
+       utilisateur -> frontend;
+       frontend -> api;
+       api -> langgraph;
+       langgraph -> database;
+       langgraph -> wikipedia;
+       database -> postgres;
+       database -> faiss;
+   }
+
+Technologies
+------------
 
 Le projet utilise principalement les technologies suivantes :
 
-* **Python**
-* **FastAPI**
-* **Streamlit**
-* **LangGraph**
-* **LangChain**
-* **Ollama**
-* **FAISS**
-* **PostgreSQL**
-* **SQLAlchemy**
-* **Docker**
-* **Prometheus**
-* **Grafana**
-* **Uptime Kuma**
-* **Langfuse**
++----------------+----------------------------+
+| Technologie    | Utilisation                |
++================+============================+
+| Python         | Langage principal           |
++----------------+----------------------------+
+| FastAPI        | API d'intelligence          |
++----------------+----------------------------+
+| Streamlit      | Interface utilisateur       |
++----------------+----------------------------+
+| LangGraph      | Orchestration multi-agent   |
++----------------+----------------------------+
+| LangChain      | Framework LLM/RAG            |
++----------------+----------------------------+
+| Ollama         | Modèle de langage local     |
++----------------+----------------------------+
+| FAISS          | Recherche vectorielle       |
++----------------+----------------------------+
+| PostgreSQL     | Base de données              |
++----------------+----------------------------+
+| Docker         | Conteneurisation             |
++----------------+----------------------------+
+| Langfuse       | Monitoring IA                |
++----------------+----------------------------+
 
-## Fonctionnement
+Fonctionnement
+--------------
 
 Lorsqu'un utilisateur envoie une question depuis l'interface Streamlit,
 la requête est transmise à l'API d'intelligence.
@@ -92,7 +107,8 @@ Selon la question, le système peut utiliser :
 Les résultats récupérés sont ensuite utilisés par le système multi-agent
 pour construire une réponse en langage naturel.
 
-## Séparation des services
+Séparation des services
+-----------------------
 
 L'architecture sépare l'accès aux données de la logique d'intelligence.
 
@@ -105,7 +121,8 @@ elle utilise l'API Database pour accéder aux données.
 Cette séparation permet d'améliorer la sécurité, la modularité et la
 maintenabilité de l'application.
 
-## Monitoring
+Monitoring
+----------
 
 Le projet dispose d'une infrastructure de monitoring permettant de suivre
 l'état et les performances des différents composants de l'application.
@@ -132,8 +149,8 @@ Cette architecture permet ainsi de distinguer le monitoring technique des
 services (Prometheus, Grafana, Uptime Kuma) du monitoring spécifique du
 système d'intelligence artificielle (Langfuse).
 
-
-## Déploiement
+Déploiement
+-----------
 
 L'ensemble des composants est conteneurisé avec **Docker** et peut être
 exécuté dans un environnement local basé sur **WSL2**.
@@ -141,10 +158,10 @@ exécuté dans un environnement local basé sur **WSL2**.
 Les services sont organisés avec Docker Compose afin de faciliter le
 déploiement et la communication entre les différents conteneurs.
 
-## CI/CD et qualité
+CI/CD et qualité
+----------------
 
-Le projet utilise **GitHub Actions** pour automatiser le pipeline
-CI/CD.
+Le projet utilise **GitHub Actions** pour automatiser le pipeline CI/CD.
 
 Le pipeline comprend notamment :
 
@@ -156,7 +173,8 @@ Le pipeline comprend notamment :
 * la publication des images sur GitHub Container Registry ;
 * la publication de la documentation sur GitHub Pages.
 
-## Documentation technique
+Documentation technique
+-----------------------
 
 La documentation présente ensuite les différents composants du projet :
 
@@ -165,4 +183,3 @@ La documentation présente ensuite les différents composants du projet :
 * **Couche données** : API Database, requêtes et modèles ;
 * **Schéma de la base de données** : tables et relations ;
 * **Cartographie LangGraph** : représentation graphique du graphe multi-agent.
-

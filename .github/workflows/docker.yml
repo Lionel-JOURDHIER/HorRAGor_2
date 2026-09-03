@@ -156,12 +156,7 @@ jobs:
             frontend/coverage-frontend.xml
             frontend/htmlcov-frontend/
 
-      # ─────────────── DOCUMENTATION ────────────
 
-      - name: Build documentation
-        working-directory: docs
-        run: uv run --project ../api sphinx-build -E -b html source build/html
-        
   # ─────────────────────────────────────────────
   # 2. DOCUMENTATION
   # ─────────────────────────────────────────────
@@ -223,6 +218,9 @@ jobs:
         working-directory: api
         run: uv sync
 
+      - name: Install Graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
       - name: Generate coverage documentation
         run: |
           python - <<'PY'
@@ -249,30 +247,28 @@ jobs:
           La couverture des tests des différents composants du projet est présentée
           ci-dessous.
 
-          .. list-table::
-            :header-rows: 1
-            :widths: 30 20
+          +----------------+------------+
+          | Composant      | Couverture |
+          +================+============+
+          """
 
-            * - Composant
-              - Couverture
-            """
+          for name, coverage in rows:
+            content += f"   * - {name}\n     - {coverage:.0f} %\n"
 
-            for name, coverage in rows:
-                content += f"   * - {name}\n     - {coverage:.0f} %\n"
+          content += """
+          L'objectif du projet est d'atteindre une couverture d'au moins **80 %**
+          pour les API et l'interface utilisateur.
 
-            content += """
-            L'objectif du projet est d'atteindre une couverture d'au moins **80 %**
-            pour les API et l'interface utilisateur.
+          Les rapports de couverture sont générés automatiquement par le pipeline
+          CI/CD GitHub Actions.
+          """
 
-            Les rapports de couverture sont générés automatiquement par le pipeline
-            CI/CD GitHub Actions.
-            """
+          Path("docs/source/coverage.rst").write_text(
+            content,
+            encoding="utf-8"
+          )
+          PY
 
-            Path("docs/source/coverage.rst").write_text(
-                content,
-                encoding="utf-8"
-            )
-            PY
 
       - name: Build Sphinx documentation
         working-directory: docs
