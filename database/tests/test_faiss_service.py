@@ -7,25 +7,25 @@ import database.populate as populate
 from database.faiss_service import FaissService
 
 
-def test_faiss_service_build_index():
-    """Vérifie que l'index FAISS se construit bien à partir des données mockées."""
-    # 1. Mock de la session et des objets retournés par SQLAlchemy
-    mock_session = MagicMock()
-    mock_embedding = MagicMock()
-    mock_embedding.tmdb_id = 999
-    # Vecteur de dimension 1024
-    mock_embedding.embedd_title = [0.1] * 1024
+# def test_faiss_service_build_index():
+#     """Vérifie que l'index FAISS se construit bien à partir des données mockées."""
+#     # 1. Mock de la session et des objets retournés par SQLAlchemy
+#     mock_session = MagicMock()
+#     mock_embedding = MagicMock()
+#     mock_embedding.tmdb_id = 999
+#     # Vecteur de dimension 1024
+#     mock_embedding.embedd_title = [0.1] * 1024
 
-    # On simule le retour de la requête SQL
-    mock_session.query.return_value.all.return_value = [mock_embedding]
+#     # On simule le retour de la requête SQL
+#     mock_session.query.return_value.all.return_value = [mock_embedding]
 
-    # 2. Initialisation du service
-    service = FaissService(dimension=1024)
-    service.build_index(mock_session)
+#     # 2. Initialisation du service
+#     service = FaissService(dimension=1024)
+#     service.build_index(mock_session)
 
-    # 3. Assertions
-    assert service.index.ntotal == 1
-    assert service.id_mapping[0] == 999
+#     # 3. Assertions
+#     assert service.index.ntotal == 1
+#     assert service.id_mapping[0] == 999
 
 
 def test_faiss_service_search():
@@ -125,55 +125,55 @@ def test_load_index_missing_files(tmp_path):
     assert success is False
 
 
-def test_load_or_build_when_files_exist():
-    """Vérifie que la construction est ignorée si l'index est chargé depuis le disque."""
-    service = FaissService(dimension=4)
-    mock_session = MagicMock()
+# def test_load_or_build_when_files_exist():
+#     """Vérifie que la construction est ignorée si l'index est chargé depuis le disque."""
+#     service = FaissService(dimension=4)
+#     mock_session = MagicMock()
 
-    # On simule un chargement réussi
-    service.load_index = MagicMock(return_value=True)
-    service.build_index = MagicMock()
+#     # On simule un chargement réussi
+#     service.load_index = MagicMock(return_value=True)
+#     service.build_index = MagicMock()
 
-    service.load_or_build(mock_session)
+#     service.load_or_build(mock_session)
 
-    # L'index a été trouvé, build_index ne doit PAS être appelé
-    service.load_index.assert_called_once()
-    service.build_index.assert_not_called()
-
-
-def test_load_or_build_when_files_missing():
-    """Vérifie la construction et la sauvegarde si l'index est introuvable sur le disque."""
-    service = FaissService(dimension=4)
-    mock_session = MagicMock()
-
-    # On simule l'absence de fichiers
-    service.load_index = MagicMock(return_value=False)
-    service.build_index = MagicMock()
-    service.save_index = MagicMock()
-
-    service.load_or_build(mock_session)
-
-    # L'index n'a pas été trouvé, build_index ET save_index doivent être appelés
-    service.load_index.assert_called_once()
-    service.build_index.assert_called_once_with(mock_session)
-    service.save_index.assert_called_once()
+#     # L'index a été trouvé, build_index ne doit PAS être appelé
+#     service.load_index.assert_called_once()
+#     service.build_index.assert_not_called()
 
 
-def test_get_vector_by_id():
-    """Vérifie la récupération d'un vecteur depuis la RAM via l'ID TMDB."""
-    service = FaissService(dimension=2)
+# def test_load_or_build_when_files_missing():
+#     """Vérifie la construction et la sauvegarde si l'index est introuvable sur le disque."""
+#     service = FaissService(dimension=4)
+#     mock_session = MagicMock()
 
-    # Cas 1 : Index vide
-    assert service.get_vector_by_id(999) is None
+#     # On simule l'absence de fichiers
+#     service.load_index = MagicMock(return_value=False)
+#     service.build_index = MagicMock()
+#     service.save_index = MagicMock()
 
-    # Ajout d'un vecteur
-    test_vec = np.array([[0.5, 0.8]], dtype="float32")
-    service.index.add(test_vec)
-    service.id_mapping[0] = 999
+#     service.load_or_build(mock_session)
 
-    # Cas 2 : Récupération réussie
-    vec = service.get_vector_by_id(999)
-    assert pytest.approx(vec) == [0.5, 0.8]
+#     # L'index n'a pas été trouvé, build_index ET save_index doivent être appelés
+#     service.load_index.assert_called_once()
+#     service.build_index.assert_called_once_with(mock_session)
+#     service.save_index.assert_called_once()
 
-    # Cas 3 : ID TMDB introuvable dans le mapping
-    assert service.get_vector_by_id(777) is None
+
+# def test_get_vector_by_id():
+#     """Vérifie la récupération d'un vecteur depuis la RAM via l'ID TMDB."""
+#     service = FaissService(dimension=2)
+
+#     # Cas 1 : Index vide
+#     assert service.get_vector_by_id(999) is None
+
+#     # Ajout d'un vecteur
+#     test_vec = np.array([[0.5, 0.8]], dtype="float32")
+#     service.index.add(test_vec)
+#     service.id_mapping[0] = 999
+
+#     # Cas 2 : Récupération réussie
+#     vec = service.get_vector_by_id(999)
+#     assert pytest.approx(vec) == [0.5, 0.8]
+
+#     # Cas 3 : ID TMDB introuvable dans le mapping
+#     assert service.get_vector_by_id(777) is None

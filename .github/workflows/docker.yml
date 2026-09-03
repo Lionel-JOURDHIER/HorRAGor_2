@@ -24,6 +24,29 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
 
+    env:
+        JWT_SECRET_KEY: test-secret-key-for-ci-only
+        SUPABASE_USER: test
+        SUPABASE_PASSWORD: test-password-for-ci
+        SUPABASE_HOST: localhost
+        SUPABASE_PORT: "5432"
+        SUPABASE_DB: test
+
+    services:
+        postgres:
+            image:  pgvector/pgvector:pg16
+            env:
+                POSTGRES_USER: test
+                POSTGRES_PASSWORD: test-password-for-ci
+                POSTGRES_DB: test
+            ports:
+            - 5432:5432
+            options: >-
+                --health-cmd pg_isready
+                --health-interval 10s
+                --health-timeout 5s
+                --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,18 +59,108 @@ jobs:
         with:
           python-version: "3.11"
 
+      # ───────────────── AGENTS ─────────────────
+
       - name: Install agents dependencies
         working-directory: agents
         run: uv sync
 
-      - name: Run tests
+      - name: Run agents tests
         working-directory: agents
-        run: uv run pytest
+        run: >
+          uv run pytest
+          --cov=.
+          --cov-report=term-missing
+          --cov-report=xml:coverage-agents.xml
+          --cov-report=html:htmlcov-agents
+          --cov-fail-under=40
+
+      - name: Upload Agents coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: agents-coverage
+          path: |
+            agents/coverage-agents.xml
+            agents/htmlcov-agents/
+
+      # ─────────────────── API ──────────────────
+
+      - name: Install API dependencies
+        working-directory: api
+        run: uv sync
+
+      - name: Run API tests
+        working-directory: api
+        run: >
+          uv run pytest
+          --cov=.
+          --cov-report=term-missing
+          --cov-report=xml:coverage-api.xml
+          --cov-report=html:htmlcov-api
+          --cov-fail-under=40
+
+      - name: Upload API coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-coverage
+          path: |
+            api/coverage-api.xml
+            api/htmlcov-api/
+
+      # ─────────────── DATABASE API ─────────────
+
+      - name: Install Database dependencies
+        working-directory: database
+        run: uv sync
+
+
+      - name: Run Database tests
+        working-directory: database
+        run: >
+          uv run pytest
+          --cov=.
+          --cov-report=term-missing
+          --cov-report=xml:coverage-database.xml
+          --cov-report=html:htmlcov-database
+          --cov-fail-under=40
+
+      - name: Upload Database coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-coverage
+          path: |
+            database/coverage-database.xml
+            database/htmlcov-database/
+
+      # ───────────────── FRONTEND ───────────────
+
+      - name: Install Frontend dependencies
+        working-directory: frontend
+        run: uv sync
+
+      - name: Run Frontend tests
+        working-directory: frontend
+        run: >
+          uv run pytest
+          --cov=.
+          --cov-report=term-missing
+          --cov-report=xml:coverage-frontend.xml
+          --cov-report=html:htmlcov-frontend
+          --cov-fail-under=40
+
+      - name: Upload Frontend coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: |
+            frontend/coverage-frontend.xml
+            frontend/htmlcov-frontend/
+
+      # ─────────────── DOCUMENTATION ────────────
 
       - name: Build documentation
         working-directory: docs
         run: uv run --project ../api sphinx-build -E -b html source build/html
-
         
   # ─────────────────────────────────────────────
   # 2. DOCUMENTATION
@@ -70,6 +183,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Download Agents coverage
+        uses: actions/download-artifact@v4
+        with:
+            name: agents-coverage
+            path: agents
+
+      - name: Download API coverage
+        uses: actions/download-artifact@v4
+        with:
+            name: api-coverage
+            path: api
+
+      - name: Download Database coverage
+        uses: actions/download-artifact@v4
+        with:
+            name: database-coverage
+            path: database
+
+      - name: Download Frontend coverage
+        uses: actions/download-artifact@v4
+        with:
+            name: frontend-coverage
+            path: frontend
+
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -84,6 +222,57 @@ jobs:
       - name: Install API dependencies
         working-directory: api
         run: uv sync
+
+      - name: Generate coverage documentation
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          files = {
+              "Agents": "agents/coverage-agents.xml",
+              "API": "api/coverage-api.xml",
+              "Database API": "database/coverage-database.xml",
+              "Frontend": "frontend/coverage-frontend.xml",
+          }
+
+          rows = []
+
+          for name, path in files.items():
+              root = ET.parse(path).getroot()
+              coverage = float(root.attrib["line-rate"]) * 100
+              rows.append((name, coverage))
+
+          content = """Couverture des tests
+          ====================
+
+          La couverture des tests des différents composants du projet est présentée
+          ci-dessous.
+
+          .. list-table::
+            :header-rows: 1
+            :widths: 30 20
+
+            * - Composant
+              - Couverture
+            """
+
+            for name, coverage in rows:
+                content += f"   * - {name}\n     - {coverage:.0f} %\n"
+
+            content += """
+            L'objectif du projet est d'atteindre une couverture d'au moins **80 %**
+            pour les API et l'interface utilisateur.
+
+            Les rapports de couverture sont générés automatiquement par le pipeline
+            CI/CD GitHub Actions.
+            """
+
+            Path("docs/source/coverage.rst").write_text(
+                content,
+                encoding="utf-8"
+            )
+            PY
 
       - name: Build Sphinx documentation
         working-directory: docs
@@ -117,7 +306,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
 
       - name: Login to GHCR
         uses: docker/login-action@v3
