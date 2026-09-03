@@ -255,24 +255,24 @@ jobs:
 
             * - Composant
               - Couverture
-            """
+          """
 
-            for name, coverage in rows:
-                content += f"   * - {name}\n     - {coverage:.0f} %\n"
+          for name, coverage in rows:
+            content += f"   * - {name}\n     - {coverage:.0f} %\n"
 
-            content += """
-            L'objectif du projet est d'atteindre une couverture d'au moins **80 %**
-            pour les API et l'interface utilisateur.
+          content += """
+          L'objectif du projet est d'atteindre une couverture d'au moins **80 %**
+          pour les API et l'interface utilisateur.
 
-            Les rapports de couverture sont générés automatiquement par le pipeline
-            CI/CD GitHub Actions.
-            """
+          Les rapports de couverture sont générés automatiquement par le pipeline
+          CI/CD GitHub Actions.
+          """
 
-            Path("docs/source/coverage.rst").write_text(
-                content,
-                encoding="utf-8"
-            )
-            PY
+          Path("docs/source/coverage.rst").write_text(
+            content,
+            encoding="utf-8"
+          )
+          PY
 
       - name: Build Sphinx documentation
         working-directory: docs
