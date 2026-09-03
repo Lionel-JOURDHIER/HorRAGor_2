@@ -10,10 +10,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Installation des dépendances système (curl pour healthcheck, build-essential pour faiss)
+# Installation des dépendances système (curl pour healthcheck, build-essential
+# pour faiss, libpq-dev pour la compilation de psycopg2 depuis les sources)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Installation de uv (gestionnaire de paquets)
