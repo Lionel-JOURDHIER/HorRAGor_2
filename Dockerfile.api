@@ -19,41 +19,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Installation de uv (gestionnaire de paquets)
 RUN pip install --no-cache-dir uv
 
-# Copie des fichiers de dépendances de chaque package
-# On copie d'abord pour profiter du cache Docker si le code change mais pas les deps
-
-COPY agents/pyproject.toml agents/uv.lock ./agents/
+# Copie des fichiers de dépendances du package api — on copie d'abord pour
+# profiter du cache Docker si le code change mais pas les deps.
+# Le code de agents/ tourne dans ce même processus (import direct via
+# PYTHONPATH, pas de paquet installé séparément) : ses dépendances runtime
+# sont déjà couvertes par api/pyproject.toml, qui en est un sur-ensemble
+# (langgraph, langchain-ollama, faiss-cpu, loguru, pgvector...).
 COPY api/pyproject.toml api/uv.lock ./api/
 
-# Installation des dépendances (merge des trois packages)
-# faiss-cpu est requis dans l'image — faiss-gpu nécessite une image cuda de base
-RUN uv pip install --system --no-cache \
-    fastapi \
-    uvicorn[standard] \
-    python-dotenv \
-    langchain \
-    langchain-core \
-    langchain-ollama \
-    langgraph \
-    langgraph-checkpoint-sqlite \
-    langfuse \
-    httpx \
-    faiss-cpu \
-    numpy \
-    pydantic \
-    requests \
-    wikipedia \
-    loguru \
-    "bcrypt<4.1" \
-    "passlib[bcrypt]" \
-    "python-jose[cryptography]" \
-    SQLAlchemy \
-    psycopg2-binary \
-    prometheus-fastapi-instrumentator
+# Installe depuis le lock, sans installer le paquet "api" lui-même (le code
+# n'est pas encore copié à cette étape, et n'a pas besoin d'être un paquet
+# installé : PYTHONPATH=/app suffit à l'importer).
+RUN uv sync --project api --frozen --no-dev --no-install-project
 
 # Copie du code source complet
 COPY . .
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--project", "api", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
