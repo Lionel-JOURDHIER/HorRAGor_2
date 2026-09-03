@@ -301,6 +301,31 @@ Mis à jour au fil des sessions.
   ce qui remplace le TLS tant que le trafic ne quitte pas la machine (cf.
   [CLAUDE.md](CLAUDE.md) § Pièges déjà payés). Un vrai TLS reste à poser le
   jour d'un déploiement multi-machines.
+- [x] **Mot de passe protégé en transit malgré l'absence de TLS.** Une
+  tentative de TLS sur Traefik (certificat auto-signé, provider `file`,
+  persisté sur disque pour ne plus se régénérer à chaque redémarrage) a été
+  implémentée, testée, puis explicitement abandonnée sur demande de
+  l'utilisateur après un avertissement navigateur
+  `net::ERR_CERT_AUTHORITY_INVALID` — un certificat auto-signé n'est jamais
+  approuvé par une CA de confiance, seul `mkcert` (CA locale installée sur
+  chaque poste dev) l'aurait supprimé. Revert propre
+  (`git revert -m 1 --no-edit`), stack repassée entièrement en HTTP.
+  - Correctif retenu à la place : chiffrement RSA-2048/OAEP-SHA256 du seul
+    champ mot de passe, scope volontairement limité à `/auth/login` et
+    `/auth/register` (pas `/auth/token`, endpoint Swagger de debug, choix
+    explicite de l'utilisateur). [api/auth_crypto.py](api/auth_crypto.py)
+    génère une paire de clés en mémoire au démarrage du processus API —
+    jamais persistée, régénérée à chaque redémarrage sans conséquence
+    puisqu'elle ne protège que l'échange en cours, pas les comptes déjà en
+    base — et expose la clé publique via `GET /auth/public-key`.
+    [frontend/utils/auth_crypto_client.py](frontend/utils/auth_crypto_client.py)
+    la récupère à chaque connexion, sans mise en cache, pour éviter un échec
+    de déchiffrement après un redémarrage de l'API.
+  - Vérifié de bout en bout par de vrais appels HTTP sur la stack Docker
+    démarrée (register + login).
+  - Limite assumée : seul le mot de passe est protégé, pas le reste des
+    échanges (jeton JWT compris) ni `/auth/token`.
+
 - [x] **Réseau privé étanche pour `database_api`** — résolu par le même
   changement Traefik : `database_api` n'a plus de section `ports:`, il n'est
   joignable qu'en interne (`http://database_api:8000`) et via
@@ -755,45 +780,81 @@ qu'une lecture du seul contenu commité ne montre pas.
 
 ## 🟡 Artefacts régénérables commités
 
-- [ ] Quatre copies du diagramme du graphe sont suivies :
+- [x] **Corrigé.** Quatre copies du diagramme du graphe étaient suivies :
   `HorRAGor_graph.png` (racine), `api/HorRAGor_graph.png`,
   `docs/HorRAGor_graph.png` (les trois **identiques**, 168 Ko chacune) et
-  `agents/HorRAGor_graph.png` (32 Ko, version périmée). Idem pour `graph.mmd` :
-  racine, `api/` et `docs/` identiques, `agents/graph.mmd` différent.
-  Ces fichiers sont **générés au démarrage** par
-  [agents/graph.py](agents/graph.py:273) — donc régénérables, donc à ignorer
-  (socle § « artefacts régénérables »), avec une seule copie de référence si
-  la documentation Sphinx en a besoin.
-- [ ] `agents/Capture d’écran 2026-06-06 000734.png` : capture de travail
-  suivie dans git, avec une apostrophe typographique dans le nom (pénible en
-  ligne de commande et sur d'autres systèmes de fichiers). À retirer.
-- [ ] `MERISE HORRAGOR.pptx` (4,5 Mo) et `HorRAGor_presentation.pptx` : binaires
-  de présentation dans le dépôt de code, non diffables, alourdissant chaque
-  clone et chaque contexte de build.
-- [ ] `slide4_corrections.png` / `slide6_corrections.png` traînent sur le disque
-  bien qu'ignorés depuis peu ([.gitignore:63](.gitignore:63)) : à supprimer du
-  répertoire de travail.
+  `agents/HorRAGor_graph.png` (32 Ko, version périmée) — idem pour
+  `graph.mmd`. Générés au démarrage par
+  [agents/graph.py:313-317](agents/graph.py:313) dans le répertoire courant
+  du processus, donc régénérables. `api/graph.mmd`/`HorRAGor_graph.png`,
+  `agents/graph.mmd`/`HorRAGor_graph.png` (périmés) et
+  `docs/graph.mmd`/`HorRAGor_graph.png` (doublon inutilisé —
+  [docs/source/langgraph.rst:9](docs/source/langgraph.rst:9) référence en
+  réalité la copie racine, `../../HorRAGor_graph.png`) retirés du dépôt
+  (`git rm`). Seule la copie racine reste versionnée : c'est celle que la CI
+  embarque dans la doc Sphinx sans étape de régénération. Les trois autres
+  emplacements ajoutés au `.gitignore` pour qu'une régénération locale
+  n'y recrée pas de doublon suivi.
+- [x] **Corrigé.** `agents/Capture d’écran 2026-06-06 000734.png` (capture de
+  travail, apostrophe typographique dans le nom) retirée du dépôt.
+- [x] **Corrigé.** `MERISE HORRAGOR.pptx` (4,5 Mo) et
+  `HorRAGor_presentation.pptx` retirés du dépôt (`git rm`) : binaires de
+  présentation non diffables, non référencés par aucun fichier du dépôt,
+  alourdissant chaque clone et chaque contexte de build.
+- [x] **Corrigé.** `slide4_corrections.png` / `slide6_corrections.png`
+  supprimés du répertoire de travail (n'étaient pas suivis, déjà ignorés
+  depuis [.gitignore:73](.gitignore:73)).
 
 ## 🟡 Documentation — dérive constatée
 
-- [ ] L'arborescence de [README.md](README.md:22) liste encore
-  `agents/state.py` (fichier supprimé) et omet des modules qui existent :
-  `agents/config.py`, `agents/chat_terminal.py`, `api/auth_config.py`,
-  `api/auth_routes.py`, `api/auth_utils.py`, `api/schemas.py`,
-  `database/create_auth_tables.py`, `database/models.py`,
-  `shared/embeddings.py`, ainsi que les lanceurs de la racine.
-- [ ] Deux QUICKSTART concurrents : [QUICKSTART.md](QUICKSTART.md) (121 lignes,
-  chemin Docker) et [frontend/QUICKSTART.md](frontend/QUICKSTART.md)
-  (224 lignes, chemin local). Rien n'indique lequel fait foi.
-- [ ] [CHANGELOG_FLAVIE.md](CHANGELOG_FLAVIE.md) est un journal de travail
-  nominatif commité à la racine : il redit ce que l'historique git contient
-  déjà (socle § Commentaires — « cette information vit dans le message de
-  commit »), et référence comme « créé » un `EPIC_FLAVIE_RESUME.md` qui
-  n'existe pas dans le dépôt. À supprimer, ou à fondre dans un CHANGELOG
-  unique et non nominatif.
-- [ ] Sphinx ne documente pas `frontend/` ni `shared/` :
-  [docs/source/index.rst](docs/source/index.rst) n'a pas de `frontend.rst`
-  alors que le cahier des charges demande la documentation de l'UI.
+- [x] **Corrigé.** L'arborescence de [README.md](README.md:52) listait encore
+  `agents/state.py` (fichier supprimé) et omettait des modules existants —
+  ajoutés : `agents/config.py`, `agents/chat_terminal.py`,
+  `api/auth_config.py`, `api/auth_crypto.py`, `api/auth_routes.py`,
+  `api/auth_utils.py`, `api/schemas.py`, `database/create_auth_tables.py`,
+  `shared/embeddings.py`, ainsi que `scripts/` (lanceurs déplacés hors
+  racine, cf. section « Scripts et tests orphelins »).
+- [x] **Corrigé.** Deux QUICKSTART concurrents :
+  [QUICKSTART.md](QUICKSTART.md) (chemin Docker, à jour) et
+  `frontend/QUICKSTART.md` (chemin local, obsolète — référençait
+  `requirements.txt` déjà supprimé, un contrat d'API périmé (`POST /chat`
+  au lieu de `/chat/response_stream`), une structure de fichiers non
+  auth-aware, mise en forme markdown cassée). `frontend/QUICKSTART.md`
+  supprimé (`git rm`) : `QUICKSTART.md` fait foi pour le lancement,
+  [frontend/README.md](frontend/README.md) reste la référence pour un
+  lancement local hors Docker du seul frontend.
+- [ ] **Conservé, sur demande explicite.** `CHANGELOG_FLAVIE.md` — journal de
+  travail nominatif redondant avec l'historique git pour sa partie diff, et
+  référençant un `EPIC_FLAVIE_RESUME.md` inexistant. Une première
+  suppression a fait perdre une information réelle non documentée ailleurs
+  (§ Points de vigilance : pas de persistance des synopsis Wikipedia en base
+  pour raison de droits d'auteur, pas de cache) — recapturée dans l'en-tête
+  de [agents/nodes_wikipedia.py](agents/nodes_wikipedia.py:9) avant que le
+  fichier ne soit restauré. Le fichier reste donc en l'état, sans
+  suppression ni fusion dans un changelog non nominatif tant que ce n'est
+  pas redemandé.
+- [x] **Corrigé.** Sphinx ne documentait ni `frontend/` ni `shared/` :
+  [docs/source/frontend.rst](docs/source/frontend.rst) (clients API,
+  authentification, chiffrement du mot de passe, composants d'affichage) et
+  [docs/source/shared.rst](docs/source/shared.rst) (schémas Pydantic,
+  embeddings) ajoutés, référencés dans
+  [docs/source/index.rst](docs/source/index.rst). `frontend/` important ses
+  propres modules en chemin relatif à lui-même (`from utils.x import y`,
+  comme le fait Streamlit au lancement) plutôt qu'en `frontend.utils.x`,
+  [docs/source/conf.py](docs/source/conf.py) ajoute `frontend/` à `sys.path`
+  pour que l'autodoc résolve ces imports, sur le même principe que l'ajout
+  déjà en place pour la racine du dépôt. `streamlit` n'étant pas installé
+  dans l'environnement qui construit la doc en CI (`uv run --project ../api`
+  ne sync que les dépendances d'`api/`), il est simulé via
+  `autodoc_mock_imports = ["streamlit"]` plutôt que d'ajouter une dépendance
+  supplémentaire à l'environnement de build. `app.py` volontairement exclu
+  de l'autodoc (effets de bord Streamlit au niveau module — configuration de
+  page, appels `st.*` hors fonction) : seuls les modules réutilisables sont
+  documentés (clients, composants). Vérifié par un build Sphinx complet en
+  local (`uv run --project api sphinx-build -E -b html docs/source <sortie>`)
+  : `build succeeded`, symboles `frontend.utils.auth_client.login_user`,
+  `frontend.utils.auth_crypto_client.encrypt_password`,
+  `shared.schemas.AgentState` bien présents dans le HTML généré.
 
 ## 🟡 CI — angles morts confirmés en relisant le workflow
 

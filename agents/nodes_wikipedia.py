@@ -6,6 +6,12 @@ Wikipedia ciblée, puis fusionne ces résultats avec les FilmDetail/FilmShort po
 produire une réponse concise à la question utilisateur, consommée par
 narrator_node.
 
+Les résultats Wikipedia ne sont jamais persistés en base : le contenu est
+protégé par le droit d'auteur, seule une réutilisation à la volée est
+acceptable. Ils ne sont pas non plus mis en cache (limite connue, à revoir
+si le volume d'appels devient significatif) : chaque enrichissement relance
+une recherche complète (voir agents/tools/wiki_tools.py).
+
 Dépendances principales :
     - agents.config (llm_synthesis)
     - agents.tools.wiki_tools (wikipedia_search)

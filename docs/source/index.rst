@@ -17,5 +17,7 @@ HorRAGor
    api
    agents
    database
+   frontend
+   shared
    database_schema
    langgraph
