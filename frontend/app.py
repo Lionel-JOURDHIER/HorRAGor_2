@@ -494,7 +494,9 @@ def display_chat_interface(filters: dict):
 
         # Consommer le flux SSE avec affichage en temps réel
         try:
-            for event in send_chat_query_streaming(user_input, filters):
+            for event in send_chat_query_streaming(
+                user_input, st.session_state["access_token"], filters
+            ):
                 status_container.empty()
                 # Gestion des erreurs
                 if "error" in event:

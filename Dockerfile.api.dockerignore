@@ -1,0 +1,60 @@
+# Dockerfile.api.dockerignore
+#
+# BuildKit lit `<chemin-du-Dockerfile>.dockerignore` en **remplacement** du
+# .dockerignore racine, pas en complément : ce fichier en est donc une copie
+# délibérée, à faire évoluer avec lui. Il n'existe que pour une différence,
+# signalée plus bas — l'index FAISS.
+
+# --- Dépôt, outillage et conventions : sans usage à l'exécution -------------
+.git
+.gitignore
+.gitmodules
+.dockerignore
+.githooks
+.github
+.claude
+.vscode
+
+# --- Secrets ---------------------------------------------------------------
+**/.env
+**/.env.*
+**/*.env
+
+# --- Environnements virtuels et caches Python ------------------------------
+**/.venv
+**/venv
+**/ENV
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.ipynb_checkpoints
+
+# --- Artefacts régénérables ------------------------------------------------
+**/htmlcov
+**/.coverage
+coverage.xml
+docs/build
+**/*.egg-info
+
+# --- Journaux --------------------------------------------------------------
+**/logs
+**/*.log
+
+# --- Données volumineuses --------------------------------------------------
+# SEULE DIFFÉRENCE avec le .dockerignore racine : `faiss_data` n'est pas exclu.
+# L'image api embarque l'index (≈ 250 Mo) parce que c'est le seul conteneur qui
+# le charge (api/main.py) et qu'il doit être disponible sans dépendre d'un
+# volume ou d'une restauration de sauvegarde.
+# api/faiss_data/ reste exclu : doublon octet pour octet de faiss_data/, copié
+# vers /app/api/faiss_data/ où personne ne le lit.
+api/faiss_data
+database/data_backup
+
+# --- Documents et images de travail ---------------------------------------
+*.pptx
+*.pdf
+**/*.png
+**/*.jpg
+graph.mmd
+**/graph.mmd

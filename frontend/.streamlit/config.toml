@@ -11,8 +11,41 @@ textColor = "#e2e8f0"
 font = "sans serif"
 
 [server]
-# Configuration pour le développement
+# Streamlit tourne derrière Traefik (voir docker-compose.yml) : il n'écoute
+# jamais directement sur une interface publique, mais l'exposition n'est qu'une
+# partie du problème.
 headless = true
 port = 8501
-enableCORS = false
+
+# --- Contrôle de l'origine (le point que Traefik ne peut PAS couvrir) --------
+# L'ancienne valeur `enableCORS = false` faisait envoyer
+# `Access-Control-Allow-Origin: *` et, surtout, faisait accepter une connexion
+# WebSocket depuis n'importe quelle origine. `enableXsrfProtection` n'y changeait
+# rien : ouvrir un WebSocket ne réclame pas de jeton XSRF.
+#
+# Et la règle `Host(...)` de Traefik ne suffit pas non plus : dans une attaque
+# cross-origin, le navigateur de la victime envoie bien `Host: localhost`
+# (puisqu'il se connecte à cette app) — c'est l'en-tête `Origin` qui trahit le
+# site attaquant, et Traefik v3 n'a pas de middleware pour le filtrer.
+enableCORS = true
 enableXsrfProtection = true
+
+# Schéma et port doivent correspondre EXACTEMENT à ce que voit le navigateur,
+# donc l'URL Traefik — jamais http://localhost:8501, qui n'est plus publié.
+# Le port implicite (80) ne s'écrit pas. C'est CETTE ligne qui bloque le
+# WebSocket venu d'une autre origine, et elle ne dépend pas du TLS : passer
+# la stack en clair ne l'affaiblit pas. Ajouter ici le domaine de production
+# le jour venu — en https, cette fois.
+corsAllowedOrigins = ["http://localhost"]
+
+# Deuxième verrou, sur le `Host` cette fois : limite les noms d'hôte acceptés
+# à l'ouverture du WebSocket.
+allowedHosts = ["localhost"]
+
+[browser]
+# Adresse par laquelle le navigateur atteint l'app (via Traefik), utilisée par
+# Streamlit pour construire ses URL et vérifier l'origine.
+serverAddress = "localhost"
+serverPort = 80
+# Coupe l'envoi de statistiques d'usage à Streamlit.
+gatherUsageStats = false

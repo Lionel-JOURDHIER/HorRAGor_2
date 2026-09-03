@@ -57,10 +57,27 @@ from shared.schemas import AgentState
 
 os.environ["LANGGRAPH_STRICT_MSGPACK"] = "false"
 
-# OU mieux, enregistrer les types explicitement
-from langgraph.checkpoint.memory import InMemorySaver
+import sqlite3
 
-_checkpointer = InMemorySaver()
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.sqlite import SqliteSaver
+
+# Persiste la mémoire de conversation (dont last_displayed_movies_id) entre
+# les redémarrages du conteneur.
+CHECKPOINT_DB_PATH = os.getenv("CHECKPOINT_DB_PATH", "data/checkpoints.sqlite")
+
+
+def _build_sync_checkpointer() -> SqliteSaver:
+    """Checkpointer par défaut pour un usage synchrone (`.invoke()`).
+
+    N'implémente pas les méthodes async (`.astream()`/`.ainvoke()` lèvent
+    `NotImplementedError`) : réservé à `agents/chat_terminal.py`. L'API
+    FastAPI fournit son propre `AsyncSqliteSaver` via `graph(checkpointer=...)`,
+    ouvert dans le cycle de vie de l'application (voir `api/main.py`).
+    """
+    Path(CHECKPOINT_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(CHECKPOINT_DB_PATH, check_same_thread=False)
+    return SqliteSaver(conn)
 
 # LOGGER
 from logger import get_logger, setup_logger
@@ -125,7 +142,16 @@ def wrapper_route_return_wiki(state: AgentState) -> str:
 # ==============================================================================
 
 
-def graph():
+def graph(checkpointer: BaseCheckpointSaver | None = None):
+    """Construit et compile le graphe LangGraph HorRAGor.
+
+    Args:
+        checkpointer: Backend de persistance de la mémoire de conversation.
+            Par défaut (`None`), un `SqliteSaver` synchrone est créé — adapté
+            à un appel `.invoke()` (CLI). Un appelant async (API FastAPI)
+            doit fournir un `AsyncSqliteSaver` explicitement : `SqliteSaver`
+            seul lève `NotImplementedError` sur `.astream()`/`.ainvoke()`.
+    """
     logger.info("Initialisation de la Machine à États (HorRAGor v3) ...")
     workflow = StateGraph(AgentState)
 
@@ -268,7 +294,7 @@ def graph():
     # ==============================================================================
     # COMPILATION DU GRAPHE
     # ==============================================================================
-    graph = workflow.compile(checkpointer=_checkpointer)
+    graph = workflow.compile(checkpointer=checkpointer or _build_sync_checkpointer())
 
     # Génération du diagramme (aide au développement uniquement) : le rendu PNG
     # appelle l'API externe mermaid.ink, qui peut être indisponible (réseau,

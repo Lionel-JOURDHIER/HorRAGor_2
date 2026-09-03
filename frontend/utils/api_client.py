@@ -12,6 +12,7 @@ Fonctions disponibles :
     - get_genres : Récupère la liste des genres
     - send_chat_query : Envoie une requête au chatbot avec filtres (synchrone)
     - send_chat_query_streaming : Envoie une requête au chatbot en mode streaming SSE
+    - get_chat_history : Récupère l'historique de conversation persisté de l'utilisateur
     - get_wikipedia_info : Récupère des informations depuis Wikipedia
 
 Auteur : Flavie (Epic 7)
@@ -222,7 +223,34 @@ def send_chat_query(
         }
 
 
-def send_chat_query_streaming(prompt: str, filters: Optional[Dict[str, Any]] = None):
+def get_chat_history(access_token: str) -> List[Dict[str, Any]]:
+    """
+    Récupère l'historique de conversation persisté de l'utilisateur connecté.
+
+    Args:
+        access_token: Access token JWT de l'utilisateur connecté.
+
+    Returns:
+        Messages {"role", "content", "films"?} dans l'ordre chronologique,
+        au format attendu par `st.session_state.messages`. Liste vide si
+        l'utilisateur n'a pas encore de conversation ou si l'appel échoue.
+    """
+    api_url = get_api_url()
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    try:
+        response = requests.get(
+            f"{api_url}/chat/history", headers=headers, timeout=10
+        )
+        response.raise_for_status()
+        return response.json().get("history", [])
+    except requests.exceptions.RequestException:
+        return []
+
+
+def send_chat_query_streaming(
+    prompt: str, access_token: str, filters: Optional[Dict[str, Any]] = None
+):
     """
     Envoie une requête au chatbot en mode streaming pour recevoir les mises à jour
     de l'état de réflexion de l'agent en temps réel via Server-Sent Events (SSE).
@@ -235,13 +263,16 @@ def send_chat_query_streaming(prompt: str, filters: Optional[Dict[str, Any]] = N
 
     Args:
         prompt: Question ou requête de l'utilisateur
+        access_token: Access token JWT de l'utilisateur connecté (endpoint
+            protégé — la mémoire de conversation est indexée par utilisateur)
         filters: Dictionnaire optionnel contenant les filtres SQL
 
     Yields:
-        Dictionnaires contenant les états intermédiaires et la réponse finale
+        Dictionnaires contenant les états intermédiaires et la réponse finale.
+        {"error": ...} si le token est absent ou rejeté (401).
 
     Exemple d'utilisation:
-        for event in send_chat_query_streaming("Film d'horreur", filters):
+        for event in send_chat_query_streaming("Film d'horreur", token, filters):
             if "step" in event:
                 print(f"Étape: {event['step']}")
             elif "answer" in event:
@@ -267,11 +298,14 @@ def send_chat_query_streaming(prompt: str, filters: Optional[Dict[str, Any]] = N
         api_filters = {k: v for k, v in api_filters.items() if v is not None}
 
     payload = {"message": prompt, "filters": api_filters}
+    headers = {"Authorization": f"Bearer {access_token}"}
 
     try:
         # Utiliser httpx pour le streaming SSE (plus robuste que requests)
         with httpx.Client(timeout=None) as client:
-            with client.stream("POST", f"{api_url}/chat/response_stream", json=payload) as response:
+            with client.stream(
+                "POST", f"{api_url}/chat/response_stream", json=payload, headers=headers
+            ) as response:
                 response.raise_for_status()
                 
                 for line in response.iter_lines():
