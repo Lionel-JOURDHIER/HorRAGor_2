@@ -14,6 +14,7 @@ Auteur : Flavie (Epic 10)
 from database.connection import get_db
 from database.tables.users import User
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from logger import get_logger, setup_logger
 from shared.schemas import ErrorResponse
 from sqlalchemy.exc import IntegrityError
@@ -159,6 +160,38 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
         access_token=access_token,
         refresh_token=refresh_token,
     )
+
+
+@router.post(
+    "/token", response_model=Token, responses={401: {"model": ErrorResponse}}
+)
+async def login_for_swagger(
+    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+):
+    """
+    Se connecter via le formulaire OAuth2 password flow.
+
+    Alimente le bouton "Authorize" de Swagger, qui n'accepte que ce format
+    (champ `username`, mappé ici sur l'email). Pour un usage programmatique,
+    préférer `/auth/login`, qui retourne aussi le profil utilisateur.
+    """
+    logger.info(f"Tentative de connexion (Swagger) : {form_data.username}")
+
+    user = authenticate_user(form_data.username, form_data.password, db)
+
+    if not user:
+        logger.warning(f"Échec de connexion (Swagger) : {form_data.username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email ou mot de passe incorrect",
+        )
+
+    logger.info(f"Connexion réussie (Swagger) : {user.id} - {user.email}")
+
+    access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
+    refresh_token = create_refresh_token(user.id, db)
+
+    return Token(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.post(

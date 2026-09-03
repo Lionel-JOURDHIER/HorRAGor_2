@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
@@ -30,8 +30,10 @@ from database.tables.users import User
 # Configuration du hachage de mots de passe
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Configuration du bearer token
-security = HTTPBearer()
+# Schéma OAuth2 password flow : donne à Swagger un vrai formulaire de
+# connexion dans son bouton "Authorize", au lieu d'un simple champ à coller un
+# token récupéré manuellement via /auth/login.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
 # === PASSWORD HASHING ===
@@ -222,24 +224,22 @@ def authenticate_user(email: str, password: str, db: Session) -> Optional[User]:
 
 # === DEPENDENCY: GET CURRENT USER ===
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> User:
     """
     Dépendance FastAPI pour récupérer l'utilisateur courant depuis le token.
-    
+
     Args:
-        credentials: Token Bearer
+        token: Access token JWT (Bearer)
         db: Session de base de données
-        
+
     Returns:
         Utilisateur courant
-        
+
     Raises:
         HTTPException: Si le token est invalide ou l'utilisateur n'existe pas
     """
-    token = credentials.credentials
-
     # Décoder le token
     payload = decode_access_token(token)
 
