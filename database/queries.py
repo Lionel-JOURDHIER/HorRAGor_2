@@ -24,6 +24,7 @@ Dépendances principales :
 Auteur/Responsable : Lionel (Epic 1 & 2)
 """
 
+import os
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -56,6 +57,20 @@ from database.tables.realisateurs import Realisateur
 from database.tables.scores_imdb import ScoreImdb
 from database.tables.scores_rt import ScoreRt
 from database.tables.scores_tmdb import ScoreTmdb
+
+
+TMDB_IMAGE_BASE_URL = os.getenv(
+    "TMDB_IMAGE_BASE_URL", "https://image.tmdb.org/t/p/w500"
+)
+
+
+def _tmdb_image_url(path: str | None) -> str | None:
+    """Transforme un chemin TMDB relatif en URL d'image exploitable."""
+    if not path:
+        return None
+    if path.startswith("http://") or path.startswith("https://"):
+        return path
+    return f"{TMDB_IMAGE_BASE_URL.rstrip('/')}/{path.lstrip('/')}"
 
 
 def get_film_details_by_id(session: Session, tmdb_id: int) -> Optional[FilmDetail]:
@@ -116,7 +131,7 @@ def get_film_details_by_id(session: Session, tmdb_id: int) -> Optional[FilmDetai
         tagline=film.tagline,
         director=real.name if real else None,
         genres=genres_list,
-        poster_url=f"{film.poster_path}" if film.poster_path else None,
+        poster_url=_tmdb_image_url(film.poster_path),
         budget=film.budget,
         revenue=film.revenue,
         tmdb_score=float(s_tmdb.vote_average)
@@ -209,7 +224,7 @@ def get_films_short_by_ids(session: Session, tmdb_ids: List[int]) -> List[FilmSh
             tmdb_score=float(score_tmdb.vote_average)
             if score_tmdb and score_tmdb.vote_average
             else None,
-            poster_url=f"{film.poster_path}" if film.poster_path else None,
+            poster_url=_tmdb_image_url(film.poster_path),
             synopsis=film.overview,
         )
 

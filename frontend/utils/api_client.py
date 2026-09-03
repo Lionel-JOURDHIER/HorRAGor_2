@@ -39,6 +39,11 @@ def get_api_url() -> str:
     return os.getenv("API_URL", "http://localhost:8000")
 
 
+def get_database_api_url() -> str:
+    """Récupère l'URL de l'API Database, séparée de l'API IA."""
+    return os.getenv("DATABASE_API_URL", "http://localhost:8001")
+
+
 def check_health() -> Dict[str, Any]:
     """
     Vérifie la santé de l'API.
@@ -74,9 +79,9 @@ def get_film_by_id(film_id: int) -> Optional[Dict[str, Any]]:
         print(f"ID de film invalide: {film_id}")
         return None
 
-    api_url = get_api_url()
+    api_url = get_database_api_url()
     try:
-        response = requests.get(f"{api_url}/film/{film_id}", timeout=10)
+        response = requests.get(f"{api_url}/db/film/{film_id}", timeout=10)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -91,13 +96,13 @@ def get_realisateurs() -> List[str]:
     Returns:
         Liste des noms de réalisateurs
     """
-    api_url = get_api_url()
+    api_url = get_database_api_url()
     try:
-        response = requests.get(f"{api_url}/list_real", timeout=10)
+        response = requests.get(f"{api_url}/db/list_real", timeout=10)
         response.raise_for_status()
         data = response.json()
         # L'API retourne {"directors": [...]}
-        return data.get("directors", [])
+        return data.get("directors", []) if isinstance(data, dict) else data
     except (requests.exceptions.RequestException, ValueError) as e:
         print(f"Erreur lors de la récupération des réalisateurs: {e}")
         return []
@@ -110,13 +115,13 @@ def get_genres() -> List[str]:
     Returns:
         Liste des genres
     """
-    api_url = get_api_url()
+    api_url = get_database_api_url()
     try:
-        response = requests.get(f"{api_url}/list_genre", timeout=10)
+        response = requests.get(f"{api_url}/db/list_genre", timeout=10)
         response.raise_for_status()
         data = response.json()
         # L'API retourne {"genres": [...]}
-        return data.get("genres", [])
+        return data.get("genres", []) if isinstance(data, dict) else data
     except (requests.exceptions.RequestException, ValueError) as e:
         print(f"Erreur lors de la récupération des genres: {e}")
         return []
@@ -177,27 +182,40 @@ def send_chat_query(
     payload = {"message": prompt, "filters": api_filters}
 
     try:
-        response = requests.post(
-            f"{api_url}/chat/response",
-            json=payload,
-            timeout=60,  # Timeout plus long pour l'agent
-        )
-        response.raise_for_status()
-        api_response = response.json()
+        final_event = None
+        with httpx.Client(timeout=None) as client:
+            with client.stream(
+                "POST", f"{api_url}/chat/response_stream", json=payload
+            ) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+                    event = json.loads(line[6:])
+                    if "answer" in event:
+                        final_event = event
+                    if event.get("type") == "done":
+                        break
+
+        if final_event is None:
+            return None
 
         # Adapter la réponse API au format attendu par le frontend
+        films = final_event.get("recommendations", [])
+        if not films and final_event.get("film"):
+            films = [final_event["film"]]
         return {
             "status": "success",
-            "reponse_texte": api_response.get("answer", ""),
-            "films_recommandes": api_response.get("recommendations", []),
-            "etats_agent": api_response.get("steps", []),
+            "reponse_texte": final_event.get("answer", ""),
+            "films_recommandes": films,
+            "etats_agent": final_event.get("steps", []),
         }
-    except requests.exceptions.Timeout:
+    except (requests.exceptions.Timeout, httpx.TimeoutException):
         return {
             "status": "error",
             "message_erreur": "La requête a pris trop de temps. L'agent est peut-être surchargé.",
         }
-    except requests.exceptions.RequestException as e:
+    except (requests.exceptions.RequestException, httpx.RequestError) as e:
         return {
             "status": "error",
             "message_erreur": f"Erreur de communication avec l'API: {str(e)}",

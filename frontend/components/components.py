@@ -20,6 +20,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
+from utils.api_client import get_genres, get_realisateurs
 
 
 def normalize_movie_data(movie: Dict[str, Any]) -> Dict[str, Any]:
@@ -246,6 +247,10 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
                         unsafe_allow_html=True,
                     )
 
+            if show_details and movie.get("judge_feedback"):
+                with st.expander("⚖️ Validation du juge", expanded=False):
+                    st.markdown(movie["judge_feedback"])
+
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -330,8 +335,6 @@ def create_filters_sidebar(api_url: str) -> Dict[str, Any]:
     Returns:
         Dictionnaire contenant tous les filtres sélectionnés
     """
-    import requests
-
     with st.sidebar:
         st.markdown(
             """
@@ -361,10 +364,8 @@ def create_filters_sidebar(api_url: str) -> Dict[str, Any]:
         )
 
         try:
-            response = requests.get(f"{api_url}/list_real", timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                realisateurs = data.get("directors", [])
+            realisateurs = get_realisateurs()
+            if realisateurs:
                 selected_real = st.selectbox(
                     "Choisir un réalisateur",
                     options=["Tous"] + realisateurs,
@@ -393,10 +394,8 @@ def create_filters_sidebar(api_url: str) -> Dict[str, Any]:
         )
 
         try:
-            response = requests.get(f"{api_url}/list_genre", timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                genres = data.get("genres", [])
+            genres = get_genres()
+            if genres:
 
                 genres_inclus = st.multiselect(
                     "✅ Genres à conserver",

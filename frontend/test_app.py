@@ -8,8 +8,9 @@ Note : Ces tests nécessitent pytest et pytest-mock
 Installation : pip install pytest pytest-mock
 """
 
+import json
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 from utils import api_client
 
 
@@ -74,17 +75,24 @@ class TestApiClient:
         assert len(result) == 2
         assert "John Carpenter" in result
     
-    @patch('utils.api_client.requests.post')
-    def test_send_chat_query_success(self, mock_post):
+    @patch('utils.api_client.httpx.Client')
+    def test_send_chat_query_success(self, mock_client):
         """Test d'envoi de requête chat avec succès."""
-        mock_response = Mock()
-        mock_response.json.return_value = {
-            "status": "success",
-            "reponse_texte": "Voici mes recommandations",
-            "films_recommandes": []
-        }
+        mock_response = MagicMock()
+        mock_response.iter_lines.return_value = [
+            'data: ' + json.dumps({
+                "answer": "Voici mes recommandations",
+                "steps": [],
+                "recommendations": [],
+            }),
+            'data: {"type": "done"}',
+        ]
         mock_response.raise_for_status = Mock()
-        mock_post.return_value = mock_response
+        mock_stream = MagicMock()
+        mock_stream.__enter__.return_value = mock_response
+        mock_client.return_value.__enter__.return_value.stream.return_value = (
+            mock_stream
+        )
         
         filters = {"score_tmdb_min": 7.0}
         result = api_client.send_chat_query("Recommande des films", filters)
@@ -92,11 +100,14 @@ class TestApiClient:
         assert result["status"] == "success"
         assert "reponse_texte" in result
     
-    @patch('utils.api_client.requests.post')
-    def test_send_chat_query_timeout(self, mock_post):
+    @patch('utils.api_client.httpx.Client')
+    def test_send_chat_query_timeout(self, mock_client):
         """Test d'envoi de requête chat avec timeout."""
-        import requests
-        mock_post.side_effect = requests.exceptions.Timeout()
+        import httpx
+
+        mock_client.return_value.__enter__.return_value.stream.side_effect = (
+            httpx.TimeoutException("timeout")
+        )
         
         result = api_client.send_chat_query("Test")
         assert result["status"] == "error"
