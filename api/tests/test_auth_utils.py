@@ -329,4 +329,3 @@ async def test_get_current_user_refuse_un_compte_desactive(db_session, utilisate
 
     assert erreur.value.status_code == 403
     assert erreur.value.detail == "Compte désactivé"
-

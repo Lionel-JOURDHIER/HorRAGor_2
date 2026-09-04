@@ -16,6 +16,7 @@ from shared.schemas import ChatRequest
 # FIXTURES
 # ============================================================================
 
+
 @pytest.fixture
 def mock_user():
     user = MagicMock()
@@ -28,6 +29,8 @@ def chat_request():
     return ChatRequest(
         message="films like Inception",
     )
+
+
 # ============================================================================
 # init_graph
 # ============================================================================
@@ -41,12 +44,9 @@ def test_init_graph():
         "api.modules.chat_service.build_my_graph",
         return_value=mock_graph,
     ) as mock_build:
-
         init_graph(mock_checkpointer)
 
-    mock_build.assert_called_once_with(
-        checkpointer=mock_checkpointer
-    )
+    mock_build.assert_called_once_with(checkpointer=mock_checkpointer)
 
     assert chat_service.graph == mock_graph
 
@@ -66,7 +66,6 @@ def test_normalize_steps_empty():
     result = normalize_steps([])
 
     assert result == []
-
 
 
 def test_normalize_steps_dict():
@@ -127,6 +126,7 @@ def test_normalize_steps_fallback_missing_attributes():
 # ============================================================================
 # get_graph_config
 
+
 def test_get_graph_config_thread_id_from_user():
     request = SimpleNamespace(message="hello")
     user = SimpleNamespace(id=42)
@@ -152,8 +152,7 @@ def test_get_graph_config_different_users_get_different_threads():
     )
 
     assert (
-        config_a["configurable"]["thread_id"]
-        != config_b["configurable"]["thread_id"]
+        config_a["configurable"]["thread_id"] != config_b["configurable"]["thread_id"]
     )
 
 
@@ -676,4 +675,3 @@ async def test_run_agent_stream_final_accumulates_state(
             "status": "success",
         }
     ]
-
