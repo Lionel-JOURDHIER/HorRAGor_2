@@ -17,6 +17,7 @@ Auteur : Flavie (Epic 7)
 """
 
 from datetime import date
+from html import escape
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
@@ -82,9 +83,6 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
     movie = normalize_movie_data(movie)
 
     with st.container():
-        # Container avec style amélioré
-        st.markdown('<div class="movie-card">', unsafe_allow_html=True)
-
         col1, col2 = st.columns([1, 2])
 
         with col1:
@@ -202,37 +200,39 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
             # Genres avec tags stylisés
             if movie.get("genres"):
                 genres = movie["genres"]
-                if isinstance(genres, list):
-                    st.markdown('<div style="margin: 15px 0;">', unsafe_allow_html=True)
-                    st.markdown(
-                        '<strong style="color: #ff4757; font-size: 1.1em;">🎭 Genres :</strong>',
-                        unsafe_allow_html=True,
-                    )
-
-                    genres_html = ""
-                    for genre in genres:
-                        genres_html += f"""
-                        <span style="display: inline-block; background: linear-gradient(135deg, #ff4757 0%, #ff006e 100%);
-                                     color: white; padding: 8px 18px; border-radius: 25px; margin: 5px;
-                                     font-size: 0.95em; font-weight: 700;
-                                     box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
-                                     border: 2px solid rgba(255, 255, 255, 0.2);
-                                     transition: transform 0.2s ease;">
-                            {genre}
-                        </span>
-                        """
-                    st.markdown(genres_html, unsafe_allow_html=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(
-                        f"""
-                    <div style="margin: 10px 0;">
-                        <strong style="color: #ff4757; font-size: 1.1em;">🎭 Genres :</strong>
-                        <span style="color: #ffffff; font-weight: 600;">{genres}</span>
+                genre_values = (
+                    [str(genre) for genre in genres]
+                    if isinstance(genres, list)
+                    else [line.strip() for line in str(genres).splitlines() if line.strip()]
+                )
+                genres_html = "".join(
+                    f"<span style=\"display: inline-flex; align-items: center; "
+                    f"min-height: 32px; padding: 5px 13px; border-radius: 999px; "
+                    f"background: linear-gradient(135deg, #ff4757, #c9184a); "
+                    f"border: 1px solid rgba(255,255,255,.28); color: #fff; "
+                    f"font-size: .88rem; font-weight: 700; white-space: nowrap; "
+                    f"box-shadow: 0 4px 12px rgba(255,71,87,.28);\">"
+                    f"{escape(genre)}"
+                    "</span>"
+                    for genre in genre_values
+                )
+                st.markdown(
+                    f"""
+                    <div style="margin: 18px 0 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;
+                                    margin-bottom: 10px;">
+                            <span style="font-size: 1.1rem;">🎭</span>
+                            <strong style="color: #ff4757; font-size: 1.05rem;
+                                           letter-spacing: .02em;">Genres</strong>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;
+                                    align-items: center;">
+                            {genres_html}
+                        </div>
                     </div>
                     """,
-                        unsafe_allow_html=True,
-                    )
+                    unsafe_allow_html=True,
+                )
 
             # Synopsis en mode détaillé avec expander stylisé
             if show_details and movie.get("synopsis"):
@@ -252,12 +252,31 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
                 with st.expander("⚖️ Validation du juge", expanded=False):
                     st.markdown(movie["judge_feedback"])
 
-        st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
 
 
+def display_movie_count(movies: List[Dict[str, Any]]) -> None:
+    """Affiche le compteur de films avant les détails et les cartes."""
+    st.markdown(
+        f"""
+    <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2));
+                padding: 20px; border-radius: 15px; margin-bottom: 25px;
+                border: 2px solid rgba(255, 71, 87, 0.4);
+                box-shadow: 0 5px 25px rgba(255, 71, 87, 0.3);">
+        <p style="margin: 0; font-size: 1.2em; color: #ffffff; font-weight: 700;">
+            <strong style="color: #ff4757;">🎯 {len(movies)} film(s) trouvé(s)</strong>
+            correspondant à vos critères
+        </p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+
 def display_movie_list(
-    movies: List[Dict[str, Any]], title: str = "🎬 Films recommandés"
+    movies: List[Dict[str, Any]],
+    title: str = "🎬 Films recommandés",
+    show_count: bool = True,
 ) -> None:
     """
     Affiche une liste de films sous forme de cartes compactes.
@@ -284,21 +303,8 @@ def display_movie_list(
     if title:
         st.markdown(f"## {title}")
 
-    # En-tête avec compteur animé
-    st.markdown(
-        f"""
-    <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2));
-                padding: 20px; border-radius: 15px; margin-bottom: 25px;
-                border: 2px solid rgba(255, 71, 87, 0.4);
-                box-shadow: 0 5px 25px rgba(255, 71, 87, 0.3);">
-        <p style="margin: 0; font-size: 1.2em; color: #ffffff; font-weight: 700;">
-            <strong style="color: #ff4757;">🎯 {len(movies)} film(s) trouvé(s)</strong>
-            correspondant à vos critères
-        </p>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
+    if show_count:
+        display_movie_count(movies)
 
     # Affichage des films avec numérotation
     for idx, movie in enumerate(movies, 1):

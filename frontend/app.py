@@ -37,6 +37,7 @@ from components.components import (
     create_filters_sidebar,
     display_agent_status,
     display_chat_message,
+    display_movie_count,
     display_movie_list,
 )
 from utils.api_client import (
@@ -442,17 +443,20 @@ def display_chat_interface(filters: dict):
         if role == "user":
             display_chat_message("user", content, avatar="👤")
         else:
-            display_chat_message("assistant", content, avatar="🤖")
+            if "films" in message and message["films"]:
+                display_movie_count(message["films"])
 
             # Restauration des états de réflexion archivés ---
-            if "etats_agent" in message and message["etats_agent"]:
+            if "films" in message and message["films"]:
                 with st.expander("🔍 Détails de réflexion archivés", expanded=False):
-                    for etat in message["etats_agent"]:
+                    for etat in message.get("etats_agent", []):
                         display_agent_status(etat)
+
+            display_chat_message("assistant", content, avatar="🤖")
 
             # Afficher les films si disponibles
             if "films" in message and message["films"]:
-                display_movie_list(message["films"], title="")
+                display_movie_list(message["films"], title="", show_count=False)
 
     # Input utilisateur
     user_input = st.chat_input("💬 Posez votre question sur les films d'horreur...")
@@ -548,15 +552,20 @@ def display_chat_interface(filters: dict):
                 }
             )
         elif final_answer:
-            # Message de succès
-            st.success("✅ Réponse générée avec succès !")
-
-            # Afficher la réponse de l'assistant
-            display_chat_message("assistant", final_answer, avatar="🤖")
-
             # Les recommandations sont déjà au format API correct
             # normalize_movie_data() s'occupera de la conversion dans display_movie_card
             films = final_recommendations or ([final_film] if final_film else [])
+
+            if films:
+                display_movie_count(films)
+
+            if films:
+                with st.expander("🔍 Détails de réflexion archivés", expanded=False):
+                    for step in all_steps:
+                        display_agent_status(step)
+
+            st.success("✅ Réponse générée avec succès !")
+            display_chat_message("assistant", final_answer, avatar="🤖")
 
             # Mettre à jour les statistiques
             st.session_state.total_films_recommended += len(films)
@@ -584,7 +593,7 @@ def display_chat_interface(filters: dict):
                 """,
                     unsafe_allow_html=True,
                 )
-                display_movie_list(films, title="")
+                display_movie_list(films, title="", show_count=False)
             else:
                 st.info(
                     "ℹ️ Aucun film ne correspond à vos critères. Essayez de modifier les filtres."
