@@ -473,8 +473,17 @@ tests d'authentification (64 tests : 35 sur `api/`, 38 sur `frontend/`).
 
 ## 🟡 Gouvernance
 
-- [ ] Aucun template d'issue GitHub (`.github/ISSUE_TEMPLATE/`) — le cahier
-  des charges demande que chaque anomalie soit archivée en GitHub Issues.
+- [x] Templates d'issue GitHub — ajoutés le 4 septembre 2026 sous
+  [.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE) : `anomalie.yml`
+  (étapes de reproduction, attendu, observé et commit obligatoires),
+  `tache.yml` (besoin et critères de fin obligatoires) et `config.yml` qui
+  désactive les issues en texte libre. Les deux formulaires reprennent
+  l'échelle de priorité 🔴/🟠/🟡 de ce fichier et la liste des composants du
+  dépôt, pour que le tri d'une issue et celui du TODO se lisent pareil.
+  - Reste à faire côté GitHub, hors dépôt : ni les libellés ni la vue projet ne
+    sont versionnables. `bug` et `enhancement` sont créés par défaut avec tout
+    dépôt, donc utilisables tels quels ; un libellé absent est ignoré en
+    silence par GitHub, sans erreur visible.
 
 ## Dette déjà connue (hors scope Partie 3, cf. CLAUDE.md)
 
