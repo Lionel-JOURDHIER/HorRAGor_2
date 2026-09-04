@@ -19,15 +19,12 @@ Dépendances principales :
 Auteur/Responsable : Équipe Agents
 """
 
-
 import requests
-from urllib.parse import quote
 from langchain_core.tools import tool
-from shared.schemas import WikipediaRequest, WikipediaResponse
-
 
 # LOGGER ------------------------------------------------------
-from logger import setup_logger, get_logger
+from logger import get_logger, setup_logger
+
 setup_logger()
 logger = get_logger("WIKI_TOOL")
 
@@ -35,6 +32,7 @@ logger = get_logger("WIKI_TOOL")
 # PATH --------------------------------------------------------
 SEARCH_URL = "https://en.wikipedia.org/w/api.php"
 HEADERS = {"User-Agent": "HorRAGor/2.0 (educational project)"}
+
 
 # FUNCTION CACHERS --------------------------------------------
 def _search_wiki(title: str) -> str | None:
@@ -44,7 +42,7 @@ def _search_wiki(title: str) -> str | None:
             "action": "query",
             "list": "search",
             "srsearch": title,
-            "format": "json"
+            "format": "json",
         }
 
         r = requests.get(SEARCH_URL, params=params, headers=HEADERS, timeout=4)
@@ -64,6 +62,7 @@ def _search_wiki(title: str) -> str | None:
         logger.exception("Erreur lors de la recherche Wikipedia pour '{}'", title)
         raise
 
+
 def _get_summary(title: str) -> tuple[str | None, str | None]:
     try:
         params = {
@@ -73,15 +72,10 @@ def _get_summary(title: str) -> tuple[str | None, str | None]:
             "explaintext": True,
             "inprop": "url",
             "titles": title,
-            "format": "json"
+            "format": "json",
         }
 
-        r = requests.get(
-            SEARCH_URL,
-            params=params,
-            headers=HEADERS,
-            timeout=4
-        )
+        r = requests.get(SEARCH_URL, params=params, headers=HEADERS, timeout=4)
 
         data = r.json()
 
@@ -101,10 +95,11 @@ def _get_summary(title: str) -> tuple[str | None, str | None]:
         logger.exception("Erreur lors de la récupération du résumé pour '{}'", title)
         raise
 
+
 # MAIN PIPELINE TOOL ---------------------------
 @tool
 def wikipedia_search(title: str, year: int | None = None) -> dict:
-    """ Search Wikipedia for a film and return structured data.
+    """Search Wikipedia for a film and return structured data.
 
     Args:
         title: Movie title
@@ -123,7 +118,7 @@ def wikipedia_search(title: str, year: int | None = None) -> dict:
                 "title": None,
                 "synopsis": None,
                 "source_url": None,
-                "source": "EMPTY_TITLE"
+                "source": "EMPTY_TITLE",
             }
 
         query = f"{title} {year}" if year else title
@@ -134,7 +129,7 @@ def wikipedia_search(title: str, year: int | None = None) -> dict:
                 "title": title,
                 "synopsis": None,
                 "source_url": None,
-                "source": "NOT_FOUND"
+                "source": "NOT_FOUND",
             }
 
         summary, url = _get_summary(best_title)
@@ -144,14 +139,14 @@ def wikipedia_search(title: str, year: int | None = None) -> dict:
                 "title": best_title,
                 "synopsis": None,
                 "source_url": url,
-                "source": "NO_SUMMARY"
+                "source": "NO_SUMMARY",
             }
 
         return {
             "title": best_title,
             "synopsis": summary[:15000],
             "source_url": url,
-            "source": "wikipedia"
+            "source": "wikipedia",
         }
 
     except requests.Timeout:
@@ -161,5 +156,7 @@ def wikipedia_search(title: str, year: int | None = None) -> dict:
         return {"error": "CONNECTION_ERROR"}
 
     except Exception:
-        logger.exception("Erreur inattendue lors de la recherche Wikipedia pour '{}'", title)
+        logger.exception(
+            "Erreur inattendue lors de la recherche Wikipedia pour '{}'", title
+        )
         return {"error": "UNKNOWN_ERROR"}

@@ -24,14 +24,14 @@ root_path = Path(__file__).resolve().parent.parent
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))  # pragma: no cover
 
+# LOGGER ------------------------------------------------------
+from logger import get_logger, setup_logger
+from shared.schemas import AgentStep
+
 from agents.config import llm_narrateur
 from agents.prompts import (
     NARRATOR_PERSONA_PROMPT,
 )
-
-# LOGGER ------------------------------------------------------
-from logger import get_logger, setup_logger
-from shared.schemas import AgentStep
 
 setup_logger()
 logger = get_logger("NODES")
@@ -74,7 +74,8 @@ def narrator_node(state: Any) -> dict[str, Any]:
             "avec une courtoisie glaciale et une ambiance de crypte."
         )
 
-    # Cas B : Aucun film trouvé au départ ou Échec définitif des filtres/recherches (FAIL)
+    # Cas B : Aucun film trouvé au départ ou Échec définitif des
+    # filtres/recherches (FAIL)
     elif (
         intent == "AUCUN_FILM_TROUVE"
         or current_step == "invalid_coherence"
@@ -175,7 +176,8 @@ def narrator_node(state: Any) -> dict[str, Any]:
         status = "Échec narrator_node — Fallback textuel appliqué."
 
     # Enregistrement de l'étape
-    # Assurez-vous que la classe AgentStep correspond bien à ce qui est défini dans votre state.py
+    # Assurez-vous que la classe AgentStep correspond bien à ce qui est défini
+    # dans votre state.py
     steps.append(AgentStep(step="narrator", status=status))
 
     logger.info(f"[narrator_node] Réussite de la génération : {final_narrative}")

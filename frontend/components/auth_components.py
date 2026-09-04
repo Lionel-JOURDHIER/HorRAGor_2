@@ -8,8 +8,10 @@ Fonctions :
 """
 
 import streamlit as st
-from utils.auth_client import login_user, register_user, get_current_user, logout_user as api_logout
+
 from utils.api_client import get_chat_history
+from utils.auth_client import login_user, register_user
+from utils.auth_client import logout_user as api_logout
 
 # Historique et statistiques affichés à l'écran, propres à l'utilisateur
 # connecté : à réinitialiser à chaque changement d'identité (connexion,
@@ -49,16 +51,16 @@ def _restore_chat_history(access_token: str) -> None:
 def check_authentication() -> bool:
     """
     Vérifie si l'utilisateur est authentifié.
-    
+
     Returns:
         True si l'utilisateur est connecté, False sinon
     """
     if "access_token" not in st.session_state:
         return False
-    
+
     if "user" not in st.session_state:
         return False
-    
+
     return True
 
 
@@ -70,18 +72,18 @@ def logout_button():
         with st.sidebar:
             st.divider()
             col1, col2 = st.columns([3, 1])
-            
+
             with col1:
                 st.write(f"👤 **{st.session_state['user']['username']}**")
-            
+
             with col2:
                 if st.button("🚪", help="Se déconnecter"):
                     # Appeler l'API de déconnexion
                     api_logout(
                         st.session_state.get("refresh_token", ""),
-                        st.session_state.get("access_token", "")
+                        st.session_state.get("access_token", ""),
                     )
-                    
+
                     # Nettoyer la session
                     for key in ["access_token", "refresh_token", "user"]:
                         if key in st.session_state:
@@ -100,7 +102,7 @@ def render_login_page():
         """
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Poppins:wght@300;400;600;700&display=swap');
-            
+
             .auth-container {
                 background: linear-gradient(135deg, #0a0e27 0%, #1a0b2e 50%, #16003b 100%);
                 padding: 3rem;
@@ -110,7 +112,7 @@ def render_login_page():
                 margin: 2rem auto;
                 max-width: 500px;
             }
-            
+
             .auth-title {
                 font-family: 'Creepster', cursive;
                 font-size: 3.5rem;
@@ -120,7 +122,7 @@ def render_login_page():
                 margin-bottom: 2rem;
                 animation: glow 2s ease-in-out infinite alternate;
             }
-            
+
             @keyframes glow {
                 from {
                     text-shadow: 0 0 20px rgba(255, 71, 87, 0.5), 0 0 40px rgba(255, 71, 87, 0.3);
@@ -129,7 +131,7 @@ def render_login_page():
                     text-shadow: 0 0 30px rgba(255, 71, 87, 0.8), 0 0 60px rgba(255, 71, 87, 0.5);
                 }
             }
-            
+
             .subtitle {
                 font-family: 'Poppins', sans-serif;
                 text-align: center;
@@ -139,18 +141,21 @@ def render_login_page():
             }
         </style>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
-    
+
     st.markdown('<h1 class="auth-title">🎬 HorRAGor 🎬</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Votre chatbot d\'horreur préféré</p>', unsafe_allow_html=True)
-    
+    st.markdown(
+        '<p class="subtitle">Votre chatbot d\'horreur préféré</p>',
+        unsafe_allow_html=True,
+    )
+
     # Tabs pour connexion et inscription
     tab1, tab2 = st.tabs(["🔐 Connexion", "📝 Inscription"])
-    
+
     with tab1:
         render_login_form()
-    
+
     with tab2:
         render_register_form()
 
@@ -161,20 +166,22 @@ def render_login_form():
     """
     with st.form("login_form"):
         st.subheader("Se connecter")
-        
+
         email = st.text_input("📧 Email", placeholder="votre.email@exemple.com")
-        password = st.text_input("🔒 Mot de passe", type="password", placeholder="••••••••")
-        
+        password = st.text_input(
+            "🔒 Mot de passe", type="password", placeholder="••••••••"
+        )
+
         submit = st.form_submit_button("🚀 Connexion", use_container_width=True)
-        
+
         if submit:
             if not email or not password:
                 st.error("❌ Veuillez remplir tous les champs")
                 return
-            
+
             with st.spinner("🔄 Connexion en cours..."):
                 result = login_user(email, password)
-            
+
             if result:
                 _reset_chat_session()
                 st.session_state["access_token"] = result["access_token"]
@@ -195,35 +202,39 @@ def render_register_form():
     """
     with st.form("register_form"):
         st.subheader("Créer un compte")
-        
+
         email = st.text_input("📧 Email", placeholder="votre.email@exemple.com")
         username = st.text_input("👤 Nom d'utilisateur", placeholder="VotreNom")
-        password = st.text_input("🔒 Mot de passe", type="password", placeholder="••••••••")
-        password_confirm = st.text_input("🔒 Confirmer le mot de passe", type="password", placeholder="••••••••")
-        
+        password = st.text_input(
+            "🔒 Mot de passe", type="password", placeholder="••••••••"
+        )
+        password_confirm = st.text_input(
+            "🔒 Confirmer le mot de passe", type="password", placeholder="••••••••"
+        )
+
         submit = st.form_submit_button("📝 S'inscrire", use_container_width=True)
-        
+
         if submit:
             # Validation
             if not email or not username or not password or not password_confirm:
                 st.error("❌ Veuillez remplir tous les champs")
                 return
-            
+
             if password != password_confirm:
                 st.error("❌ Les mots de passe ne correspondent pas")
                 return
-            
+
             if len(password) < 8:
                 st.error("❌ Le mot de passe doit contenir au moins 8 caractères")
                 return
-            
+
             if len(username) < 3:
                 st.error("❌ Le nom d'utilisateur doit contenir au moins 3 caractères")
                 return
-            
+
             with st.spinner("🔄 Création du compte..."):
                 result = register_user(email, username, password)
-            
+
             if result:
                 _reset_chat_session()
                 st.session_state["access_token"] = result["access_token"]
@@ -235,4 +246,7 @@ def render_register_form():
                 st.balloons()
                 st.rerun()
             else:
-                st.error("❌ Erreur lors de la création du compte. L'email ou le nom d'utilisateur existe peut-être déjà.")
+                st.error(
+                    "❌ Erreur lors de la création du compte. L'email ou le"
+                    " nom d'utilisateur existe peut-être déjà."
+                )

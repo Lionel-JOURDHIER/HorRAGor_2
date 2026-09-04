@@ -2,8 +2,6 @@ from datetime import date
 from unittest.mock import MagicMock
 
 import pytest
-
-from shared.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
 from database.queries import (
     _tmdb_image_url,
     get_all_directors,
@@ -11,6 +9,7 @@ from database.queries import (
     get_film_details_by_id,
     get_films_short_by_ids,
 )
+from shared.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
 
 
 @pytest.fixture
@@ -90,9 +89,7 @@ def test_get_film_details_by_id_not_found(mock_session):
 
 def test_tmdb_image_url_prefixes_relative_path():
     """Vérifie qu'un chemin TMDB relatif devient une URL CDN complète."""
-    assert _tmdb_image_url("/path.jpg") == (
-        "https://image.tmdb.org/t/p/w500/path.jpg"
-    )
+    assert _tmdb_image_url("/path.jpg") == ("https://image.tmdb.org/t/p/w500/path.jpg")
 
 
 def test_get_films_short_by_ids_no_records(mock_session):
@@ -109,7 +106,8 @@ def test_get_films_short_by_ids_no_records(mock_session):
 
     # Assertions : la fonction doit couper court et renvoyer une liste vide
     assert result == []
-    # On s'assure que session.execute n'a été appelé qu'une seule fois (la requête des genres n'est jamais déclenchée)
+    # On s'assure que session.execute n'a été appelé qu'une seule fois (la requête
+    # des genres n'est jamais déclenchée)
     assert mock_session.execute.call_count == 1
 
 

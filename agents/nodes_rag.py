@@ -15,7 +15,6 @@ Dépendances principales :
 Auteur/Responsable : Équipe Agents
 """
 
-
 import sys
 from pathlib import Path
 from typing import Any, Literal
@@ -27,6 +26,12 @@ root_path = Path(__file__).resolve().parent.parent
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))  # pragma: no cover
 
+from api.modules.database_client import get_films_details_by_ids, get_films_short_by_ids
+
+# LOGGER ------------------------------------------------------
+from logger import get_logger, setup_logger
+from shared.schemas import AgentState, AgentStep, ChatFilters
+
 from agents.config import llm, structured_llm, validation_llm
 from agents.prompts import (
     INTENTION_PROMPT,
@@ -35,11 +40,6 @@ from agents.prompts import (
 )
 from agents.tools.sql_tools import filter_films_by_criteria
 from agents.tools.vector_tools import search_vector_catalog
-from api.modules.database_client import get_films_details_by_ids, get_films_short_by_ids
-
-# LOGGER ------------------------------------------------------
-from logger import get_logger, setup_logger
-from shared.schemas import AgentState, AgentStep, ChatFilters
 
 setup_logger()
 logger = get_logger("NODES")
@@ -225,7 +225,6 @@ def intent_classifier_node(state: AgentState) -> dict[str, Any]:
 
 
 def title_router_node(state: AgentState) -> dict[str, Any]:
-
     """
     Détecte la présence d'un titre de film dans la requête.
 
@@ -245,7 +244,8 @@ def title_router_node(state: AgentState) -> dict[str, Any]:
     logger.info(
         f"[title_router_node] Début de title_router_node. Analyse de la requête utilisateur : '{state.user_query}'"
     )
-    # Copie locale de la liste des étapes pour respecter le principe d'immutabilité de LangGraph
+    # Copie locale de la liste des étapes pour respecter le principe
+    # d'immutabilité de LangGraph
     steps = list(state.steps)
 
     # Appel au LLM avec le prompt système d'extraction sémantique et la requête brute
@@ -272,7 +272,8 @@ def title_router_node(state: AgentState) -> dict[str, Any]:
                 status=f"Titre détecté : '{detected_title}'",
             )
         )
-        # Mutation de l'état : Aiguillage vers "has_title" pour 'route_after_title_check'
+        # Mutation de l'état : Aiguillage vers "has_title" pour
+        # 'route_after_title_check'
         return {
             "current_step": "has_title",
             "search_branch": "direct",
@@ -280,7 +281,8 @@ def title_router_node(state: AgentState) -> dict[str, Any]:
             "answer": detected_title,  # Stockage temporaire du titre pour direct_movie_detail
         }
 
-    # ---------- CAS 2 : La requête est floue ou décrit des critères (ex: "un film de SF de 2022") ----------
+    # ---------- CAS 2 : La requête est floue ou décrit des critères (ex: "un film
+    # de SF de 2022") ----------
     logger.info(
         "[title_router_node] Aucun titre spécifique détecté par le LLM. Bascule en mode recherche par critères."
     )
@@ -332,7 +334,8 @@ def merge_filters_node(state: AgentState) -> dict[str, Any]:
         )
         extracted.genres_excluded = []
 
-    # 3. Merge : initial_filters (front) + extracted (LLM), le LLM écrase si valeur active
+    # 3. Merge : initial_filters (front) + extracted (LLM), le LLM écrase si
+    # valeur active
     logger.info(
         "[merge_filters_node] Fusion des filtres de l'interface graphique (front-end) et du LLM."
     )
@@ -698,7 +701,8 @@ async def format_cards_node(state: AgentState) -> dict[str, Any]:
     # Recupération des ids des retrieved_movies
     tmdb_ids = [f.tmdb_id for f in state.retrieved_movies]
 
-    # Appel de la base de donnée pour récupérer toutes les informations SQL pour Film_shorts
+    # Appel de la base de donnée pour récupérer toutes les informations SQL pour
+    # Film_shorts
     try:
         films = await get_films_short_by_ids(tmdb_ids)
         # Cas 2 : Hydratation Réussie
@@ -966,7 +970,8 @@ def verif_film_node(state: AgentState) -> dict[str, Any]:
     steps = list(state.steps)
 
     # Cas 1 : Sécurité — aucun film chargé en contexte.
-    # Ne devrait pas arriver si load_film_node et route_verif_film sont correctement câblés.
+    # Ne devrait pas arriver si load_film_node et route_verif_film sont
+    # correctement câblés.
     if not state.retrieved_movies:
         logger.warning("[verif_film_node] Aucun film chargé.")
         steps.append(AgentStep(step="verif_film", status="Aucun film en contexte."))
@@ -1002,13 +1007,13 @@ def verif_film_node(state: AgentState) -> dict[str, Any]:
     checker = structured_llm.with_structured_output(FilmDataCheck)
     prompt = f"""
         Tu es un assistant qui vérifie si une base de données film contient la réponse à une question.
-        
+
         Question utilisateur : {state.user_query}
 
         Données disponibles ({len(films)} film(s)) :
         {film_data_summary}
 
-        RÈGLE STRICTE : 
+        RÈGLE STRICTE :
         - Si une donnée nécessaire pour répondre à la question est absente, marquée comme "Non disponible" ou vide dans les données ci-dessus, tu DOIS placer le titre du film dans 'films_missing'.
         - 'films_ok' ne doit contenir que les titres où la donnée est présente ET complète.
 
@@ -1023,7 +1028,8 @@ def verif_film_node(state: AgentState) -> dict[str, Any]:
         logger.info(f"[verif_film_node] Résultat : {result.model_dump()}")
     except Exception as e:
         # Cas 2 : Échec du checker LLM.
-        # Fallback : on considère toutes les données disponibles pour ne pas bloquer le flux.
+        # Fallback : on considère toutes les données disponibles pour ne pas
+        # bloquer le flux.
         logger.error(f"[verif_film_node] Échec checker : {e}. Fallback valid.")
         result = FilmDataCheck(
             sujet="inconnu",

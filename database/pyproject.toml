@@ -35,6 +35,10 @@ package-dir = {"" = "."}
 packages = ["database", "shared"]
 
 [tool.ruff]
+# "*.md" : ruff formate aussi les blocs de code Python contenus dans les
+# fichiers Markdown. Sans cette exclusion, `ruff format` réécrit les
+# exemples des README, qui sont de la documentation et pas du code exécuté.
+extend-exclude = ["*.md"]
 line-length = 88
 target-version = "py311"
 
@@ -44,3 +48,9 @@ target-version = "py311"
 # sur la quasi-totalité des fichiers. À ajouter une fois une passe de mise
 # en conformité des docstrings faite séparément.
 select = ["E", "W", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# queries.py insère la racine du dépôt dans sys.path avant d'importer
+# shared.* et database.* : ces imports doivent donc rester après ce code,
+# ce que E402 signale à tort comme un défaut d'ordre.
+"queries.py" = ["E402"]

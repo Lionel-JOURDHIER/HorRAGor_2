@@ -158,7 +158,93 @@ jobs:
 
 
   # ─────────────────────────────────────────────
-  # 2. DOCUMENTATION
+  # 2. LINT
+  # ─────────────────────────────────────────────
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Un pas par sous-projet : ruff résout sa configuration par ancêtre le
+      # plus proche, et chacun a ses propres per-file-ignores. Les commandes
+      # sont celles déclarées dans le CLAUDE.md, à `--check` près : une CI
+      # vérifie, elle ne reformate pas.
+
+      # ───────────────── AGENTS ─────────────────
+
+      - name: Install agents dependencies
+        working-directory: agents
+        run: uv sync
+
+      - name: Lint agents
+        working-directory: agents
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      # ─────────────────── API ──────────────────
+
+      - name: Install API dependencies
+        working-directory: api
+        run: uv sync
+
+      - name: Lint API
+        working-directory: api
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      # ─────────────── DATABASE API ─────────────
+
+      - name: Install Database dependencies
+        working-directory: database
+        run: uv sync
+
+      - name: Lint database
+        working-directory: database
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      # ───────────────── FRONTEND ───────────────
+
+      - name: Install Frontend dependencies
+        working-directory: frontend
+        run: uv sync
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      # ──────────── FICHIERS PARTAGÉS ───────────
+
+      # logger.py, shared/, scripts/ et docs/source/conf.py n'appartiennent à
+      # aucun sous-projet : ils sont couverts par le ruff.toml de la racine,
+      # qui exclut les quatre dossiers déjà vérifiés ci-dessus. `--project api`
+      # ne sert qu'à désigner l'environnement qui fournit le binaire ruff (même
+      # version dans les quatre), la configuration venant du ruff.toml racine.
+      - name: Lint shared files
+        run: |
+          uv run --project api ruff check
+          uv run --project api ruff format --check
+
+
+  # ─────────────────────────────────────────────
+  # 3. DOCUMENTATION
   # ─────────────────────────────────────────────
 
   docs:
@@ -285,12 +371,12 @@ jobs:
         uses: actions/deploy-pages@v4
 
   # ─────────────────────────────────────────────
-  # 2. BUILD + PUSH DOCKER IMAGES
+  # 4. BUILD + PUSH DOCKER IMAGES
   # ─────────────────────────────────────────────
 
   docker:
     name: Build and Push Docker Images
-    needs: test
+    needs: [test, lint]
 
     if: github.event_name == 'push'
 

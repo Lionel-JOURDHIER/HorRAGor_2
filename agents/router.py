@@ -1,4 +1,3 @@
-
 """agents/router.py
 Module de routage conditionnel et d'aiguillage du graphe HorRAGor v3.
 
@@ -114,12 +113,9 @@ Dépendances principales :
 Auteur/Responsable : Équipe Agents - Spécification HorRAGor v3
 """
 
-
-
-from shared.schemas import AgentState
-
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
+from shared.schemas import AgentState
 
 setup_logger()
 
@@ -173,14 +169,15 @@ def route_by_intent(state: AgentState) -> str:
 
 def route_after_title_check(state: AgentState) -> str:
     """Aiguille le workflow selon la présence ou non d'un titre de film précis.
-    
+
     Returns:
         str: "direct_movie_detail" (Processus A : direct) ou "filter_and_search_hybrid" (Processus B : hybride).
     """
     logger.info(
         f"[route_after_title_check] Routage conditionnel invoqué. Étape actuelle détectée : '{state.current_step}'"
     )
-    # 1. Vérification de l'existence d'un titre de film direction direction processus A : 'direct_movie_detail'
+    # 1. Vérification de l'existence d'un titre de film direction direction
+    # processus A : 'direct_movie_detail'
     if state.current_step == "has_title":
         logger.info(
             "[route_after_title_check] Aiguillage vers le processus A : 'direct_movie_detail'"
@@ -267,7 +264,8 @@ def route_need_wikipedia(state: AgentState) -> str:
 
     # ---------- Cas 1 : Le flux provient du pipeline RAG complet ----------
     if branch == "RAG":
-        # 1. Cas particulier : Le LLM a détecté qu'il manquait des informations pour la synthèse finale
+        # 1. Cas particulier : Le LLM a détecté qu'il manquait des
+        # informations pour la synthèse finale
         if status == "valid_missing_synopsis":
             logger.info(
                 "[route_need_wikipedia]  (Provenance RAG) Direction : wikipedia_search_node."
@@ -290,7 +288,8 @@ def route_need_wikipedia(state: AgentState) -> str:
 
     # ---------- Cas 2 : Le flux provient du bypass DISCUSSION ----------
     if branch == "DISCUSSION":
-        # 4. Si le LLM ou le nœud précédent a marqué qu'il manquait des informations nécessaires
+        # 4. Si le LLM ou le nœud précédent a marqué qu'il manquait des
+        # informations nécessaires
         if status == "valid_missing_data":
             logger.info(
                 "[route_need_wikipedia]  (Provenance DISCUSSION) Infos manquantes. Direction : wikipedia_search_node."
@@ -347,14 +346,16 @@ def route_direct_id_valid(state: AgentState) -> str:
         f"[route_direct_id_valid] Aucun film trouvé. Compteur de retry actuel : {retry_count}/2"
     )
 
-    # 3. Si le compteur de retry est inférieur à 2, on reboucle vers la recherche vectorielle
+    # 3. Si le compteur de retry est inférieur à 2, on reboucle vers la recherche
+    # vectorielle
     if retry_count < 2:
         logger.info(
             "[route_direct_id_valid] (RETRY) -> Ré-exécution de la recherche vectorielle."
         )
         return "Search_vector_node"
 
-    # 4. Si le compteur de retry est égal ou supérieur à 2, on considère l'échec et on redirige vers le nœud de synthèse
+    # 4. Si le compteur de retry est égal ou supérieur à 2, on considère l'échec
+    # et on redirige vers le nœud de synthèse
     else:
         logger.error(
             "[route_direct_id_valid] (FAIL) -> Limite de retry atteinte. Direction : Format_Card_node."
@@ -397,14 +398,16 @@ def route_hybrid_id_valid(state: AgentState) -> str:
         f"[route_hybrid_id_valid] Aucun film ne correspond aux critères. Compteur : {retry_count}/2"
     )
 
-    # 3. Si le compteur de retry est inférieur à 2, on reboucle vers la le merge_filters_node
+    # 3. Si le compteur de retry est inférieur à 2, on reboucle vers la le
+    # merge_filters_node
     if retry_count < 2:
         logger.info(
             "[route_hybrid_id_valid] (RETRY) -> Rebouclage vers Merge_filters_node pour ajustement."
         )
         return "Merge_filters_node"
 
-    # 4. Si le compteur de retry est égal ou supérieur à 2, on considère l'échec et on redirige vers le nœud de synthèse
+    # 4. Si le compteur de retry est égal ou supérieur à 2, on considère l'échec
+    # et on redirige vers le nœud de synthèse
     else:
         logger.error(
             "[route_hybrid_id_valid] (FAIL) -> Limite de retry atteinte. Direction : Format_Card_node."
@@ -437,7 +440,8 @@ def route_return_wiki(state: AgentState) -> str:
         logger.info("[route_return_wiki] Retour vers le bloc de clôture RAG : end_rag.")
         return "end_rag"
 
-    # Cas 2 : L'enrichissement s'est fait suite à un manque d'infos dans le mode discussion
+    # Cas 2 : L'enrichissement s'est fait suite à un manque d'infos dans le mode
+    # discussion
     elif branch == "DISCUSSION":
         logger.info(
             "[route_return_wiki] Retour direct vers la plume gothique : narrator_node."
@@ -486,14 +490,16 @@ def route_validation_direct(state: AgentState) -> str:
         f"[route_validation_direct] Film jugé incohérent. Compteur : {retry_count}/2"
     )
 
-    # 2. Cas RETRY : le film n'est pas pertinant et le compteur de RETRY est inférieur à 2
+    # 2. Cas RETRY : le film n'est pas pertinant et le compteur de RETRY est
+    # inférieur à 2
     if retry_count < 2:
         logger.info(
             "[route_validation_direct] (RETRY) -> Ré-exécution de Search_vector_node."
         )
         return "Search_vector_node"
 
-    # 3. Cas FAIL : le film n'est pas pertinant et le compteur de RETRY est inférieur à 2
+    # 3. Cas FAIL : le film n'est pas pertinant et le compteur de RETRY est
+    # inférieur à 2
     else:
         logger.error("[route_validation_direct] (FAIL) -> Transfert au Narrateur.")
         return "narrator_node"
@@ -522,7 +528,8 @@ def route_validation_hybrid(state: AgentState) -> str:
         logger.info("[route_validation_hybrid] (PASS) -> Liste de films validée.")
         return "route_need_wikipedia"
 
-    # 1. Cas PASS PARTIEL : Une partie de la liste de films respecte les filtres et l'intention
+    # 1. Cas PASS PARTIEL : Une partie de la liste de films respecte les filtres
+    # et l'intention
     elif status == "valid_partial":
         logger.info(
             "[route_validation_hybrid] (PASS PARTIEL) -> Liste de films validée."
@@ -535,14 +542,16 @@ def route_validation_hybrid(state: AgentState) -> str:
         f"[route_validation_hybrid] Sélection incohérente. Compteur : {retry_count}/2"
     )
 
-    # 2. Cas RETRY : les films ne sont pas pertinant et le compteur de RETRY est inférieur à 2
+    # 2. Cas RETRY : les films ne sont pas pertinant et le compteur de RETRY est
+    # inférieur à 2
     if retry_count < 2:
         logger.info(
             "[route_validation_hybrid] (RETRY) -> Rebouclage vers Merge_filters_node pour ajustement."
         )
         return "Merge_filters_node"
 
-    # 3. Cas FAIL : les films ne sont pas pertinant et le compteur de RETRY est inférieur à 2
+    # 3. Cas FAIL : les films ne sont pas pertinant et le compteur de RETRY est
+    # inférieur à 2
     else:
         logger.error("[route_validation_hybrid] (FAIL) -> Transfert au Narrateur.")
         return "narrator_node"

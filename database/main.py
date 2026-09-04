@@ -17,11 +17,9 @@ Aucune logique IA :
 """
 
 from fastapi import FastAPI
-
-from database.routes_db import router
-
 from logger import get_logger, setup_logger
 
+from database.routes_db import router
 
 setup_logger()
 
@@ -39,7 +37,7 @@ Responsabilités:
 - récupération des films
 - récupération des métadonnées
 - validation des réponses
-"""
+""",
 )
 
 

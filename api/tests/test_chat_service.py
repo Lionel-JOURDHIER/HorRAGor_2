@@ -1,13 +1,11 @@
-import pytest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from api.modules import chat_service
-
 
 # ----------------------------
 # normalize_steps
 # ----------------------------
+
 
 def test_normalize_steps_dict():
     steps = [{"step": "a"}, {"step": "b"}]
@@ -18,9 +16,7 @@ def test_normalize_steps_dict():
 
 
 def test_normalize_steps_model_dump():
-    obj = SimpleNamespace(
-        model_dump=lambda: {"step": "x"}
-    )
+    obj = SimpleNamespace(model_dump=lambda: {"step": "x"})
 
     out = chat_service.normalize_steps([obj])
 
@@ -28,19 +24,11 @@ def test_normalize_steps_model_dump():
 
 
 def test_normalize_steps_fallback():
-    obj = SimpleNamespace(
-        step="s1",
-        status="ok"
-    )
+    obj = SimpleNamespace(step="s1", status="ok")
 
     out = chat_service.normalize_steps([obj])
 
-    assert out == [
-        {
-            "step": "s1",
-            "status": "ok"
-        }
-    ]
+    assert out == [{"step": "s1", "status": "ok"}]
 
 
 def test_normalize_steps_none():
@@ -50,6 +38,7 @@ def test_normalize_steps_none():
 # ----------------------------
 # get_graph_config
 # ----------------------------
+
 
 def test_get_graph_config_thread_id_from_user():
     request = SimpleNamespace(message="hello")
@@ -70,8 +59,7 @@ def test_get_graph_config_different_users_get_different_threads():
     config_b = chat_service.get_graph_config(request, SimpleNamespace(id=2))
 
     assert (
-        config_a["configurable"]["thread_id"]
-        != config_b["configurable"]["thread_id"]
+        config_a["configurable"]["thread_id"] != config_b["configurable"]["thread_id"]
     )
 
 

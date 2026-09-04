@@ -21,7 +21,7 @@ def test_film_embedding_structure():
 
 
 def test_film_embedding_instantiation():
-    """Vérifie qu'on peut créer un objet avec des listes de vecteurs de dimension 1024."""
+    """Vérifie la création d'un objet avec des vecteurs de dimension 1024."""
     # Génération de deux faux vecteurs de dimension 1024
     dummy_vector_title = [0.1] * 1024
     dummy_vector_overview = [0.5] * 1024

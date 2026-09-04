@@ -27,11 +27,11 @@ Functions:
 
 from typing import Any
 
-from api.monitoring.langfuse_callback import langfuse_handler
-
 from agents.graph import graph as build_my_graph
 from logger import get_logger, setup_logger
 from shared.schemas import ChatFilters, ChatRequest
+
+from api.monitoring.langfuse_callback import langfuse_handler
 
 setup_logger()
 logger = get_logger("CHAT_SERVICE")
@@ -276,7 +276,6 @@ async def run_agent_stream_final(chat_request, user):
         "answer": None,
         "retry_count": 0,
     }
-
 
     config = get_graph_config(chat_request, user)
 

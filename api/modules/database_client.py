@@ -1,33 +1,22 @@
 import os
+
 import httpx
+from shared.schemas import FilmDetail, FilmShort
 
-from shared.schemas import FilmDetail,FilmShort
-
-
-DATABASE_API_URL = os.getenv(
-    "DATABASE_API_URL",
-    "http://database_api:8000"
-)
+DATABASE_API_URL = os.getenv("DATABASE_API_URL", "http://database_api:8000")
 
 
-async def get_film(
-    tmdb_id: int
-) -> FilmDetail:
+async def get_film(tmdb_id: int) -> FilmDetail:
     """
     Retrieve one film from Database API.
     """
 
     async with httpx.AsyncClient() as client:
-
-        response = await client.get(
-            f"{DATABASE_API_URL}/db/film/{tmdb_id}"
-        )
+        response = await client.get(f"{DATABASE_API_URL}/db/film/{tmdb_id}")
 
     response.raise_for_status()
 
-    return FilmDetail.model_validate(
-        response.json()
-    )
+    return FilmDetail.model_validate(response.json())
 
 
 async def get_directors():
@@ -36,15 +25,11 @@ async def get_directors():
     """
 
     async with httpx.AsyncClient() as client:
-
-        response = await client.get(
-            f"{DATABASE_API_URL}/db/list_real"
-        )
+        response = await client.get(f"{DATABASE_API_URL}/db/list_real")
 
     response.raise_for_status()
 
     return response.json()
-
 
 
 async def get_genres():
@@ -53,20 +38,14 @@ async def get_genres():
     """
 
     async with httpx.AsyncClient() as client:
-
-        response = await client.get(
-            f"{DATABASE_API_URL}/db/list_genre"
-        )
+        response = await client.get(f"{DATABASE_API_URL}/db/list_genre")
 
     response.raise_for_status()
 
     return response.json()
 
 
-
-async def filter_films(
-    filters: dict
-) -> list[int]:
+async def filter_films(filters: dict) -> list[int]:
     """
     Filter films through Database API.
 
@@ -75,7 +54,6 @@ async def filter_films(
     """
 
     async with httpx.AsyncClient() as client:
-
         response = await client.post(
             f"{DATABASE_API_URL}/db/filter_films",
             json=filters,
@@ -83,11 +61,7 @@ async def filter_films(
 
     response.raise_for_status()
 
-    return response.json().get(
-        "tmdb_ids",
-        []
-    )
-
+    return response.json().get("tmdb_ids", [])
 
 
 async def get_films_details_by_ids(
@@ -100,27 +74,17 @@ async def get_films_details_by_ids(
     if not tmdb_ids:
         return []
 
-
     async with httpx.AsyncClient() as client:
-
         response = await client.post(
             f"{DATABASE_API_URL}/db/films/details",
-            json={
-                "tmdb_ids": tmdb_ids
-            },
+            json={"tmdb_ids": tmdb_ids},
         )
-
 
     response.raise_for_status()
 
-
     films = response.json()
 
-
-    return [
-        FilmDetail.model_validate(film)
-        for film in films
-    ]
+    return [FilmDetail.model_validate(film) for film in films]
 
 
 async def get_films_short_by_ids(
@@ -129,15 +93,9 @@ async def get_films_short_by_ids(
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            f"{DATABASE_API_URL}/db/films/short",
-            json={
-                "tmdb_ids": tmdb_ids
-            }
+            f"{DATABASE_API_URL}/db/films/short", json={"tmdb_ids": tmdb_ids}
         )
 
     response.raise_for_status()
 
-    return [
-        FilmShort.model_validate(item)
-        for item in response.json()
-    ]
+    return [FilmShort.model_validate(item) for item in response.json()]

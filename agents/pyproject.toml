@@ -40,6 +40,10 @@ exclude_lines = [
 pythonpath = ["."]
 
 [tool.ruff]
+# "*.md" : ruff formate aussi les blocs de code Python contenus dans les
+# fichiers Markdown. Sans cette exclusion, `ruff format` réécrit les
+# exemples des README, qui sont de la documentation et pas du code exécuté.
+extend-exclude = ["*.md"]
 line-length = 88
 target-version = "py311"
 
@@ -51,7 +55,23 @@ target-version = "py311"
 select = ["E", "W", "F", "I"]
 
 [tool.ruff.lint.per-file-ignores]
-# graph.py insère la racine du dépôt dans sys.path avant ses imports locaux
-# (agents.*, shared.*) : ces imports doivent donc rester après ce code, ce
-# que E402 signale à tort comme un défaut d'ordre.
+# Ces modules insèrent la racine du dépôt dans sys.path avant leurs imports
+# locaux (agents.*, shared.*) : ces imports doivent donc rester après ce code,
+# ce que E402 signale à tort comme un défaut d'ordre.
 "graph.py" = ["E402"]
+"chat_terminal.py" = ["E402"]
+
+# E501 : les lignes trop longues restantes sont le texte des prompts envoyés
+# au LLM, pas du code. Les replier insérerait des retours à la ligne dans la
+# charge utile du modèle, ce qu'aucun test ne couvre — le repli des prompts
+# est une tâche à part, avec sa propre validation de comportement.
+"prompts.py" = ["E501"]
+"router.py" = ["E501"]
+"nodes_rag.py" = ["E402", "E501"]
+"nodes_narrateur.py" = ["E402", "E501"]
+"nodes_wikipedia.py" = ["E402", "E501"]
+"tools/vector_tools.py" = ["E402", "E501"]
+"tools/wiki_tools.py" = ["E501"]
+"tests/test_graph.py" = ["E501"]
+"tests/test_router.py" = ["E501"]
+"tests/test_nodes_narrateur.py" = ["E501"]

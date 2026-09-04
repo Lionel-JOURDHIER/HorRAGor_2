@@ -30,12 +30,12 @@ root_path = Path(__file__).resolve().parent.parent
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))  # pragma: no cover
 
-from agents.config import llm_synthesis
-from agents.tools.wiki_tools import wikipedia_search
-from shared.schemas import AgentState, AgentStep
-
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
+from shared.schemas import AgentState, AgentStep
+
+from agents.config import llm_synthesis
+from agents.tools.wiki_tools import wikipedia_search
 
 setup_logger()
 logger = get_logger("NODES")
@@ -76,7 +76,8 @@ def wikipedia_search_node(state: AgentState) -> Dict[str, Any]:
     branch = getattr(state, "branch_search_wiki", "RAG")
     enrich_ids = set(getattr(state, "enrich_ids", []))
 
-    # Cas 2 : Branche DISCUSSION — on enrichit uniquement les films listés dans enrich_ids.
+    # Cas 2 : Branche DISCUSSION — on enrichit uniquement les films listés dans
+    # enrich_ids.
     if branch == "DISCUSSION" and enrich_ids:
         films_to_enrich = [f for f in state.retrieved_movies if f.tmdb_id in enrich_ids]
         logger.info(
@@ -156,7 +157,8 @@ def synthesis_node(state: AgentState) -> Dict[str, Any]:
         }
 
     # Construction du contexte complet pour chaque film.
-    # Pour chaque film, on fusionne les données DB avec le résultat Wikipedia si disponible.
+    # Pour chaque film, on fusionne les données DB avec le résultat Wikipedia si
+    # disponible.
     context_blocks = []
     for i, film in enumerate(films):
         # Bloc de base depuis FilmDetail / FilmShort

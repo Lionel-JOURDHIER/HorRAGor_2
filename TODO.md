@@ -352,18 +352,32 @@ Mis à jour au fil des sessions.
 
 ## 🟠 Tests — couverture ≥ 80% (API IA, API Database, UI)
 
-- [x] `database` : 100% (htmlcov).
-- [x] `api` (API IA) : entrée périmée — mesuré localement à 79% de couverture
-  (`uv run pytest --cov=. --cov-report=term-missing`), déjà bien au-dessus du
-  seuil CI de 40%.
-- [x] `frontend` (UI) : entrée périmée — `pytest-cov>=7.1.0` est déjà déclaré
-  dans [frontend/pyproject.toml](frontend/pyproject.toml).
+**Remesuré le 4 septembre 2026** (`uv run pytest --cov=. --cov-report=term`
+dans chaque sous-projet) — les trois entrées ci-dessous étaient périmées :
+
+| Composant | Couverture réelle | Cible du cahier des charges |
+|---|---|---|
+| `agents` | 95% | — (non visé explicitement) |
+| `database` (API Database) | **81%** | 80% ✅ |
+| `api` (API IA) | **74%** | 80% ❌ |
+| `frontend` (UI) | **51%** tout compris, **46%** hors `tests/` | 80% ❌ |
+
+- [x] `database` : entrée corrigée — 81%, et non 100%. Au-dessus de la cible.
+- [ ] `api` (API IA) : **74%**, il manque 6 points. L'entrée précédente
+  annonçait 79%.
+- [ ] `frontend` (UI) : **46%** sur le code applicatif (`utils/` +
+  `components/`). [frontend/utils/auth_client.py](frontend/utils/auth_client.py)
+  et [frontend/utils/auth_crypto_client.py](frontend/utils/auth_crypto_client.py)
+  sont à **0%** — c'est-à-dire exactement le code d'authentification et de
+  chiffrement du mot de passe que l'Épilogue MLOps met en avant.
 - [x] CI ([.github/workflows/docker.yml](.github/workflows/docker.yml)) :
   entrée périmée — lance déjà `uv sync` + `uv run pytest --cov=...` pour les
   **quatre** sous-projets (`agents`, `api`, `database`, `frontend`), chacun
   avec ses propres artefacts de couverture.
-- [x] Un seuil de couverture est déjà appliqué en CI : entrée périmée —
-  `--cov-fail-under=40` sur les quatre sous-projets.
+- [ ] **Le seuil CI ne protège pas la cible.** `--cov-fail-under=40` sur les
+  quatre sous-projets, alors que le cahier des charges demande 80% pour les
+  deux API et l'UI. À remonter à 80 une fois `api` et `frontend` au niveau —
+  le remonter avant ferait échouer la CI sur un défaut déjà connu.
 - [x] `agents` : couverture réelle passée de 49% à 95%
   (`uv run pytest --cov=. --cov-report=term-missing`, 178 tests). Trois
   fichiers de test portaient `pytestmark = pytest.mark.skip(reason="Временно
@@ -919,13 +933,66 @@ qu'une lecture du seul contenu commité ne montre pas.
 
 ## 🟡 CI — angles morts confirmés en relisant le workflow
 
-- [ ] **Toujours ouvert, entrée à corriger.** Aucun lint en CI
-  ([.github/workflows/docker.yml](.github/workflows/docker.yml)) — mais la
-  justification d'origine (« cohérent avec l'absence de ruff ») est devenue
-  fausse : ruff est dépendance de dev des quatre sous-projets depuis
-  `uv add --dev ruff` (§ Outillage déclaré mais inexistant, déjà corrigé).
-  Revérifié le 3 septembre 2026 : le workflow n'a toujours aucune étape
-  `ruff check`/`ruff format --check`, alors que l'outil est disponible.
+- [x] **Corrigé le 4 septembre 2026.** Un job `lint` a été ajouté à
+  [.github/workflows/docker.yml](.github/workflows/docker.yml), en parallèle du
+  job `test` (`docker` dépend désormais des deux). Il rejoue par sous-projet les
+  commandes déclarées dans le [CLAUDE.md](CLAUDE.md), à `--check` près : une CI
+  vérifie, elle ne reformate pas (`rules/cicd.md`). Structure choisie en job
+  séparé plutôt qu'en étapes du job `test` : un échec de lint sur `agents`
+  aurait sinon arrêté le job et masqué les tests des trois autres sous-projets.
+
+  Le lint était vert le jour où il a été branché : les quatre sous-projets ont
+  été mis en conformité au préalable (77 + 247 + 72 + 361 = 757 violations, plus
+  41 fichiers non formatés). Le détail des choix de suppression figure dans les
+  `[tool.ruff.lint.per-file-ignores]` de chaque `pyproject.toml`, chacun avec sa
+  justification.
+
+- [x] **Trou de périmètre trouvé et comblé au passage.** Huit fichiers Python
+  n'étaient vérifiés par personne : ni par le hook `pre-commit` (qui ne boucle
+  que sur `SOUS_PROJETS_RUFF="api agents database frontend"`), ni par une
+  configuration ruff (il n'y en avait aucune à la racine, et ruff résout sa
+  configuration par ancêtre le plus proche). Il s'agissait de
+  [logger.py](logger.py), [shared/](shared/) (3 fichiers, importés par les
+  quatre sous-projets), [scripts/](scripts/) (3) et
+  [docs/source/conf.py](docs/source/conf.py) — 84 violations. Un
+  [ruff.toml](ruff.toml) racine les couvre désormais, avec une étape CI dédiée.
+  Ce n'est volontairement pas un `pyproject.toml` : le `CLAUDE.md` interdit d'en
+  créer un à la racine.
+
+- [ ] **Le hook `pre-commit` reste aveugle sur ces huit fichiers.** Le
+  `ruff.toml` racine et la CI les couvrent, mais `SOUS_PROJETS_RUFF` est codé en
+  dur dans [.githooks/pre-commit](.githooks/pre-commit), qui est une copie du
+  fichier partagé `.claude/standards/hooks/pre-commit` : l'étendre suppose de
+  remonter la modification dans `standards-code`, sinon elle sera écrasée à la
+  prochaine mise à jour du sous-module. Conséquence en attendant : une
+  modification de `logger.py` ou de `shared/` passe le commit et n'est
+  rattrapée qu'en CI.
+## 🟡 Suppressions ruff assumées — à lever dans une tâche dédiée
+
+Trois catégories de violations n'ont pas été corrigées lors de la mise en
+conformité du 4 septembre 2026, mais neutralisées par `per-file-ignores`
+documentés. Chacune est un vrai écart, pas un faux positif.
+
+- [ ] **E501 sur le texte des prompts** (`agents/prompts.py`, `router.py`,
+  `nodes_rag.py`, `nodes_narrateur.py`, `nodes_wikipedia.py`,
+  `tools/vector_tools.py`, `tools/wiki_tools.py` et trois fichiers de test) —
+  160 lignes, toutes situées **à l'intérieur de chaînes** envoyées au LLM (la
+  plus longue fait 257 caractères). Les replier insérerait des retours à la
+  ligne dans la charge utile du modèle : aucun test ne couvre le comportement
+  des prompts, donc le repli est une tâche à part, avec sa propre validation.
+- [ ] **E501 sur le CSS/HTML** (`frontend/app.py`,
+  `frontend/components/components.py`, `frontend/components/auth_components.py`)
+  — 83 lignes, toutes dans des blocs injectés via
+  `st.markdown(unsafe_allow_html=True)`. Les replier reviendrait à réécrire la
+  feuille de style au détour d'une passe de lint.
+- [ ] **F403 sur [shared/__init__.py](shared/__init__.py)** (`from .schemas
+  import *`). Vérifié : **personne n'utilise ce ré-export** — les 20 imports du
+  dépôt passent tous par `from shared.schemas import ...`. La ligne est donc du
+  code mort, mais la supprimer change le contrat public du paquet : à faire
+  dans une tâche dédiée plutôt qu'au détour du lint.
+
+## 🟡 CI — angles morts confirmés en relisant le workflow (suite)
+
 - [ ] **Toujours ouvert.** Les images sont poussées sur GHCR en `:latest`
   **dès un push sur `dev`**, sans distinction de canal entre `dev` et `main` :
   un `:latest` peut donc provenir de `dev`. Revérifié le 3 septembre 2026 :

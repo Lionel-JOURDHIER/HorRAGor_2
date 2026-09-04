@@ -7,13 +7,16 @@ de l'API. Il garantit la conformité des échanges entre le front Streamlit et l
 
 Modèles de validation inclus :
     - Réponse Film : Modèle sérialisant les détails d'un film pour `/film/{id}`.
-    - Réponses Listes : Structures pour les listes de réalisateurs (`/list_réal`) et de genres (`/list_genre`).
+    - Réponses Listes : Structures pour les listes de réalisateurs
+      (`/list_réal`) et de genres (`/list_genre`).
     - Requête Chat : Validation du prompt textuel envoyé par l'utilisateur pour `/chat`.
-    - Réponses Chat (Streaming/JSON) : Modèles pour suivre l'état d'avancement de la réflexion du LLM,
+    - Réponses Chat (Streaming/JSON) : Modèles pour suivre l'état d'avancement
+      de la réflexion du LLM,
       le texte final généré, et la structure stricte du top 5 des films recommandés
       (contenant obligatoirement : Réalisateur, Année et Score TMDB).
     - Réponse Wikipédia : Format d'encapsulation du synopsis extrait pour `/wikipedia`.
-    - ChatQueryParams / ChatPayload : Structure stricte pour recevoir la demande utilisateur.
+    - ChatQueryParams / ChatPayload : Structure stricte pour recevoir la
+      demande utilisateur.
       Contient le prompt textuel ET le dictionnaire des filtres du formulaire :
         * realisateur: Optional[str]
         * genres_incluts: List[str]
@@ -185,7 +188,8 @@ def keep_or_update_list(
     Reducer LangGraph : Conserve l'ancienne liste si la mise à jour est vide ou None,
     sinon remplace par la nouvelle liste d'IDs.
     """
-    # Si le nœud actuel ne renvoie rien ou une liste vide, on garde la mémoire du tour précédent
+    # Si le nœud actuel ne renvoie rien ou une liste vide, on garde la mémoire
+    # du tour précédent
     if update is None or (isinstance(update, list) and len(update) == 0):
         return current if current is not None else []
     # Sinon, un nœud a décidé d'écraser la mémoire avec de nouveaux films affichés
@@ -238,7 +242,10 @@ class ChatRequest(BaseModel):
     filters: ChatFilters | None = None
     session_id: str | None = Field(
         default=None,
-        description="L'identifiant unique de la session/conversation pour maintenir la mémoire (géré par le client)",
+        description=(
+            "L'identifiant unique de la session/conversation pour maintenir"
+            " la mémoire (géré par le client)"
+        ),
         examples=["c9b4e1a2-8b45-4cde-a012-3456789abcdef"],
     )
 

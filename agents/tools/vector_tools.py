@@ -39,12 +39,11 @@ if str(root_path) not in sys.path:  # pragma: no cover
     sys.path.insert(0, str(root_path))
 
 # Imports relatifs à la racine du projet
-from shared.schemas import FilmShort
-
-from database.faiss_service import faiss_global_service
 # from database.populate import OLLAMA_CLIENT_EMBEDD
 from api.modules.database_client import get_films_short_by_ids
-from shared.embeddings import OLLAMA_CLIENT_EMBEDD
+from database.faiss_service import faiss_global_service
+from shared.schemas import FilmShort
+
 
 def _convert_distance_to_similarity_score(distance: float) -> int:
     """
@@ -111,11 +110,13 @@ def _search_in_pool(
             return []
 
         actual_k = min(top_k, sub_index.ntotal)
-        D, I = sub_index.search(np.array([query_vector], dtype="float32"), actual_k)
+        distances, faiss_ids = sub_index.search(
+            np.array([query_vector], dtype="float32"), actual_k
+        )
 
         return [
             (sub_mapping[faiss_id], float(dist))
-            for dist, faiss_id in zip(D[0], I[0])
+            for dist, faiss_id in zip(distances[0], faiss_ids[0])
             if faiss_id in sub_mapping
         ]
 
@@ -245,8 +246,9 @@ async def _run_manual_tests() -> None:
     ils s'invoquent via .ainvoke(...), jamais via .func(...) qui ne renvoie
     qu'une coroutine non exécutée.
     """
-    from agents.tools.sql_tools import filter_films_by_criteria
     from database.connection import db_session
+
+    from agents.tools.sql_tools import filter_films_by_criteria
 
     print("==================================================")
     print("🚀 TEST VECTOR TOOLS — STRATÉGIE ADAPTIVE")
