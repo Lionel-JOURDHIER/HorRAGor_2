@@ -6,7 +6,8 @@ les fichiers YAML avec une instance Uptime Kuma.
 Fonctionnalités :
     - connexion à Uptime Kuma avec les identifiants fournis par les
       variables d'environnement ;
-    - création de la notification Discord si elle n'existe pas ;
+    - création ou mise à jour de la notification Discord (type ``discord``
+      natif d'Uptime Kuma, pas le type ``webhook`` générique) ;
     - création ou mise à jour des monitors définis dans ``monitors.yml`` ;
     - association des monitors à la notification Discord ;
     - fonctionnement idempotent : le script peut être exécuté plusieurs
@@ -68,15 +69,26 @@ def main():
 
     for notification in notification_config["notifications"]:
         name = notification["name"]
+        notif_type = notification["type"]
 
         if name in existing_notifications:
-            print(f"OK: notification {name}")
+            existing = existing_notifications[name]
+
+            if existing["type"] != notif_type:
+                api.edit_notification(
+                    existing["id"],
+                    name=name,
+                    type=notif_type,
+                    discordWebhookUrl=DISCORD_WEBHOOK_URL,
+                )
+                print(f"UPDATED: notification {name}")
+            else:
+                print(f"OK: notification {name}")
         else:
             api.add_notification(
                 name=name,
-                type=notification["type"],
-                webhookURL=DISCORD_WEBHOOK_URL,
-                webhookContentType=notification["content_type"],
+                type=notif_type,
+                discordWebhookUrl=DISCORD_WEBHOOK_URL,
             )
             print(f"CREATED: notification {name}")
 
