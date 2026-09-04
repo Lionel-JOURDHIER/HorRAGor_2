@@ -347,19 +347,8 @@ def create_filters_sidebar(api_url: str) -> Dict[str, Any]:
         Dictionnaire contenant tous les filtres sélectionnés
     """
     with st.sidebar:
-        st.markdown(
-            """
-        <div style="background: linear-gradient(135deg, #ff4757 0%, #ff006e 100%);
-                    padding: 25px; border-radius: 20px; text-align: center; margin-bottom: 25px;
-                    box-shadow: 0 8px 30px rgba(255, 71, 87, 0.4);">
-            <h2 style="margin: 0; color: white; font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,0.3);">🔍 Filtres</h2>
-            <p style="margin: 5px 0 0 0; color: white; opacity: 0.95; font-size: 1em; font-weight: 600;">
-                Affinez votre recherche
-            </p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        st.markdown("### 🔍 Filtres")
+        st.caption("Affinez votre recherche")
 
         filters = {}
 
