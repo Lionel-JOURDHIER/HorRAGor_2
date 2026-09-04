@@ -547,22 +547,23 @@ def test_validation_node_invalid_avec_corrected_title(mock_llm, base_state):
 
 
 @patch("agents.nodes_rag.validation_llm")
-def test_validation_node_invalid_titre_extrait_du_feedback(mock_llm, base_state):
-    """corrected_title=None mais titre dans feedback → extrait par regex."""
+def test_validation_node_invalid_ne_deduit_pas_titre_du_feedback(mock_llm, base_state):
+    """corrected_title=None malgré un titre cité dans feedback → pas d'extraction."""
     base_state.retrieved_movies = [MockFilmDetail()]
     base_state.retry_count = 0
     mock_extractor = MagicMock()
     mock_extractor.invoke.return_value = MagicMock(
         is_relevant=False,
         has_missing_info=False,
-        feedback="Le bon film est 'The Shining' selon Kubrick.",
+        feedback="Le film trouvé 'The Shining' ne correspond pas à la requête.",
         corrected_title=None,
     )
     mock_llm.with_structured_output.return_value = mock_extractor
 
     result = validation_node(base_state)
 
-    assert result["answer"] == "The Shining"
+    assert result["answer"] is None
+    assert result["retry_count"] == 2
 
 
 @patch("agents.nodes_rag.validation_llm")
@@ -583,6 +584,7 @@ def test_validation_node_invalid_sans_titre_corrige(mock_llm, base_state):
 
     assert result["current_step"] == "invalid_coherence"
     assert result["answer"] is None
+    assert result["retry_count"] == 2
 
 
 @patch("agents.nodes_rag.validation_llm")
