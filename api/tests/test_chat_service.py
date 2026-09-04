@@ -157,7 +157,6 @@ def test_get_graph_config_different_users_get_different_threads():
 
     assert (
         config_a["configurable"]["thread_id"] != config_b["configurable"]["thread_id"]
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
     )
 
     assert result["recursion_limit"] == 15
