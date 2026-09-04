@@ -1,5 +1,8 @@
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from api.modules import chat_service
 from api.modules.chat_service import (
@@ -93,9 +96,8 @@ def test_normalize_steps_multiple_dicts():
 
 
 def test_normalize_steps_model_dump():
-
-    obj = SimpleNamespace(model_dump=lambda: {"step": "x"})
-
+    step = MagicMock()
+    step.model_dump.return_value = {"step": "search", "status": "success"}
 
     result = normalize_steps([step])
 
@@ -110,15 +112,11 @@ def test_normalize_steps_model_dump():
 
 
 def test_normalize_steps_fallback():
-
-    obj = SimpleNamespace(step="s1", status="ok")
-
+    step = SimpleNamespace(step="s1", status="ok")
 
     result = normalize_steps([step])
 
-
-    assert out == [{"step": "s1", "status": "ok"}]
-
+    assert result == [{"step": "s1", "status": "ok"}]
 
 
 def test_normalize_steps_fallback_missing_attributes():
@@ -157,17 +155,7 @@ def test_get_graph_config_different_users_get_different_threads():
 
     assert (
         config_a["configurable"]["thread_id"] != config_b["configurable"]["thread_id"]
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
     )
-
-    assert result["recursion_limit"] == 15
-    assert result["configurable"]["thread_id"] == "user_1"
-
-    assert result["metadata"]["application"] == "HorRAGor"
-    assert result["metadata"]["environment"] == "development"
-
-    assert "callbacks" in result
-    assert len(result["callbacks"]) == 1
 
 
 def test_get_graph_config_uses_user_id(chat_request):

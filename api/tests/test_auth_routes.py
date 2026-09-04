@@ -96,7 +96,6 @@ def test_flux_complet_inscription_connexion_profil_rafraichissement_deconnexion(
         "/auth/refresh", json={"refresh_token": nouveau_refresh}
     )
     assert apres_deconnexion.status_code == 401
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +107,6 @@ def test_public_key_expose_une_cle_publique_pem(auth_client):
 
     assert reponse.status_code == 200
     assert reponse.json()["public_key"].startswith("-----BEGIN PUBLIC KEY-----")
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
 
 
 # ---------------------------------------------------------------------------
@@ -237,7 +235,6 @@ def test_register_refuse_un_email_mal_forme(auth_client):
     )
 
     assert reponse.status_code == 422
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
 
 
 # ---------------------------------------------------------------------------
@@ -338,7 +335,6 @@ def test_token_refuse_de_mauvais_identifiants(auth_client, compte):
     )
 
     assert reponse.status_code == 401
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
 
 
 # ---------------------------------------------------------------------------
@@ -388,7 +384,6 @@ def test_refresh_refuse_le_jeton_dun_compte_desactive(auth_client, db_session, c
 
     assert reponse.status_code == 401
     assert reponse.json()["detail"] == "Utilisateur introuvable ou inactif"
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
 
 
 # ---------------------------------------------------------------------------
@@ -474,4 +469,3 @@ def test_logout_all_revoque_toutes_les_sessions_du_compte(
     jetons = db_session.query(RefreshToken).all()
     assert len(jetons) == 2
     assert all(jeton.is_revoked for jeton in jetons)
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
