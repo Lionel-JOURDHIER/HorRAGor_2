@@ -1,10 +1,11 @@
 """Tests de gestion locale des conversations Streamlit."""
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+
+from pytest import MonkeyPatch
 
 
-def test_create_new_conversation_vide_messages(monkeypatch):
+def test_create_new_conversation_vide_messages(monkeypatch: MonkeyPatch):
     """Créer une conversation vide préserve l'ancienne et vide le fil actif."""
     import app
 
@@ -28,7 +29,7 @@ def test_create_new_conversation_vide_messages(monkeypatch):
     ]
 
 
-def test_delete_active_conversation_garde_un_fil(monkeypatch):
+def test_delete_active_conversation_garde_un_fil(monkeypatch: MonkeyPatch):
     """Supprimer la conversation active laisse toujours une conversation active."""
     import app
 
@@ -43,4 +44,7 @@ def test_delete_active_conversation_garde_un_fil(monkeypatch):
 
     assert len(app.st.session_state.conversations) == 1
     assert app.st.session_state.messages == []
-    assert app.st.session_state.active_conversation_id in app.st.session_state.conversations
+    assert (
+        app.st.session_state.active_conversation_id
+        in app.st.session_state.conversations
+        )
