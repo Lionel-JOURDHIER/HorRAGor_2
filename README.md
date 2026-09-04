@@ -143,13 +143,50 @@ Pour absorber les requêtes en parallèle (API Database + scripts d'indexation) 
 * **`pool_size=5`** & **`max_overflow=10`** : allocation dynamique des connexions.
 * **`pool_pre_ping=True`** : test systématique de la viabilité de la connexion avant exécution (indispensable pour prévenir les déconnexions intempestives du pooler Supabase).
 
+## 📊 Monitoring
+
+La stack `monitoring/docker-compose.yml` est **séparée** de la stack
+principale et se lance indépendamment :
+
+```bash
+docker compose -f monitoring/docker-compose.yml up -d --build
+```
+
+Elle rejoint la stack principale via le réseau externe partagé
+`horragor_2_horragor_net` (déclaré `external: true` côté monitoring, fixé par
+`name: horragor_2` côté stack principale) — les deux API IA/Database y sont
+donc atteignables par leur nom de service Docker, sans passer par Traefik
+(Traefik ne route que le trafic entrant depuis le navigateur, jamais les
+appels de conteneur à conteneur).
+
+| Composant | Rôle |
+|---|---|
+| **Prometheus** | Scrape les deux API (`horragor-api`, `horragor-database-api`) sur `/metrics`, exposé par `Instrumentator()` dans chacune. |
+| **Grafana** | Dashboard `HorRAGor` provisionné (`monitoring/grafana/dashboards/horragor.json`), datasources Prometheus + Loki provisionnées en fichier (`monitoring/grafana/provisioning/datasources/`). |
+| **Loki + Promtail** | Centralisation des logs des conteneurs `horragor_api` et `horragor_database_api` (le frontend n'est pas encore scrapé — gap connu, voir `TODO.md`). |
+| **Uptime Kuma** | Sonde en HTTP les deux API, Prometheus, Grafana et Langfuse (`monitoring/uptime-kuma/monitors.yml`), notifie sur Discord. Le frontend n'est pas sondé — même gap. |
+| **Langfuse** | Traces des conversations LLM (LangGraph), via `api/monitoring/`. |
+
+### Recréer un service après une modification de configuration
+
+Le provisioning Grafana (datasources, dashboards) et les labels ne sont relus
+qu'à la **création** du conteneur, jamais à un redémarrage à chaud :
+
+```bash
+docker compose -f monitoring/docker-compose.yml up -d --force-recreate grafana
+```
+
+Un `docker compose restart grafana` après une modification de
+`monitoring/grafana/provisioning/` redémarre sur l'ancienne configuration
+sans le signaler.
+
 ### Première connexion à Langfuse (traces LLM)
 
 Langfuse (`docker compose -f monitoring/docker-compose.yml up -d`) est initialisé au premier démarrage avec l'utilisateur défini dans `monitoring/.env` (`LANGFUSE_INIT_USER_EMAIL` / `LANGFUSE_INIT_USER_PASSWORD`), mais **sans clé API** tant que `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` / `LANGFUSE_INIT_PROJECT_SECRET_KEY` ne sont pas renseignées.
 
 1. Se connecter sur `http://localhost:3000` avec les identifiants `LANGFUSE_INIT_USER_*` de `monitoring/.env`.
 2. Dans le projet, **Settings → API Keys → Create new API key** : la clé secrète n'est affichée qu'une seule fois à la création, à copier immédiatement.
-3. Reporter la paire `public key` / `secret key` dans le `.env` racine (`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`), consommées par `api/monitoring/langfuse_client.py`.
+3. Reporter la paire `public key` / `secret key` dans le `.env` racine (`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`), consommées par `api/monitoring/langfuse_client.py`. `LANGFUSE_HOST` doit pointer vers le nom du service Docker (`http://langfuse-web:3000`), jamais `localhost` — dans le conteneur `api`, `localhost` désigne le conteneur lui-même.
 4. Recréer le conteneur `api` pour que la nouvelle valeur soit prise en compte — `docker compose restart api` ne relit **pas** `env_file` :
    ```bash
    docker compose up -d --force-recreate api
