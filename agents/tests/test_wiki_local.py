@@ -2,11 +2,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
-
 from agents.tools.wiki_tools import wikipedia_search
 
-
 # --- Scénario 1 : Succès total ---
+
 
 @patch("agents.tools.wiki_tools.requests.get")
 def test_wikipedia_search_success(mock_get):
@@ -45,6 +44,7 @@ def test_wikipedia_search_success(mock_get):
 
 # --- Scénario 2 : Titre non trouvé ---
 
+
 @patch("agents.tools.wiki_tools.requests.get")
 def test_wikipedia_search_not_found(mock_get):
 
@@ -62,6 +62,7 @@ def test_wikipedia_search_not_found(mock_get):
 
 # --- Scénario 3 : Gestion d'erreur réseau ---
 
+
 @patch("agents.tools.wiki_tools.requests.get")
 def test_wikipedia_search_timeout(mock_get):
 
@@ -74,6 +75,7 @@ def test_wikipedia_search_timeout(mock_get):
 
 # 1. Test : Titre vide (Couvre la première zone rouge)
 
+
 def test_wikipedia_search_empty_title():
 
     result = wikipedia_search.invoke({"title": ""})
@@ -83,6 +85,7 @@ def test_wikipedia_search_empty_title():
 
 
 # 2. Test : Aucun résultat trouvé (Couvre la zone NOT_FOUND)
+
 
 @patch("agents.tools.wiki_tools.requests.get")
 def test_wikipedia_search_no_results(mock_get):
@@ -99,15 +102,14 @@ def test_wikipedia_search_no_results(mock_get):
 
 # 3. Test : Pas de résumé trouvé sur la page (Couvre la zone NO_SUMMARY)
 
+
 @patch("agents.tools.wiki_tools.requests.get")
 def test_wikipedia_search_no_summary(mock_get):
 
     # Simulation du succès de la recherche de titre
     mock_search = MagicMock()
     mock_search.status_code = 200
-    mock_search.json.return_value = {
-        "query": {"search": [{"title": "Film"}]}
-    }
+    mock_search.json.return_value = {"query": {"search": [{"title": "Film"}]}}
 
     # Simulation de l'absence de résumé
     mock_summary = MagicMock()
@@ -125,6 +127,7 @@ def test_wikipedia_search_no_summary(mock_get):
 
 # 4. Test : Erreur de connexion
 
+
 @patch("agents.tools.wiki_tools.requests.get")
 def test_wikipedia_search_connection_error(mock_get):
 
@@ -137,6 +140,7 @@ def test_wikipedia_search_connection_error(mock_get):
 
 # 5. Test : Exception générique
 
+
 @patch("agents.tools.wiki_tools.requests.get")
 def test_wikipedia_search_generic_exception(mock_get):
 
@@ -148,6 +152,7 @@ def test_wikipedia_search_generic_exception(mock_get):
 
 
 # --- Tests des fonctions internes ---
+
 
 @patch("agents.tools.wiki_tools.requests.get")
 def test_search_wiki_http_error(mock_get):

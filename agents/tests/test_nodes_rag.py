@@ -140,6 +140,59 @@ def test_intent_classifier_intent_inconnu_sans_contexte(mock_llm, base_state):
 
 
 @patch("agents.nodes_rag.structured_llm")
+def test_intent_classifier_aucun_film_trouve_avec_contexte_nouvelle_recherche(
+    mock_llm, base_state
+):
+    """AUCUN_FILM_TROUVE + film en contexte + nouveaux critères → RECHERCHE."""
+    base_state.last_displayed_movies_id = [694]
+    mock_extractor = MagicMock()
+    mock_extractor.invoke.return_value = MagicMock(
+        intent="AUCUN_FILM_TROUVE", nouvelle_recherche=True
+    )
+    mock_llm.with_structured_output.return_value = mock_extractor
+
+    result = intent_classifier_node(base_state)
+
+    assert result["intent"] == "RECHERCHE"
+
+
+@patch("agents.nodes_rag.structured_llm")
+def test_intent_classifier_aucun_film_trouve_avec_contexte_continuation(
+    mock_llm, base_state
+):
+    """AUCUN_FILM_TROUVE + film en contexte + pas de nouveau critère → DISCUSSION."""
+    base_state.last_displayed_movies_id = [694]
+    mock_extractor = MagicMock()
+    mock_extractor.invoke.return_value = MagicMock(
+        intent="AUCUN_FILM_TROUVE", nouvelle_recherche=False
+    )
+    mock_llm.with_structured_output.return_value = mock_extractor
+
+    result = intent_classifier_node(base_state)
+
+    assert result["intent"] == "DISCUSSION"
+
+
+@patch("agents.nodes_rag.structured_llm")
+def test_intent_classifier_prompt_contient_exemples_nouvelle_recherche(
+    mock_llm, base_state
+):
+    """Le prompt envoyé au LLM doit contenir les exemples nouvelle_recherche."""
+    base_state.last_displayed_movies_id = [694]
+    mock_extractor = MagicMock()
+    mock_extractor.invoke.return_value = MagicMock(
+        intent="RECHERCHE", nouvelle_recherche=True
+    )
+    mock_llm.with_structured_output.return_value = mock_extractor
+
+    intent_classifier_node(base_state)
+
+    prompt_sent = str(mock_extractor.invoke.call_args[0][0][0].content)
+    assert "film japonais des années 1990" in prompt_sent
+    assert "nouvelle_recherche=True" in prompt_sent
+
+
+@patch("agents.nodes_rag.structured_llm")
 def test_intent_classifier_fallback_sur_erreur_llm(mock_llm, base_state):
     """Erreur LLM → fallback RECHERCHE."""
     base_state.last_displayed_movies_id = []
@@ -547,22 +600,23 @@ def test_validation_node_invalid_avec_corrected_title(mock_llm, base_state):
 
 
 @patch("agents.nodes_rag.validation_llm")
-def test_validation_node_invalid_titre_extrait_du_feedback(mock_llm, base_state):
-    """corrected_title=None mais titre dans feedback → extrait par regex."""
+def test_validation_node_invalid_ne_deduit_pas_titre_du_feedback(mock_llm, base_state):
+    """corrected_title=None malgré un titre cité dans feedback → pas d'extraction."""
     base_state.retrieved_movies = [MockFilmDetail()]
     base_state.retry_count = 0
     mock_extractor = MagicMock()
     mock_extractor.invoke.return_value = MagicMock(
         is_relevant=False,
         has_missing_info=False,
-        feedback="Le bon film est 'The Shining' selon Kubrick.",
+        feedback="Le film trouvé 'The Shining' ne correspond pas à la requête.",
         corrected_title=None,
     )
     mock_llm.with_structured_output.return_value = mock_extractor
 
     result = validation_node(base_state)
 
-    assert result["answer"] == "The Shining"
+    assert result["answer"] is None
+    assert result["retry_count"] == 2
 
 
 @patch("agents.nodes_rag.validation_llm")
@@ -583,6 +637,7 @@ def test_validation_node_invalid_sans_titre_corrige(mock_llm, base_state):
 
     assert result["current_step"] == "invalid_coherence"
     assert result["answer"] is None
+    assert result["retry_count"] == 2
 
 
 @patch("agents.nodes_rag.validation_llm")

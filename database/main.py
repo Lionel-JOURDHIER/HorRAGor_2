@@ -22,8 +22,10 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from database.routes_db import router
 
+
 from logger import get_logger, setup_logger
 
+from database.routes_db import router
 
 
 setup_logger()
@@ -42,7 +44,7 @@ Responsabilités:
 - récupération des films
 - récupération des métadonnées
 - validation des réponses
-"""
+""",
 )
 
 

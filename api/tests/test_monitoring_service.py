@@ -2,7 +2,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
-
 from api.monitoring.monitoring_service import MonitoringService
 
 
@@ -85,9 +84,7 @@ def test_get_traces(mock_get):
 def test_get_traces_empty(mock_get):
     mock_response = MagicMock()
 
-    mock_response.json.return_value = {
-        "data": []
-    }
+    mock_response.json.return_value = {"data": []}
 
     mock_get.return_value = mock_response
 

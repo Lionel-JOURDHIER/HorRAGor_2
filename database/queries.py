@@ -29,14 +29,12 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, exists, extract, select
-
-from database.connection import get_db
-
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
+from sqlalchemy import and_, exists, extract, select
+from sqlalchemy.orm import Session
+
+from database.connection import get_db
 
 setup_logger()
 logger = get_logger("DATABASE_QUERIES")
@@ -49,6 +47,7 @@ if str(root_path) not in sys.path:
     sys.path.append(str(root_path))  # pragma: no cover
 
 from shared.schemas import DirectorsResponse, FilmDetail, FilmShort, GenresResponse
+
 from database.tables.collections import Collection
 from database.tables.film_genres import FilmGenre
 from database.tables.films import Film
@@ -57,7 +56,6 @@ from database.tables.realisateurs import Realisateur
 from database.tables.scores_imdb import ScoreImdb
 from database.tables.scores_rt import ScoreRt
 from database.tables.scores_tmdb import ScoreTmdb
-
 
 TMDB_IMAGE_BASE_URL = os.getenv(
     "TMDB_IMAGE_BASE_URL", "https://image.tmdb.org/t/p/w500"
@@ -156,7 +154,7 @@ def get_all_directors(session: Session) -> DirectorsResponse:
     """
     statement = (
         select(Realisateur.name)
-        .where(Realisateur.name != None)
+        .where(Realisateur.name.is_not(None))
         .distinct()
         .order_by(Realisateur.name)
     )
@@ -172,7 +170,7 @@ def get_all_genres(session: Session) -> GenresResponse:
     """
     statement = (
         select(Genre.genre_name)
-        .where(Genre.genre_name != None)
+        .where(Genre.genre_name.is_not(None))
         .distinct()
         .order_by(Genre.genre_name)
     )
@@ -213,7 +211,8 @@ def get_films_short_by_ids(session: Session, tmdb_ids: List[int]) -> List[FilmSh
     for t_id, g_name in genres_records:
         genres_by_film.setdefault(t_id, []).append(g_name)
 
-    # 3. Construction de la liste finale triée selon l'ordre initial des IDs demandés (pertinence FAISS)
+    # 3. Construction de la liste finale triée selon l'ordre initial des IDs
+    # demandés (pertinence FAISS)
     films_map = {}
     for film, score_tmdb in records:
         films_map[film.tmdb_id] = FilmShort(
@@ -270,7 +269,6 @@ def get_filtered_ids(
     if not filters_active:
         return None
 
-
     statement = select(Film.tmdb_id).distinct()
 
     conditions = []
@@ -281,27 +279,17 @@ def get_filtered_ids(
 
     # Réalisateur ----------------------------
     if realisateur:
-
         statement = statement.join(
-            Realisateur,
-            Film.director_id == Realisateur.director_id
+            Realisateur, Film.director_id == Realisateur.director_id
         )
 
-        conditions.append(
-            Realisateur.name.ilike(
-                f"%{realisateur}%"
-            )
-        )
+        conditions.append(Realisateur.name.ilike(f"%{realisateur}%"))
 
     # Genres inclus OR logique ----------------------------
     if genres_included:
-
         genres_subquery = (
             select(FilmGenre.tmdb_id)
-            .join(
-                Genre,
-                FilmGenre.id_genre == Genre.id_genre
-            )
+            .join(Genre, FilmGenre.id_genre == Genre.id_genre)
             .where(
                 and_(
                     FilmGenre.tmdb_id == Film.tmdb_id,
@@ -310,20 +298,14 @@ def get_filtered_ids(
             )
         )
 
-        conditions.append(exists(genres_subquery)
-        )
+        conditions.append(exists(genres_subquery))
 
     # Genres exclus ----------------------------
     if genres_excluded:
-
         for genre in genres_excluded:
-
             subquery = (
                 select(FilmGenre.tmdb_id)
-                .join(
-                    Genre,
-                    FilmGenre.id_genre == Genre.id_genre
-                )
+                .join(Genre, FilmGenre.id_genre == Genre.id_genre)
                 .where(
                     and_(
                         FilmGenre.tmdb_id == Film.tmdb_id,
@@ -336,56 +318,29 @@ def get_filtered_ids(
 
     # Runtime ----------------------------
     if runtime_min is not None:
-        conditions.append(
-            Film.runtime >= runtime_min
-        )
+        conditions.append(Film.runtime >= runtime_min)
 
     if runtime_max is not None:
-        conditions.append(
-            Film.runtime <= runtime_max
-        )
+        conditions.append(Film.runtime <= runtime_max)
 
     # Année sortie ----------------------------
     if release_year_min is not None:
-
-        conditions.append(
-            extract(
-                "year",
-                Film.release_date
-            ) >= release_year_min
-        )
-
+        conditions.append(extract("year", Film.release_date) >= release_year_min)
 
     if release_year_max is not None:
-
-        conditions.append(
-            extract(
-                "year",
-                Film.release_date
-            ) <= release_year_max
-        )
+        conditions.append(extract("year", Film.release_date) <= release_year_max)
 
     # Score TMDB ----------------------------
     if tmdb_score_min is not None:
-
-        statement = statement.join(
-            ScoreTmdb,
-            Film.tmdb_id == ScoreTmdb.tmdb_id
-        )
+        statement = statement.join(ScoreTmdb, Film.tmdb_id == ScoreTmdb.tmdb_id)
 
         conditions.append(ScoreTmdb.vote_average >= tmdb_score_min)
 
     # WHERE ----------------------------
     if conditions:
-
         statement = statement.where(and_(*conditions))
 
-
-    ids = list(
-        session.execute(statement)
-        .scalars()
-        .all()
-    )
+    ids = list(session.execute(statement).scalars().all())
 
     if not ids:
         logger.info("⚠️ Aucun film trouvé après filtrage")
@@ -395,10 +350,8 @@ def get_filtered_ids(
 
     return ids
 
-def get_films_details_by_ids(
-    session: Session,
-    tmdb_ids: List[int]
-) -> List[FilmDetail]:
+
+def get_films_details_by_ids(session: Session, tmdb_ids: List[int]) -> List[FilmDetail]:
     """
     Retrieve detailed information for multiple films.
     """
@@ -406,21 +359,16 @@ def get_films_details_by_ids(
     if not tmdb_ids:
         return []
 
-
     films = []
 
     for tmdb_id in tmdb_ids:
-
-        film = get_film_details_by_id(
-            session,
-            tmdb_id
-        )
+        film = get_film_details_by_id(session, tmdb_id)
 
         if film:
             films.append(film)
 
-
     return films
+
 
 # --- Zone de Test Multi-Tables ---
 if __name__ == "__main__":
@@ -431,7 +379,8 @@ if __name__ == "__main__":
 
     try:
         print(
-            f"🚀 1. Test de get_film_details_by_id() (Détails complets) pour l'ID: {test_id}..."
+            "🚀 1. Test de get_film_details_by_id() (Détails complets)"
+            f" pour l'ID: {test_id}..."
         )
         details = get_film_details_by_id(session, test_id)
         if details:
@@ -443,17 +392,20 @@ if __name__ == "__main__":
         print("\n📁 2. Test de get_all_genres() (Liste globale)...")
         genres_resp = get_all_genres(session)
         print(
-            f"✅ {len(genres_resp.genres)} genres récupérés. Exemple : {genres_resp.genres[:3]}"
+            f"✅ {len(genres_resp.genres)} genres récupérés."
+            f" Exemple : {genres_resp.genres[:3]}"
         )
 
         print("\n🎬 3. Test de get_all_directors() (Liste globale)...")
         directors_resp = get_all_directors(session)
         print(
-            f"✅ {len(directors_resp.directors)} réalisateurs récupérés. Exemple : {directors_resp.directors[:3]}"
+            f"✅ {len(directors_resp.directors)} réalisateurs récupérés."
+            f" Exemple : {directors_resp.directors[:3]}"
         )
 
         print(
-            f"\n📇 4. Test de get_films_short_by_ids() (Format Court / Retour FAISS) pour l'ID: {test_id}..."
+            "\n📇 4. Test de get_films_short_by_ids() (Format Court /"
+            f" Retour FAISS) pour l'ID: {test_id}..."
         )
         shorts = get_films_short_by_ids(session, [test_id])
         if shorts:

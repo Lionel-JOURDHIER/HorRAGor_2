@@ -16,10 +16,10 @@ sys.path.insert(0, os.path.abspath("../.."))
 # pour que l'autodoc de frontend.rst résolve ces imports.
 sys.path.insert(0, os.path.abspath("../../frontend"))
 
-project = 'HorRAGor'
-copyright = '2026, simplon team'
-author = 'simplon team'
-release = '1.0'
+project = "HorRAGor"
+copyright = "2026, simplon team"
+author = "simplon team"
+release = "1.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -28,9 +28,9 @@ extensions = [
     "sphinx.ext.autodoc",
     "myst_parser",
     "sphinx.ext.graphviz",
-    ]
+]
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = []
 
 # La CI ne construit la doc qu'avec les dépendances d'api/ (uv run --project
@@ -38,7 +38,7 @@ exclude_patterns = []
 # frontend.rst puisse importer les modules sans l'installer.
 autodoc_mock_imports = ["streamlit"]
 
-language = 'fr'
+language = "fr"
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -58,7 +58,7 @@ html_theme_options = {
     },
 }
 
-html_static_path = ['_static']
+html_static_path = ["_static"]
 html_css_files = [
     "custom.css",
 ]

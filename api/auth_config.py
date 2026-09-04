@@ -4,7 +4,8 @@ Module de configuration pour le système d'authentification JWT.
 Variables d'environnement requises :
     - JWT_SECRET_KEY : Clé secrète pour signer les tokens JWT
     - JWT_ALGORITHM : Algorithme de chiffrement (par défaut: HS256)
-    - ACCESS_TOKEN_EXPIRE_MINUTES : Durée de vie de l'access token (par défaut: 30 minutes)
+    - ACCESS_TOKEN_EXPIRE_MINUTES : Durée de vie de l'access token
+      (par défaut: 30 minutes)
     - REFRESH_TOKEN_EXPIRE_DAYS : Durée de vie du refresh token (par défaut: 7 jours)
 """
 

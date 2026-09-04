@@ -1,5 +1,4 @@
 import pytest
-
 from agents.router import (
     route_after_title_check,
     route_by_intent,

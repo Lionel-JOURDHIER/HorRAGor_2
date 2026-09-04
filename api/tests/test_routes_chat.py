@@ -1,13 +1,11 @@
 # api/tests/test_routeschat.py
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
-
 from api.auth_utils import get_current_user
 from api.main import app
-from api.modules.chat_service import run_agent_stream_final
 
 FAKE_USER = SimpleNamespace(id=1, email="test@example.com", is_active=True)
 
@@ -24,6 +22,7 @@ def override_current_user():
 # ---------------------------------------------------------
 # /chat/response_stream — single film
 # ---------------------------------------------------------
+
 
 @patch("api.routes.run_agent_stream_final")
 def test_chat_response_stream_single_film(mock_stream, client):
@@ -115,6 +114,7 @@ def test_chat_response_stream_single_film(mock_stream, client):
 # ---------------------------------------------------------
 # /chat/response_stream — recommendations
 # ---------------------------------------------------------
+
 
 @patch("api.routes.run_agent_stream_final")
 def test_chat_response_stream_recommendations(mock_stream, client):

@@ -6,6 +6,7 @@ PK : director_id (INT) — identifiant natif TMDB, pas d'AUTO_INCREMENT.
 
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
+
 from database.tables.base import Base
 
 

@@ -53,7 +53,8 @@ if "<MOT_DE_PASSE>" in DATABASE_URL:
     )  # pragma: no cover
 
 # 2. Création du moteur SQLAlchemy
-# pool_pre_ping=True teste la connexion avant usage (indispensable avec le pooler Supabase)
+# pool_pre_ping=True teste la connexion avant usage (indispensable avec le pooler
+# Supabase)
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5, max_overflow=10)
 
 # 3. Configuration de la fabrique de sessions locales

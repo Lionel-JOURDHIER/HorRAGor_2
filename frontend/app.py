@@ -4,15 +4,20 @@ Application Web Front-End Streamlit - Interface Utilisateur de HorRAGor.
 Ce module est le point d'entrée de l'interface graphique conçue par Flavie.
 
 Fonctionnalités principales :
-    - Système d'authentification : Connexion et inscription des utilisateurs (Epic 10 - Flavie)
+    - Système d'authentification : Connexion et inscription des utilisateurs
+      (Epic 10 - Flavie)
     - Formulaire de Préférences Globales : Implémente les sélections physiques
       pour enrichir toutes les demandes :
         * Sélecteur du Réalisateur (alimenté par '/list_réal').
-        * Double sélecteur de Genres : "Genres à conserver" et "Genres non souhaités" (via '/list_genre').
-        * Sliders de filtres : Double slide date de sortie (1900-2026), Simple slide score TMDB (0-10),
+        * Double sélecteur de Genres : "Genres à conserver" et "Genres non
+          souhaités" (via '/list_genre').
+        * Sliders de filtres : Double slide date de sortie (1900-2026), Simple
+          slide score TMDB (0-10),
           et Double slide durée du film (1-685 min).
-    - Interface de Chat & Streaming : Envoie conjointement le texte du prompt et les filtres
-      du formulaire à l'endpoint `/chat`, puis affiche l'état de réflexion, la carte d'identité du film et le Top 5 final.
+    - Interface de Chat & Streaming : Envoie conjointement le texte du prompt
+      et les filtres
+      du formulaire à l'endpoint `/chat`, puis affiche l'état de réflexion, la
+      carte d'identité du film et le Top 5 final.
 
 Dépendances principales :
     - streamlit (st.sidebar, st.slider, st.multiselect, st.chat_input)
@@ -22,16 +27,18 @@ Auteurs : Flavie (Epic 7 & Epic 10)
 """
 
 import streamlit as st
-from components.components import (
-    create_filters_sidebar,
-    display_agent_status,
-    display_chat_message,
-    display_movie_list,
-)
+
 from components.auth_components import (
     check_authentication,
     logout_button,
     render_login_page,
+)
+from components.components import (
+    create_filters_sidebar,
+    display_agent_status,
+    display_chat_message,
+    display_movie_count,
+    display_movie_list,
 )
 from utils.api_client import (
     check_health,
@@ -53,18 +60,18 @@ st.markdown(
 <style>
     /* Import des polices Google Fonts */
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap');
-    
+
     /* Style principal avec dégradé dynamique */
     .main {
         background: linear-gradient(135deg, #0a0e27 0%, #1a0b2e 50%, #16003b 100%);
         font-family: 'Poppins', sans-serif;
     }
-    
+
     /* Override Streamlit default background */
     .stApp {
         background: linear-gradient(135deg, #0a0e27 0%, #1a0b2e 50%, #16003b 100%);
     }
-    
+
     /* En-tête stylisé avec animation */
     .stTitle {
         color: #ff4757;
@@ -73,7 +80,7 @@ st.markdown(
         text-shadow: 0 0 20px rgba(255, 71, 87, 0.5), 0 0 40px rgba(255, 71, 87, 0.3);
         animation: glow 2s ease-in-out infinite alternate;
     }
-    
+
     @keyframes glow {
         from {
             text-shadow: 0 0 20px rgba(255, 71, 87, 0.5), 0 0 40px rgba(255, 71, 87, 0.3);
@@ -82,7 +89,7 @@ st.markdown(
             text-shadow: 0 0 30px rgba(255, 71, 87, 0.8), 0 0 60px rgba(255, 71, 87, 0.5);
         }
     }
-    
+
     /* Messages du chat avec néon */
     .stChatMessage {
         background: rgba(26, 11, 46, 0.8);
@@ -94,26 +101,26 @@ st.markdown(
         backdrop-filter: blur(15px);
         box-shadow: 0 8px 32px rgba(255, 71, 87, 0.2);
     }
-    
+
     /* Cartes de films avec effet néon */
     .movie-card {
         background: linear-gradient(135deg, #1a0b2e 0%, #0a0e27 100%);
         border-radius: 25px;
         padding: 25px;
         margin: 20px 0;
-        box-shadow: 0 10px 40px rgba(255, 71, 87, 0.3), 
+        box-shadow: 0 10px 40px rgba(255, 71, 87, 0.3),
                     inset 0 0 30px rgba(255, 71, 87, 0.05);
         border: 2px solid rgba(255, 71, 87, 0.5);
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
-    
+
     .movie-card:hover {
         transform: translateY(-10px) scale(1.02);
         box-shadow: 0 20px 60px rgba(255, 71, 87, 0.6),
                     inset 0 0 50px rgba(255, 71, 87, 0.1);
         border-color: #ff4757;
     }
-    
+
     /* Statistiques avec effet gradient animé */
     .stat-box {
         background: linear-gradient(135deg, #ff4757 0%, #ee5a6f 50%, #ff006e 100%);
@@ -128,7 +135,7 @@ st.markdown(
         position: relative;
         overflow: hidden;
     }
-    
+
     .stat-box::before {
         content: '';
         position: absolute;
@@ -145,25 +152,25 @@ st.markdown(
         transform: rotate(45deg);
         animation: shine 3s infinite;
     }
-    
+
     @keyframes shine {
         0% { transform: rotate(45deg) translateY(-100%); }
         100% { transform: rotate(45deg) translateY(100%); }
     }
-    
+
     .stat-box:hover {
         transform: translateY(-5px) scale(1.05);
         box-shadow: 0 15px 50px rgba(255, 71, 87, 0.6),
                     0 0 80px rgba(255, 71, 87, 0.3);
     }
-    
+
     /* Sidebar avec effet verre */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, rgba(26, 11, 46, 0.95) 0%, rgba(10, 14, 39, 0.95) 100%);
         backdrop-filter: blur(20px);
         border-right: 2px solid rgba(255, 71, 87, 0.3);
     }
-    
+
     /* Boutons avec effet néon */
     .stButton>button {
         background: linear-gradient(135deg, #ff4757 0%, #ff006e 100%);
@@ -178,7 +185,7 @@ st.markdown(
         text-transform: uppercase;
         letter-spacing: 1px;
     }
-    
+
     .stButton>button:hover {
         transform: translateY(-3px) scale(1.05);
         box-shadow: 0 10px 40px rgba(255, 71, 87, 0.6),
@@ -186,16 +193,16 @@ st.markdown(
         background: linear-gradient(135deg, #ff006e 0%, #ff4757 100%);
         border-color: #ff4757;
     }
-    
+
     /* Sliders avec couleurs vives */
     .stSlider {
         padding: 15px 0;
     }
-    
+
     .stSlider > div > div > div > div {
         background: linear-gradient(90deg, #ff4757 0%, #ff006e 100%);
     }
-    
+
     /* Expanders avec effet néon */
     .streamlit-expanderHeader {
         background: rgba(255, 71, 87, 0.15);
@@ -205,13 +212,13 @@ st.markdown(
         padding: 15px;
         transition: all 0.3s ease;
     }
-    
+
     .streamlit-expanderHeader:hover {
         background: rgba(255, 71, 87, 0.25);
         border-color: #ff4757;
         box-shadow: 0 5px 20px rgba(255, 71, 87, 0.3);
     }
-    
+
     /* Input de chat avec effet brillant */
     .stChatInput {
         background: rgba(26, 11, 46, 0.8);
@@ -219,22 +226,22 @@ st.markdown(
         border-radius: 15px;
         box-shadow: 0 5px 25px rgba(255, 71, 87, 0.2);
     }
-    
+
     /* Texte amélioré */
     h1, h2, h3, h4, h5, h6 {
         font-family: 'Poppins', sans-serif;
         color: #ffffff;
     }
-    
+
     p, span, div {
         font-family: 'Poppins', sans-serif;
     }
-    
+
     /* Amélioration de la lisibilité */
     .stMarkdown {
         color: #ffffff;
     }
-    
+
     /* Success/Error/Warning messages */
     .stSuccess {
         background: rgba(76, 175, 80, 0.2);
@@ -242,21 +249,21 @@ st.markdown(
         border-radius: 15px;
         box-shadow: 0 5px 20px rgba(76, 175, 80, 0.3);
     }
-    
+
     .stError {
         background: rgba(244, 67, 54, 0.2);
         border: 2px solid #f44336;
         border-radius: 15px;
         box-shadow: 0 5px 20px rgba(244, 67, 54, 0.3);
     }
-    
+
     .stWarning {
         background: rgba(255, 152, 0, 0.2);
         border: 2px solid #ff9800;
         border-radius: 15px;
         box-shadow: 0 5px 20px rgba(255, 152, 0, 0.3);
     }
-    
+
     .stInfo {
         background: rgba(33, 150, 243, 0.2);
         border: 2px solid #2196f3;
@@ -436,17 +443,20 @@ def display_chat_interface(filters: dict):
         if role == "user":
             display_chat_message("user", content, avatar="👤")
         else:
-            display_chat_message("assistant", content, avatar="🤖")
+            if "films" in message and message["films"]:
+                display_movie_count(message["films"])
 
             # Restauration des états de réflexion archivés ---
-            if "etats_agent" in message and message["etats_agent"]:
+            if "films" in message and message["films"]:
                 with st.expander("🔍 Détails de réflexion archivés", expanded=False):
-                    for etat in message["etats_agent"]:
+                    for etat in message.get("etats_agent", []):
                         display_agent_status(etat)
+
+            display_chat_message("assistant", content, avatar="🤖")
 
             # Afficher les films si disponibles
             if "films" in message and message["films"]:
-                display_movie_list(message["films"], title="")
+                display_movie_list(message["films"], title="", show_count=False)
 
     # Input utilisateur
     user_input = st.chat_input("💬 Posez votre question sur les films d'horreur...")
@@ -469,7 +479,6 @@ def display_chat_interface(filters: dict):
 
         # Conteneur pour afficher les étapes en temps réel
         status_container = st.empty()
-        steps_container = st.container()
 
         # Variables pour stocker les données reçues
         all_steps = []
@@ -482,7 +491,7 @@ def display_chat_interface(filters: dict):
         with status_container:
             st.markdown(
                 """
-                <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2)); 
+                <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2));
                             padding: 25px; border-radius: 20px; border-left: 5px solid #ff4757;
                             box-shadow: 0 8px 30px rgba(255, 71, 87, 0.3);">
                     <h4 style="margin: 0; color: #ff4757; font-weight: 800; font-size: 1.3em;">🔍 Analyse en cours...</h4>
@@ -543,15 +552,20 @@ def display_chat_interface(filters: dict):
                 }
             )
         elif final_answer:
-            # Message de succès
-            st.success("✅ Réponse générée avec succès !")
-
-            # Afficher la réponse de l'assistant
-            display_chat_message("assistant", final_answer, avatar="🤖")
-
             # Les recommandations sont déjà au format API correct
             # normalize_movie_data() s'occupera de la conversion dans display_movie_card
             films = final_recommendations or ([final_film] if final_film else [])
+
+            if films:
+                display_movie_count(films)
+
+            if films:
+                with st.expander("🔍 Détails de réflexion archivés", expanded=False):
+                    for step in all_steps:
+                        display_agent_status(step)
+
+            st.success("✅ Réponse générée avec succès !")
+            display_chat_message("assistant", final_answer, avatar="🤖")
 
             # Mettre à jour les statistiques
             st.session_state.total_films_recommended += len(films)
@@ -570,7 +584,7 @@ def display_chat_interface(filters: dict):
             if films:
                 st.markdown(
                     f"""
-                <div style="background: linear-gradient(135deg, #ff4757 0%, #ff006e 100%); 
+                <div style="background: linear-gradient(135deg, #ff4757 0%, #ff006e 100%);
                             padding: 25px; border-radius: 20px; margin: 25px 0; text-align: center;
                             box-shadow: 0 10px 40px rgba(255, 71, 87, 0.5);">
                     <h2 style="margin: 0; color: white; font-weight: 800; font-size: 2em;">🎬 {len(films)} Film(s) recommandé(s)</h2>
@@ -579,7 +593,7 @@ def display_chat_interface(filters: dict):
                 """,
                     unsafe_allow_html=True,
                 )
-                display_movie_list(films, title="")
+                display_movie_list(films, title="", show_count=False)
             else:
                 st.info(
                     "ℹ️ Aucun film ne correspond à vos critères. Essayez de modifier les filtres."
@@ -608,13 +622,14 @@ def main():
         # Si l'utilisateur n'est pas connecté, afficher la page de login
         render_login_page()
         return
-    
+
     # Si l'utilisateur est connecté, afficher le bouton de déconnexion
     logout_button()
-    
+
     # ===== APPLICATION PRINCIPALE =====
-    
-    # Vérification de l'API (DOIT être appelé AVANT display_header pour mettre à jour api_status)
+
+    # Vérification de l'API (DOIT être appelé AVANT display_header pour mettre
+    # à jour api_status)
     check_api_status()
 
     # En-tête avec métriques (utilise api_status mis à jour par check_api_status)
@@ -627,7 +642,7 @@ def main():
     # Interface de chat principale
     st.markdown(
         """
-    <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.15), rgba(255, 0, 110, 0.15)); 
+    <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.15), rgba(255, 0, 110, 0.15));
                 padding: 25px; border-radius: 20px; margin: 25px 0;
                 border: 2px solid rgba(255, 71, 87, 0.3); box-shadow: 0 5px 25px rgba(255, 71, 87, 0.3);">
         <h2 style="margin: 0; color: #ff4757; font-weight: 800;">💬 Chat Intelligent</h2>
@@ -643,7 +658,7 @@ def main():
     if not st.session_state.messages:
         st.markdown(
             """
-        <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2) 0%, rgba(255, 0, 110, 0.2) 100%); 
+        <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2) 0%, rgba(255, 0, 110, 0.2) 100%);
                     padding: 25px; border-radius: 20px; margin: 25px 0;
                     border: 2px solid rgba(255, 71, 87, 0.3);">
             <h4 style="color: #ff4757; margin-bottom: 18px; font-weight: 800;">💡 Exemples de questions :</h4>

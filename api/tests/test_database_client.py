@@ -1,13 +1,13 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from api.modules.database_client import (
-    get_film,
-    get_directors,
-    get_genres,
     filter_films,
+    get_directors,
+    get_film,
     get_films_details_by_ids,
     get_films_short_by_ids,
+    get_genres,
 )
 from shared.schemas import FilmDetail, FilmShort
 
@@ -19,6 +19,7 @@ def mock_response(json_data, status_code=200):
 
     if status_code >= 400:
         import httpx
+
         response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "HTTP error",
             request=MagicMock(),
@@ -58,9 +59,7 @@ async def test_get_film():
     }
 
     mock_client = MagicMock()
-    mock_client.get = AsyncMock(
-        return_value=mock_response(film_data)
-    )
+    mock_client.get = AsyncMock(return_value=mock_response(film_data))
 
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
@@ -106,9 +105,7 @@ async def test_get_directors():
     ]
 
     mock_client = MagicMock()
-    mock_client.get = AsyncMock(
-        return_value=mock_response(directors)
-    )
+    mock_client.get = AsyncMock(return_value=mock_response(directors))
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
@@ -131,9 +128,7 @@ async def test_get_genres():
     ]
 
     mock_client = MagicMock()
-    mock_client.get = AsyncMock(
-        return_value=mock_response(genres)
-    )
+    mock_client.get = AsyncMock(return_value=mock_response(genres))
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
@@ -149,20 +144,14 @@ async def test_get_genres():
 
 @pytest.mark.asyncio
 async def test_filter_films():
-    response_data = {
-        "tmdb_ids": [115128, 123456, 789012]
-    }
+    response_data = {"tmdb_ids": [115128, 123456, 789012]}
 
     mock_client = MagicMock()
-    mock_client.post = AsyncMock(
-        return_value=mock_response(response_data)
-    )
+    mock_client.post = AsyncMock(return_value=mock_response(response_data))
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
-    filters = {
-        "genres": ["Horror"]
-    }
+    filters = {"genres": ["Horror"]}
 
     with patch(
         "api.modules.database_client.httpx.AsyncClient",
@@ -178,9 +167,7 @@ async def test_filter_films():
 @pytest.mark.asyncio
 async def test_filter_films_without_ids():
     mock_client = MagicMock()
-    mock_client.post = AsyncMock(
-        return_value=mock_response({})
-    )
+    mock_client.post = AsyncMock(return_value=mock_response({}))
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
@@ -232,9 +219,7 @@ async def test_get_films_details_by_ids():
     ]
 
     mock_client = MagicMock()
-    mock_client.post = AsyncMock(
-        return_value=mock_response(films)
-    )
+    mock_client.post = AsyncMock(return_value=mock_response(films))
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
@@ -265,9 +250,7 @@ async def test_get_films_short_by_ids():
     ]
 
     mock_client = MagicMock()
-    mock_client.post = AsyncMock(
-        return_value=mock_response(films)
-    )
+    mock_client.post = AsyncMock(return_value=mock_response(films))
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
 

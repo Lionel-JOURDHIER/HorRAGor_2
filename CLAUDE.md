@@ -17,8 +17,8 @@ via Ollama.
 | | |
 |---|---|
 | Lancer (stack complète) | `docker compose up --build` (premier démarrage), `docker compose up -d` ensuite |
-| Accès | http://localhost (front), http://localhost/api, http://localhost/dbapi, http://127.0.0.1:8080/dashboard/ (Traefik) |
-| Lint / format | `uv run ruff check` / `uv run ruff format` (dans `api/`, `agents/`, `database/`, `frontend/` — chacun a son propre `pyproject.toml`/`uv.lock`) |
+| Accès | http://localhost:8088 (front), http://localhost:8088/api, http://localhost:8088/dbapi, http://127.0.0.1:8080/dashboard/ (Traefik) |
+| Lint / format | `uv run ruff check` / `uv run ruff format` (dans `api/`, `agents/`, `database/`, `frontend/` — chacun a son propre `pyproject.toml`/`uv.lock`), puis `uv run --project api ruff check` / `... ruff format` à la racine pour `logger.py`, `shared/`, `scripts/` et `docs/` (config `ruff.toml`) |
 | Tests | `uv run pytest` (dans chacun des quatre sous-projets) |
 | Activer les hooks (une fois par machine) | `git config core.hooksPath .githooks` |
 
@@ -56,10 +56,16 @@ via Ollama.
 ## Pièges déjà payés
 
 - Tout passe par **Traefik** : `frontend`, `api` et `database_api` n'ont plus de
-  `ports:`. Le routage se fait sur le **chemin** et non sur le nom d'hôte —
-  tout répond sur `localhost`, donc rien à ajouter dans `/etc/hosts`. Le
-  frontend est volontairement à la racine : Streamlit sous un sous-chemin
-  réclamerait `server.baseUrlPath`, dont le WebSocket se règle mal.
+  `ports:`. Les trois routeurs combinent `Host(\`localhost\`)` et un
+  `PathPrefix` : rien à ajouter dans `/etc/hosts`, mais **seul le nom
+  `localhost` répond** — `http://127.0.0.1:8088/` renvoie 404, ce qui se
+  diagnostique mal parce que ça ressemble à une panne de routage. Le frontend
+  est volontairement à la racine : Streamlit sous un sous-chemin réclamerait
+  `server.baseUrlPath`, dont le WebSocket se règle mal.
+- Le `config.toml` de Streamlit est **embarqué dans l'image** (`COPY . .`),
+  aucun volume ne le monte : après l'avoir modifié il faut
+  `docker compose build frontend`, un `up -d --force-recreate` relance
+  l'ancienne configuration sans rien signaler. Même piège que l'index FAISS.
 - **Pas de TLS**, et le port 80 est lié à `127.0.0.1` : c'est cette restriction
   qui remplace le chiffrement, le trafic ne quitte pas la machine. Ouvrir
   l'accès depuis une autre machine (`"80:80"`) impose de remettre le TLS

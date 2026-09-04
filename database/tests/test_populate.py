@@ -5,9 +5,8 @@ Garantit une couverture à 100% en interceptant correctement l'appel next(get_db
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 import database.populate as populate
+import pytest
 
 
 @patch("database.populate.OLLAMA_CLIENT_EMBEDD")
@@ -100,7 +99,7 @@ def test_run_pipeline_deduplicated(
 @patch("database.populate.get_db")
 @patch("database.populate.fetch_source_films")
 def test_run_pipeline_error_handling(mock_fetch_src, mock_get_db, mock_engine):
-    """Vérifie le déclenchement automatique du rollback en cas de crash durant l'extraction."""
+    """Vérifie le rollback automatique en cas de crash durant l'extraction."""
     mock_session = MagicMock()
     mock_context = MagicMock()
     mock_context.__enter__.return_value = mock_session

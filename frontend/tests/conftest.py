@@ -4,8 +4,9 @@ Configuration commune des tests pytest.
 Ce fichier contient les fixtures partagées par tous les tests.
 """
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 
 def pytest_addoption(parser):
@@ -14,7 +15,7 @@ def pytest_addoption(parser):
         "--run-integration",
         action="store_true",
         default=False,
-        help="Exécuter les tests d'intégration avec l'API réelle"
+        help="Exécuter les tests d'intégration avec l'API réelle",
     )
 
 
@@ -39,9 +40,7 @@ def mock_api_response_health():
 def mock_api_response_genres():
     """Mock d'une réponse API pour /list_genre."""
     mock = Mock()
-    mock.json.return_value = {
-        "genres": ["Horror", "Thriller", "Mystery", "Drama"]
-    }
+    mock.json.return_value = {"genres": ["Horror", "Thriller", "Mystery", "Drama"]}
     mock.status_code = 200
     mock.raise_for_status = Mock()
     return mock
@@ -70,7 +69,7 @@ def sample_film_detail():
         "genres": ["Horror", "Thriller"],
         "director": "Stanley Kubrick",
         "tmdb_score": 8.2,
-        "overview": "A family heads to an isolated hotel for the winter..."
+        "overview": "A family heads to an isolated hotel for the winter...",
     }
 
 
@@ -82,7 +81,7 @@ def sample_film_short():
         "title": "The Shining",
         "release_date": "1980-05-23",
         "genres": ["Horror", "Thriller"],
-        "tmdb_score": 8.2
+        "tmdb_score": 8.2,
     }
 
 
@@ -93,7 +92,7 @@ def mock_chat_response_success():
     mock.json.return_value = {
         "answer": "L'agent de recommandation est en cours de développement.",
         "steps": [],
-        "recommendations": []
+        "recommendations": [],
     }
     mock.status_code = 200
     mock.raise_for_status = Mock()
@@ -111,5 +110,5 @@ def sample_filters():
         "release_year_max": 2020,
         "tmdb_score_min": 7.0,
         "runtime_min": 80,
-        "runtime_max": 150
+        "runtime_max": 150,
     }

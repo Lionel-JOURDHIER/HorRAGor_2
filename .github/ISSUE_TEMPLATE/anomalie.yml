@@ -1,0 +1,85 @@
+name: Anomalie
+description: Signaler un comportement défectueux, reproductible ou non
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Une anomalie sans étapes de reproduction ni écart attendu/observé ne
+        peut pas être fermée par un test : ce sont les deux champs qui rendent
+        la correction vérifiable.
+
+  - type: dropdown
+    id: composant
+    attributes:
+      label: Composant
+      description: Où le défaut se manifeste, pas nécessairement où il est causé.
+      options:
+        - agents (graphe LangGraph)
+        - api (API IA)
+        - database (API Database, FAISS)
+        - frontend (Streamlit)
+        - monitoring (Prometheus, Grafana, Uptime Kuma, Langfuse)
+        - infrastructure (Docker Compose, Traefik, CI)
+        - je ne sais pas
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priorite
+    attributes:
+      label: Priorité
+      description: Même échelle que TODO.md.
+      options:
+        - 🔴 critique — sécurité, perte de données, service indisponible
+        - 🟠 majeure — fonctionnalité inutilisable, contournement lourd
+        - 🟡 mineure — gêne, cosmétique, dette
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Étapes de reproduction
+      description: Une étape par ligne, depuis un état de départ connu.
+      placeholder: |
+        1. `docker compose up -d`
+        2. Se connecter avec un compte existant
+        3. Poser la question « qui a réalisé Shining ? »
+    validations:
+      required: true
+
+  - type: textarea
+    id: attendu
+    attributes:
+      label: Comportement attendu
+    validations:
+      required: true
+
+  - type: textarea
+    id: observe
+    attributes:
+      label: Comportement observé
+      description: Message d'erreur complet et extrait de `logs/error.log` si disponible.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Commit ou branche
+      description: Sortie de `git rev-parse --short HEAD`.
+      placeholder: 3b157ad (dev)
+    validations:
+      required: true
+
+  - type: textarea
+    id: contexte
+    attributes:
+      label: Contexte complémentaire
+      description: >
+        Ollama sur l'hôte ou en conteneur, index FAISS reconstruit ou non,
+        capture d'écran, tout ce qui a été écarté au passage.
+    validations:
+      required: false

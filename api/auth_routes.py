@@ -196,9 +196,7 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
     )
 
 
-@router.post(
-    "/token", response_model=Token, responses={401: {"model": ErrorResponse}}
-)
+@router.post("/token", response_model=Token, responses={401: {"model": ErrorResponse}})
 async def login_for_swagger(
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
 ):
