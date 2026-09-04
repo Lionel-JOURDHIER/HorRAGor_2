@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 
 import pytest
 from api.auth_config import JWT_ALGORITHM, JWT_SECRET_KEY
-
 from api.auth_utils import (
     authenticate_user,
     create_access_token,
@@ -24,7 +23,6 @@ from api.auth_utils import (
     validate_refresh_token,
     verify_password,
 )
-
 from database.tables.refresh_tokens import RefreshToken
 from database.tables.users import User
 from fastapi import HTTPException
