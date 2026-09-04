@@ -30,13 +30,14 @@ port = 8501
 enableCORS = true
 enableXsrfProtection = true
 
-# Schéma et port doivent correspondre EXACTEMENT à ce que voit le navigateur,
-# donc l'URL Traefik — jamais http://localhost:8501, qui n'est plus publié.
-# Le port implicite (80) ne s'écrit pas. C'est CETTE ligne qui bloque le
-# WebSocket venu d'une autre origine, et elle ne dépend pas du TLS : passer
-# la stack en clair ne l'affaiblit pas. Ajouter ici le domaine de production
-# le jour venu — en https, cette fois.
-corsAllowedOrigins = ["http://localhost"]
+# Schéma, hôte et port doivent correspondre EXACTEMENT à ce que voit le
+# navigateur, donc l'URL Traefik — jamais http://localhost:8501, qui n'est plus
+# publié. Le port n'est implicite que s'il vaut 80 ; Traefik publiant 8088 (voir
+# docker-compose.yml), il s'écrit. C'est CETTE ligne qui bloque le WebSocket
+# venu d'une autre origine, et elle ne dépend pas du TLS : passer la stack en
+# clair ne l'affaiblit pas. Ajouter ici le domaine de production le jour venu —
+# en https, cette fois.
+corsAllowedOrigins = ["http://localhost:8088"]
 
 # Deuxième verrou, sur le `Host` cette fois : limite les noms d'hôte acceptés
 # à l'ouverture du WebSocket.
@@ -44,8 +45,9 @@ allowedHosts = ["localhost"]
 
 [browser]
 # Adresse par laquelle le navigateur atteint l'app (via Traefik), utilisée par
-# Streamlit pour construire ses URL et vérifier l'origine.
+# Streamlit pour construire ses URL et vérifier l'origine. Doit suivre le port
+# publié dans docker-compose.yml.
 serverAddress = "localhost"
-serverPort = 80
+serverPort = 8088
 # Coupe l'envoi de statistiques d'usage à Streamlit.
 gatherUsageStats = false
