@@ -1,5 +1,58 @@
 # SESSION.md — HorRAGor
 
+## [2026-09-04] — Port Traefik : configuration du frontend réalignée sur 8088
+
+**Branche :** `feature/port-traefik-8088`
+
+**Diagnostic :** Traefik fonctionnait. Le port publié est passé de 80 à 8088
+lors du revert du TLS (`f73a86b`), et trois endroits annonçaient encore le
+port 80 — dont la ligne d'accès de `CLAUDE.md`, ce qui menait à ouvrir une
+adresse où rien n'écoute (`curl http://localhost/` → `000`).
+
+**Fait :**
+- [CLAUDE.md](CLAUDE.md) — ligne d'accès en `http://localhost:8088`.
+- [frontend/.streamlit/config.toml](frontend/.streamlit/config.toml) —
+  `corsAllowedOrigins = ["http://localhost:8088"]` et `serverPort = 8088`.
+- [docker-compose.yml](docker-compose.yml) — commentaire du bloc `ports:`
+  corrigé, et mention du couplage avec les deux valeurs du `config.toml`.
+- Second commit, séparé : retrait de `server.allowedHosts`, qui n'est pas une
+  option Streamlit, et correction de l'affirmation de `CLAUDE.md` sur le
+  routage par chemin.
+
+**Décisions techniques :**
+- **Garder 8088 plutôt que revenir à 80** (choix de l'utilisateur) : le port 80
+  demande un privilège et peut être déjà pris sur le poste ; l'écart n'était pas
+  dans le compose mais dans ce qui le décrivait.
+- **Deux commits et non un** : réaligner un port et retirer une option morte
+  sont deux choses, et la seconde touche à une protection — elle devait pouvoir
+  se relire, et se révoquer, seule.
+- **Le couplage est documenté dans le compose, à côté du port**, et non
+  seulement dans `CLAUDE.md` : c'est en modifiant cette ligne qu'on casse le
+  WebSocket, donc c'est là que l'avertissement doit se lire.
+
+**Vérifié :**
+- Frontend reconstruit (`docker compose build frontend`) : annonce
+  `URL: http://localhost:8088`, et l'avertissement
+  « "server.allowedHosts" is not a valid config option » a disparu.
+- `/`, `/api/health`, `/dbapi/db/health` → 200 via Traefik.
+- WebSocket `/_stcore/stream` : **101** depuis `http://localhost:8088`,
+  **403** depuis `http://attaquant.example` — le retrait d'`allowedHosts` n'a
+  rien affaibli, le filtrage venait bien de `corsAllowedOrigins`.
+- `docker compose config -q` et chargement TOML du `config.toml` : OK.
+
+**Points de vigilance pour la suite :**
+- **Le `config.toml` est embarqué dans l'image** (`COPY . .`, aucun volume) :
+  un `up -d --force-recreate` relance l'ancienne configuration **sans rien
+  signaler**. C'est ce qui m'a fait croire d'abord que la correction n'avait
+  pas pris. Même piège que l'index FAISS ; noté dans `CLAUDE.md`.
+- `Origin: http://localhost` (sans port) obtient encore un 101 alors que
+  `corsAllowedOrigins` ne l'autorise plus : Streamlit accepte aussi l'origine
+  dérivée de `browser.serverAddress`. Plus permissif que la configuration ne le
+  laisse croire, mais pas moins — à savoir si le filtrage doit un jour être
+  strict.
+- Seul le nom d'hôte `localhost` répond : `http://127.0.0.1:8088/` renvoie 404
+  à cause des règles `Host(...)`. Ressemble à une panne de routage.
+
 ## [2026-09-04] — Templates d'issue GitHub
 
 **Branche :** `feature/templates-issues`
