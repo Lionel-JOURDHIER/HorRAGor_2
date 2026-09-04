@@ -113,7 +113,13 @@ services:
       # Lié à 127.0.0.1 et non à toutes les interfaces : sans TLS, c'est cette
       # restriction qui garantit que rien ne circule en clair sur le réseau.
       # Pour ouvrir volontairement l'accès depuis une autre machine, remplacer
-      # par "80:80" — et remettre le TLS avant.
+      # par "8088:80" — et remettre le TLS avant.
+      #
+      # Le port publié n'est pas 80 : il est repris tel quel dans
+      # `corsAllowedOrigins` et `browser.serverPort` de
+      # frontend/.streamlit/config.toml, que Streamlit compare à l'en-tête
+      # `Origin` du navigateur. Changer ce port sans changer ces deux valeurs
+      # fait refuser le WebSocket du frontend.
       - "127.0.0.1:8088:80"
       # Dashboard : même principe, boucle locale uniquement.
       - "127.0.0.1:8080:8080"
