@@ -26,6 +26,8 @@ Dépendances principales :
 Auteurs : Flavie (Epic 7 & Epic 10)
 """
 
+from uuid import uuid4
+
 import streamlit as st
 
 from components.auth_components import (
@@ -45,6 +47,8 @@ from utils.api_client import (
     get_api_url,
     send_chat_query_streaming,
 )
+
+UNTITLED_CONVERSATION = "Nouvelle conversation"
 
 # Configuration de la page
 st.set_page_config(
@@ -281,6 +285,25 @@ def init_session_state():
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
+    if "conversations" not in st.session_state:
+        conversation_id = f"conversation-{uuid4().hex}"
+        st.session_state.conversations = {
+            conversation_id: {
+                "title": _build_conversation_title(st.session_state.messages),
+                "messages": st.session_state.messages,
+            }
+        }
+        st.session_state.active_conversation_id = conversation_id
+
+    if "active_conversation_id" not in st.session_state:
+        st.session_state.active_conversation_id = next(
+            iter(st.session_state.conversations)
+        )
+
+    st.session_state.messages = st.session_state.conversations[
+        st.session_state.active_conversation_id
+    ]["messages"]
+
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
@@ -301,6 +324,105 @@ def init_session_state():
 
     if "preset_question" not in st.session_state:
         st.session_state.preset_question = None
+
+
+def _build_conversation_title(messages: list[dict]) -> str:
+    """Construit un titre court à partir du premier message utilisateur."""
+    for message in messages:
+        if message.get("role") == "user" and message.get("content"):
+            title = str(message["content"]).strip()
+            return title[:38] + "…" if len(title) > 38 else title
+    return UNTITLED_CONVERSATION
+
+
+def _sync_active_conversation() -> None:
+    """Sauvegarde les messages affichés dans la conversation active."""
+    conversation_id = st.session_state.active_conversation_id
+    conversation = st.session_state.conversations[conversation_id]
+    conversation["messages"] = st.session_state.messages
+    conversation["title"] = _build_conversation_title(st.session_state.messages)
+
+
+def create_new_conversation() -> None:
+    """Crée une conversation vide et la rend active."""
+    _sync_active_conversation()
+    conversation_id = f"conversation-{uuid4().hex}"
+    st.session_state.conversations[conversation_id] = {
+        "title": UNTITLED_CONVERSATION,
+        "messages": [],
+    }
+    st.session_state.active_conversation_id = conversation_id
+    st.session_state.messages = st.session_state.conversations[conversation_id][
+        "messages"
+    ]
+
+
+def select_conversation(conversation_id: str) -> None:
+    """Affiche les messages de la conversation sélectionnée."""
+    if conversation_id == st.session_state.active_conversation_id:
+        return
+
+    _sync_active_conversation()
+    st.session_state.active_conversation_id = conversation_id
+    st.session_state.messages = st.session_state.conversations[conversation_id][
+        "messages"
+    ]
+
+
+def delete_conversation(conversation_id: str) -> None:
+    """Supprime une conversation et conserve toujours un fil actif."""
+    st.session_state.conversations.pop(conversation_id, None)
+
+    if not st.session_state.conversations:
+        new_id = f"conversation-{uuid4().hex}"
+        st.session_state.conversations[new_id] = {
+            "title": UNTITLED_CONVERSATION,
+            "messages": [],
+        }
+
+    if conversation_id == st.session_state.active_conversation_id:
+        st.session_state.active_conversation_id = next(
+            iter(st.session_state.conversations)
+        )
+
+    st.session_state.messages = st.session_state.conversations[
+        st.session_state.active_conversation_id
+    ]["messages"]
+
+
+def display_conversation_sidebar() -> None:
+    """Affiche la création, sélection et suppression des conversations."""
+    with st.sidebar:
+        st.markdown("### 💬 Conversations")
+
+        if st.button("➕ Nouvelle conversation", use_container_width=True):
+            create_new_conversation()
+            st.rerun()
+
+        for conversation_id, conversation in list(
+            st.session_state.conversations.items()
+        ):
+            is_active = conversation_id == st.session_state.active_conversation_id
+            label = f"{'▶ ' if is_active else ''}{conversation['title']}"
+            col_select, col_delete = st.columns([5, 1])
+
+            with col_select:
+                if st.button(
+                    label,
+                    key=f"select-{conversation_id}",
+                    use_container_width=True,
+                ):
+                    select_conversation(conversation_id)
+                    st.rerun()
+
+            with col_delete:
+                if st.button(
+                    "🗑️",
+                    key=f"delete-{conversation_id}",
+                    help="Supprimer cette conversation",
+                ):
+                    delete_conversation(conversation_id)
+                    st.rerun()
 
 
 def display_header():
@@ -443,20 +565,19 @@ def display_chat_interface(filters: dict):
         if role == "user":
             display_chat_message("user", content, avatar="👤")
         else:
-            if "films" in message and message["films"]:
-                display_movie_count(message["films"])
-
             # Restauration des états de réflexion archivés ---
             if "films" in message and message["films"]:
                 with st.expander("🔍 Détails de réflexion archivés", expanded=False):
                     for etat in message.get("etats_agent", []):
                         display_agent_status(etat)
 
-            display_chat_message("assistant", content, avatar="🤖")
+                display_movie_count(message["films"])
 
             # Afficher les films si disponibles
             if "films" in message and message["films"]:
                 display_movie_list(message["films"], title="", show_count=False)
+
+            display_chat_message("assistant", content, avatar="🤖")
 
     # Input utilisateur
     user_input = st.chat_input("💬 Posez votre question sur les films d'horreur...")
@@ -475,6 +596,7 @@ def display_chat_interface(filters: dict):
 
         # Ajouter le message utilisateur
         st.session_state.messages.append({"role": "user", "content": user_input})
+        _sync_active_conversation()
         display_chat_message("user", user_input, avatar="👤")
 
         # Conteneur pour afficher les étapes en temps réel
@@ -551,21 +673,18 @@ def display_chat_interface(filters: dict):
                     "content": "Désolé, une erreur s'est produite lors du traitement de votre requête.",
                 }
             )
+            _sync_active_conversation()
         elif final_answer:
             # Les recommandations sont déjà au format API correct
             # normalize_movie_data() s'occupera de la conversion dans display_movie_card
             films = final_recommendations or ([final_film] if final_film else [])
 
             if films:
-                display_movie_count(films)
-
-            if films:
                 with st.expander("🔍 Détails de réflexion archivés", expanded=False):
                     for step in all_steps:
                         display_agent_status(step)
 
-            st.success("✅ Réponse générée avec succès !")
-            display_chat_message("assistant", final_answer, avatar="🤖")
+                display_movie_count(films)
 
             # Mettre à jour les statistiques
             st.session_state.total_films_recommended += len(films)
@@ -579,6 +698,7 @@ def display_chat_interface(filters: dict):
                     "etats_agent": all_steps,
                 }
             )
+            _sync_active_conversation()
 
             # Afficher les films avec compteur
             if films:
@@ -599,6 +719,9 @@ def display_chat_interface(filters: dict):
                     "ℹ️ Aucun film ne correspond à vos critères. Essayez de modifier les filtres."
                 )
 
+            st.success("✅ Réponse générée avec succès !")
+            display_chat_message("assistant", final_answer, avatar="🤖")
+
             # Forcer le rafraîchissement pour afficher immédiatement
             st.rerun()
         else:
@@ -610,6 +733,7 @@ def display_chat_interface(filters: dict):
                     "content": "Je n'ai pas pu générer de réponse. Veuillez réessayer.",
                 }
             )
+            _sync_active_conversation()
 
 
 def main():
@@ -625,6 +749,7 @@ def main():
 
     # Si l'utilisateur est connecté, afficher le bouton de déconnexion
     logout_button()
+    display_conversation_sidebar()
 
     # ===== APPLICATION PRINCIPALE =====
 
