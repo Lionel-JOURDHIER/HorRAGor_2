@@ -1,7 +1,7 @@
-import json
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import faiss
+import numpy as np
 import pytest
 from agents.tools.vector_tools import (
     SMALL_POOL_THRESHOLD,
@@ -11,7 +11,10 @@ from agents.tools.vector_tools import (
 )
 from shared.schemas import FilmShort
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+# Nombre de vecteurs synthétiques : dépasse SMALL_POOL_THRESHOLD pour que le
+# scénario « grand pool » (recherche globale + post-filtre) soit atteignable.
+SYNTHETIC_VECTOR_COUNT = SMALL_POOL_THRESHOLD + 500
+SYNTHETIC_TMDB_ID_BASE = 900000
 
 
 @pytest.fixture
@@ -39,36 +42,35 @@ def mock_external_services():
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_faiss_index():
-    """Hydrate le service FAISS vide avec le fichier d'index physique pour les tests."""
+    """Hydrate le service FAISS avec un index synthétique construit en mémoire.
 
-    # 1. Résolution dynamique du chemin vers ton fichier (indépendant du
-    #    dossier d'où pytest est lancé)
-    index_path = PROJECT_ROOT / "faiss_data" / "horragor.index"
-    mapping_path = PROJECT_ROOT / "faiss_data" / "horragor_mapping.json"
-
-    # Sécurité : on s'assure que le test trouve bien le fichier
-    assert index_path.exists(), f"❌ Fichier index introuvable à : {index_path}"
-
-    # 2. Chargement des données dans ton instance globale
-    # (Remplace "load_index" par le vrai nom de la méthode dans ta classe FaissService)
-    faiss_global_service.load_index(
-        index_path=str(index_path), mapping_path=str(mapping_path)
+    L'index et le mapping réels (`faiss_data/`) sont ignorés par git — voir
+    CLAUDE.md § L'index FAISS est embarqué dans l'image `api` — et donc absents
+    d'un checkout CI. `rules/tests-python.md` § Fixtures interdit de toute façon
+    un chemin en dur vers un dossier du dépôt : les vecteurs sont générés ici,
+    déterministes (graine fixe), sans dépendre d'aucun fichier local.
+    """
+    rng = np.random.default_rng(42)
+    vectors = rng.random(
+        (SYNTHETIC_VECTOR_COUNT, faiss_global_service.dimension), dtype=np.float32
     )
+    faiss_global_service.index = faiss.IndexFlatL2(faiss_global_service.dimension)
+    faiss_global_service.index.add(vectors)
+    faiss_global_service.id_mapping = {
+        i: SYNTHETIC_TMDB_ID_BASE + i for i in range(SYNTHETIC_VECTOR_COUNT)
+    }
 
 
 @pytest.fixture(scope="module")
 def real_tmdb_ids():
-    """IDs TMDB réellement présents dans faiss_data/horragor_mapping.json.
+    """IDs tmdb présents dans l'index FAISS synthétique de `setup_faiss_index`.
 
-    filter_films_by_criteria interroge la Database API réelle (hors de portée
-    d'un test isolé) : ces candidate_ids simulent son résultat avec des IDs qui
-    existent vraiment dans l'index FAISS chargé en mémoire, pour que la
-    recherche vectorielle qui suit ait un pool où trouver des résultats.
+    Simule le pool que renverrait `filter_films_by_criteria` (Database API
+    réelle, hors de portée d'un test isolé) : des candidate_ids qui existent
+    réellement dans l'index en mémoire, pour que la recherche vectorielle qui
+    suit ait un pool où trouver des résultats.
     """
-    mapping_path = PROJECT_ROOT / "faiss_data" / "horragor_mapping.json"
-    with open(mapping_path) as f:
-        mapping = json.load(f)
-    return [int(v) for v in mapping.values()]
+    return [SYNTHETIC_TMDB_ID_BASE + i for i in range(SYNTHETIC_VECTOR_COUNT)]
 
 
 # ──────────────────────────────────────────────────────────────
