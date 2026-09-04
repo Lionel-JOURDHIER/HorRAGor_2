@@ -540,7 +540,6 @@ docker-compose up
         st.session_state.api_status = True
         with st.sidebar:
             st.success("✅ API connectée")
-            st.caption(f"🌐 {get_api_url()}")
 
 
 def display_chat_interface(filters: dict):
@@ -830,6 +829,9 @@ def main():
         st.markdown("<br>", unsafe_allow_html=True)
 
     display_chat_interface(filters)
+
+    with st.sidebar:
+        st.caption(f"🌐 {get_api_url()}")
 
     # Section d'aide en bas de page
     with st.expander("ℹ️ Comment utiliser HorRAGor ?", expanded=False):
