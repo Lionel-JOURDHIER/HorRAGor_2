@@ -393,8 +393,6 @@ def test_refresh_refuse_le_jeton_dun_compte_desactive(auth_client, db_session, c
 # ---------------------------------------------------------------------------
 # GET /auth/me
 # ---------------------------------------------------------------------------
-
-
 def test_me_rend_le_profil_sans_donnee_sensible(auth_client, compte):
     access_token = connecter(auth_client)["access_token"]
 

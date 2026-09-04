@@ -21,3 +21,4 @@ HorRAGor
    shared
    database_schema
    langgraph
+   monitoring

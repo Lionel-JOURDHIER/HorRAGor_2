@@ -592,6 +592,47 @@ def display_loading_indicator(message: str = "L'agent réfléchit...") -> None:
         st.markdown("🧠 **Analyse en cours...**")
 
 
+def get_agent_step_progress(status: Dict[str, Any]) -> int:
+    """Calcule une progression monotone selon l'étape réelle du graphe."""
+    if status.get("progression") is not None:
+        progression = status["progression"]
+        if isinstance(progression, float) and progression <= 1:
+            progression *= 100
+        return max(0, min(100, int(progression)))
+
+    step_text = str(status.get("step") or status.get("etape") or "").lower()
+
+    ordered_progress = {
+        "intent_classification": 10,
+        "title_detection": 20,
+        "load_film": 30,
+        "merge_filters": 35,
+        "filter_extraction": 35,
+        "sql_filtering": 45,
+        "vector_recommendations": 55,
+        "vector_search_direct": 55,
+        "search_vector": 65,
+        "hydratation": 70,
+        "verif_film": 75,
+        "validation_direct": 82,
+        "validation_hybrid": 82,
+        "wikipedia_search": 88,
+        "wikipedia_enrich": 88,
+        "enrich_with_wiki": 88,
+        "synthesis": 92,
+        "format_cards": 95,
+        "card": 95,
+        "narrator": 100,
+        "generation": 100,
+    }
+
+    for step_name, progression in ordered_progress.items():
+        if step_name in step_text:
+            return progression
+
+    return 5
+
+
 def display_agent_status(status: Dict[str, Any]) -> None:
     """
     Affiche l'état de réflexion de l'agent ReAct de manière visuelle et intuitive.
@@ -711,29 +752,7 @@ def display_agent_status(status: Dict[str, Any]) -> None:
         )
         st.info(status["pensee"])
 
-    # Mapping approximatif nœud LangGraph -> pourcentage de progression
-    NODE_PROGRESS = {
-        "title_detection": 15,
-        "filter_extraction": 30,
-        "sql_filtering": 45,
-        "vector_search_direct": 30,
-        "vector_recommendations": 70,
-        "rewrite": 70,
-        "generation": 85,
-        "wikipedia_enrich": 90,
-        "enrich_with_wiki": 90,
-        "validation": 95,
-    }
-    # Détection de la progression par mot-clé pour éviter le crash du NoneType
-    progression = None
-    for key, value in NODE_PROGRESS.items():
-        if key in step_text.lower():
-            progression = value
-            break
-
-    # Valeur de repli si le log contient une phrase complexe non répertoriée
-    if progression is None:
-        progression = 40
+    progression = get_agent_step_progress(status)
 
     # Rendu de la barre de progression sécurisé
     try:

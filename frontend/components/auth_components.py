@@ -19,6 +19,8 @@ from utils.auth_client import logout_user as api_logout
 # visible après bascule vers un autre compte dans le même onglet Streamlit.
 _CHAT_SESSION_KEYS = [
     "messages",
+    "conversations",
+    "active_conversation_id",
     "chat_history",
     "total_queries",
     "total_films_recommended",
