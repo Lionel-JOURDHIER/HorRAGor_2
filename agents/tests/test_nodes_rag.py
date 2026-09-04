@@ -140,6 +140,40 @@ def test_intent_classifier_intent_inconnu_sans_contexte(mock_llm, base_state):
 
 
 @patch("agents.nodes_rag.structured_llm")
+def test_intent_classifier_aucun_film_trouve_avec_contexte_nouvelle_recherche(
+    mock_llm, base_state
+):
+    """AUCUN_FILM_TROUVE + film en contexte + nouveaux critères → RECHERCHE."""
+    base_state.last_displayed_movies_id = [694]
+    mock_extractor = MagicMock()
+    mock_extractor.invoke.return_value = MagicMock(
+        intent="AUCUN_FILM_TROUVE", nouvelle_recherche=True
+    )
+    mock_llm.with_structured_output.return_value = mock_extractor
+
+    result = intent_classifier_node(base_state)
+
+    assert result["intent"] == "RECHERCHE"
+
+
+@patch("agents.nodes_rag.structured_llm")
+def test_intent_classifier_aucun_film_trouve_avec_contexte_continuation(
+    mock_llm, base_state
+):
+    """AUCUN_FILM_TROUVE + film en contexte + pas de nouveau critère → DISCUSSION."""
+    base_state.last_displayed_movies_id = [694]
+    mock_extractor = MagicMock()
+    mock_extractor.invoke.return_value = MagicMock(
+        intent="AUCUN_FILM_TROUVE", nouvelle_recherche=False
+    )
+    mock_llm.with_structured_output.return_value = mock_extractor
+
+    result = intent_classifier_node(base_state)
+
+    assert result["intent"] == "DISCUSSION"
+
+
+@patch("agents.nodes_rag.structured_llm")
 def test_intent_classifier_fallback_sur_erreur_llm(mock_llm, base_state):
     """Erreur LLM → fallback RECHERCHE."""
     base_state.last_displayed_movies_id = []

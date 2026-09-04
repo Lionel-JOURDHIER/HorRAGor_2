@@ -161,6 +161,14 @@ Select exactly one value for the `intent` field based on these rules:
 - Activation: Pure conversational mechanics, greetings, politeness, meta-questions about the AI assistant, poetry, or random thoughts about the weather.
 - Triggers: "bonjour", "salut", "comment tu vas", "il fait beau aujourd'hui".
 
+## CHAMP `nouvelle_recherche`
+Renseigne aussi `nouvelle_recherche` (booléen), indépendamment de `intent` :
+- True : la requête introduit un nouveau critère (genre, nationalité, décennie,
+  réalisateur, titre) sans rapport avec CONTEXT_TITLES — c'est une nouvelle
+  recherche, même si HAS_CONTEXT est TRUE.
+- False : la requête poursuit la discussion sur un film déjà dans CONTEXT_TITLES
+  (pronom, absence de nouveau critère, ou titre déjà présent dans CONTEXT_TITLES).
+
 # USER
 <USER_QUERY>
 __USER_QUERY__
