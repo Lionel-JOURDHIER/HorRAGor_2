@@ -1,13 +1,6 @@
-<<<<<<< HEAD
 
-from datetime import datetime
-from unittest.mock import MagicMock, patch
-
-import pytest
-=======
 from types import SimpleNamespace
 
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
 from api.modules import chat_service
 from api.modules.chat_service import (
     get_conversation_history,
@@ -22,8 +15,6 @@ from shared.schemas import ChatRequest
 # FIXTURES
 # ============================================================================
 
-<<<<<<< HEAD
-
 @pytest.fixture
 def mock_user():
     user = MagicMock()
@@ -36,8 +27,6 @@ def chat_request():
     return ChatRequest(
         message="films like Inception",
     )
-
-
 # ============================================================================
 # init_graph
 # ============================================================================
@@ -62,9 +51,6 @@ def test_init_graph():
 
 
 # ============================================================================
-=======
-# ----------------------------
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
 # normalize_steps
 # ============================================================================
 
@@ -107,15 +93,9 @@ def test_normalize_steps_multiple_dicts():
 
 
 def test_normalize_steps_model_dump():
-<<<<<<< HEAD
-    step = MagicMock()
-    step.model_dump.return_value = {
-        "step": "search",
-        "status": "success",
-    }
-=======
+
     obj = SimpleNamespace(model_dump=lambda: {"step": "x"})
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
+
 
     result = normalize_steps([step])
 
@@ -130,26 +110,15 @@ def test_normalize_steps_model_dump():
 
 
 def test_normalize_steps_fallback():
-<<<<<<< HEAD
-    step = MagicMock(spec=["step", "status"])
-    step.step = "search"
-    step.status = "running"
-=======
+
     obj = SimpleNamespace(step="s1", status="ok")
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
+
 
     result = normalize_steps([step])
 
-<<<<<<< HEAD
-    assert result == [
-        {
-            "step": "search",
-            "status": "running",
-        }
-    ]
-=======
+
     assert out == [{"step": "s1", "status": "ok"}]
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
+
 
 
 def test_normalize_steps_fallback_missing_attributes():
@@ -167,17 +136,6 @@ def test_normalize_steps_fallback_missing_attributes():
 
 # ============================================================================
 # get_graph_config
-<<<<<<< HEAD
-# ============================================================================
-
-
-def test_get_graph_config(chat_request, mock_user):
-    result = get_graph_config(
-        chat_request,
-        mock_user,
-=======
-# ----------------------------
-
 
 def test_get_graph_config_thread_id_from_user():
     request = SimpleNamespace(message="hello")
@@ -732,7 +690,3 @@ async def test_run_agent_stream_final_accumulates_state(
         }
     ]
 
-<<<<<<< HEAD
-=======
-#     mock_graph.astream.assert_called_once()
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749

@@ -1,9 +1,19 @@
-<<<<<<< HEAD
+"""api/tests/test_auth_crypto.py
+Tests du chiffrement RSA du mot de passe transmis à /auth/login et /auth/register.
+
+Ce chiffrement remplace le TLS absent du déploiement local : un défaut ici
+laisserait passer un mot de passe en clair sur le réseau. Les tests portent
+donc sur le contrat de `api/auth_crypto.py` — un aller-retour fidèle, et un
+refus explicite de tout ce qui ne déchiffre pas — pas sur l'implémentation RSA
+elle-même, qui est celle de la bibliothèque `cryptography`.
+"""
 import base64
 
 import pytest
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding
+from api.auth_crypto import decrypt_password, get_public_key_pem
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
 
 from api.auth_crypto import decrypt_password, get_public_key_pem, _public_key
 
@@ -50,23 +60,7 @@ def test_decrypt_password_invalid_ciphertext():
         decrypt_password(encrypted)
 
 
-=======
-"""api/tests/test_auth_crypto.py
-Tests du chiffrement RSA du mot de passe transmis à /auth/login et /auth/register.
 
-Ce chiffrement remplace le TLS absent du déploiement local : un défaut ici
-laisserait passer un mot de passe en clair sur le réseau. Les tests portent
-donc sur le contrat de `api/auth_crypto.py` — un aller-retour fidèle, et un
-refus explicite de tout ce qui ne déchiffre pas — pas sur l'implémentation RSA
-elle-même, qui est celle de la bibliothèque `cryptography`.
-"""
-
-import base64
-
-import pytest
-from api.auth_crypto import decrypt_password, get_public_key_pem
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 _OAEP = padding.OAEP(
     mgf=padding.MGF1(algorithm=hashes.SHA256()),
@@ -147,4 +141,4 @@ def test_decrypt_password_refuse_un_chiffre_produit_avec_une_autre_cle():
 
     with pytest.raises(ValueError, match="Mot de passe chiffré invalide"):
         decrypt_password(chiffrer_avec(autre_pem, "motdepasse123"))
->>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
+
