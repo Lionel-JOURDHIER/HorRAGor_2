@@ -10,12 +10,9 @@ elle-même, qui est celle de la bibliothèque `cryptography`.
 import base64
 
 import pytest
-from api.auth_crypto import decrypt_password, get_public_key_pem
+from api.auth_crypto import _public_key, decrypt_password, get_public_key_pem
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
-
-
-from api.auth_crypto import decrypt_password, get_public_key_pem, _public_key
 
 
 def encrypt_password(password: str) -> str:

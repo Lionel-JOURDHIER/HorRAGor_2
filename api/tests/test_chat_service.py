@@ -1,9 +1,7 @@
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from api.modules import chat_service
 from api.modules.chat_service import (
     get_conversation_history,
@@ -97,17 +95,11 @@ def test_normalize_steps_multiple_dicts():
 
 def test_normalize_steps_model_dump():
     step = MagicMock()
-    step.model_dump.return_value = {"step": "search", "status": "success"}
+    step.model_dump.return_value = {"step": "x"}
 
     result = normalize_steps([step])
 
-    assert result == [
-        {
-            "step": "search",
-            "status": "success",
-        }
-    ]
-
+    assert result == [{"step": "x"}]
     step.model_dump.assert_called_once()
 
 
@@ -150,11 +142,18 @@ def test_get_graph_config_thread_id_from_user():
 def test_get_graph_config_different_users_get_different_threads():
     request = SimpleNamespace(message="hello")
 
-    config_a = chat_service.get_graph_config(request, SimpleNamespace(id=1))
-    config_b = chat_service.get_graph_config(request, SimpleNamespace(id=2))
+    config_a = chat_service.get_graph_config(
+        request,
+        SimpleNamespace(id=1),
+    )
+    config_b = chat_service.get_graph_config(
+        request,
+        SimpleNamespace(id=2),
+    )
 
     assert (
-        config_a["configurable"]["thread_id"] != config_b["configurable"]["thread_id"]
+        config_a["configurable"]["thread_id"]
+        != config_b["configurable"]["thread_id"]
     )
 
 

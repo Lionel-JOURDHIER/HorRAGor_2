@@ -23,7 +23,6 @@ from api.auth_utils import (
     validate_refresh_token,
     verify_password,
 )
-
 from database.tables.refresh_tokens import RefreshToken
 from database.tables.users import User
 from fastapi import HTTPException

@@ -97,7 +97,6 @@ def test_flux_complet_inscription_connexion_profil_rafraichissement_deconnexion(
     )
     assert apres_deconnexion.status_code == 401
 
-
 # ---------------------------------------------------------------------------
 # GET /auth/public-key
 # ---------------------------------------------------------------------------
@@ -107,7 +106,6 @@ def test_public_key_expose_une_cle_publique_pem(auth_client):
 
     assert reponse.status_code == 200
     assert reponse.json()["public_key"].startswith("-----BEGIN PUBLIC KEY-----")
-
 
 # ---------------------------------------------------------------------------
 # POST /auth/register
@@ -236,7 +234,6 @@ def test_register_refuse_un_email_mal_forme(auth_client):
 
     assert reponse.status_code == 422
 
-
 # ---------------------------------------------------------------------------
 # POST /auth/login
 # ---------------------------------------------------------------------------
@@ -336,7 +333,6 @@ def test_token_refuse_de_mauvais_identifiants(auth_client, compte):
 
     assert reponse.status_code == 401
 
-
 # ---------------------------------------------------------------------------
 # POST /auth/refresh
 # ---------------------------------------------------------------------------
@@ -384,6 +380,7 @@ def test_refresh_refuse_le_jeton_dun_compte_desactive(auth_client, db_session, c
 
     assert reponse.status_code == 401
     assert reponse.json()["detail"] == "Utilisateur introuvable ou inactif"
+
 
 
 # ---------------------------------------------------------------------------
