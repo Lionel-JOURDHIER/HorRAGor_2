@@ -1,0 +1,4 @@
+notifications:
+  - name: Discord
+    type: webhook
+    content_type: application/json

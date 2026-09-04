@@ -48,7 +48,11 @@ docs/build
 # volume ou d'une restauration de sauvegarde.
 # api/faiss_data/ reste exclu : doublon octet pour octet de faiss_data/, copié
 # vers /app/api/faiss_data/ où personne ne le lit.
-api/faiss_data
+
+
+# api/faiss_data
+
+
 database/data_backup
 
 # --- Documents et images de travail ---------------------------------------

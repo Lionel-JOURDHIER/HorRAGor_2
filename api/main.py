@@ -106,12 +106,12 @@ async def langfuse_middleware(request: Request, call_next):
     """
 
     excluded_paths = {
-        "/health",
-        "/metrics",
-        "/monitoring/metrics",
-        "/monitoring/traces",
-        "/docs",
-        "/openapi.json",
+        "/api/health",
+        "/api/metrics",
+        "/api/monitoring/metrics",
+        "/api/monitoring/traces",
+        "/api/docs",
+        "/api/openapi.json",
     }
 
     if request.url.path in excluded_paths:
