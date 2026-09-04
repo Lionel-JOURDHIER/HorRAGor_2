@@ -7,6 +7,7 @@ donc sur le contrat de `api/auth_crypto.py` — un aller-retour fidèle, et un
 refus explicite de tout ce qui ne déchiffre pas — pas sur l'implémentation RSA
 elle-même, qui est celle de la bibliothèque `cryptography`.
 """
+
 import base64
 
 import pytest
@@ -55,8 +56,6 @@ def test_decrypt_password_invalid_ciphertext():
 
     with pytest.raises(ValueError, match="Mot de passe chiffré invalide"):
         decrypt_password(encrypted)
-
-
 
 
 _OAEP = padding.OAEP(
@@ -138,4 +137,3 @@ def test_decrypt_password_refuse_un_chiffre_produit_avec_une_autre_cle():
 
     with pytest.raises(ValueError, match="Mot de passe chiffré invalide"):
         decrypt_password(chiffrer_avec(autre_pem, "motdepasse123"))
-
