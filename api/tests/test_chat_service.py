@@ -1,7 +1,8 @@
-
 from types import SimpleNamespace
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from api.modules import chat_service
 from api.modules.chat_service import (
     get_conversation_history,
@@ -94,32 +95,21 @@ def test_normalize_steps_multiple_dicts():
 
 
 def test_normalize_steps_model_dump():
-
-    obj = SimpleNamespace(model_dump=lambda: {"step": "x"})
-
+    step = MagicMock()
+    step.model_dump.return_value = {"step": "x"}
 
     result = normalize_steps([step])
 
-    assert result == [
-        {
-            "step": "search",
-            "status": "success",
-        }
-    ]
-
+    assert result == [{"step": "x"}]
     step.model_dump.assert_called_once()
 
 
 def test_normalize_steps_fallback():
-
-    obj = SimpleNamespace(step="s1", status="ok")
-
+    step = SimpleNamespace(step="s1", status="ok")
 
     result = normalize_steps([step])
 
-
-    assert out == [{"step": "s1", "status": "ok"}]
-
+    assert result == [{"step": "s1", "status": "ok"}]
 
 
 def test_normalize_steps_fallback_missing_attributes():
@@ -153,21 +143,19 @@ def test_get_graph_config_thread_id_from_user():
 def test_get_graph_config_different_users_get_different_threads():
     request = SimpleNamespace(message="hello")
 
-    config_a = chat_service.get_graph_config(request, SimpleNamespace(id=1))
-    config_b = chat_service.get_graph_config(request, SimpleNamespace(id=2))
-
-    assert (
-        config_a["configurable"]["thread_id"] != config_b["configurable"]["thread_id"]
+    config_a = chat_service.get_graph_config(
+        request,
+        SimpleNamespace(id=1),
+    )
+    config_b = chat_service.get_graph_config(
+        request,
+        SimpleNamespace(id=2),
     )
 
-    assert result["recursion_limit"] == 15
-    assert result["configurable"]["thread_id"] == "user_1"
-
-    assert result["metadata"]["application"] == "HorRAGor"
-    assert result["metadata"]["environment"] == "development"
-
-    assert "callbacks" in result
-    assert len(result["callbacks"]) == 1
+    assert (
+        config_a["configurable"]["thread_id"]
+        != config_b["configurable"]["thread_id"]
+    )
 
 
 def test_get_graph_config_uses_user_id(chat_request):
