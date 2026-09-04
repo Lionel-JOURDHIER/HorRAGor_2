@@ -359,17 +359,29 @@ dans chaque sous-projet) — les trois entrées ci-dessous étaient périmées :
 |---|---|---|
 | `agents` | 95% | — (non visé explicitement) |
 | `database` (API Database) | **81%** | 80% ✅ |
-| `api` (API IA) | **74%** | 80% ❌ |
-| `frontend` (UI) | **51%** tout compris, **46%** hors `tests/` | 80% ❌ |
+| `api` (API IA) | **93%** | 80% ✅ |
+| `frontend` (UI) | **57%** sur `utils/` + `components/` | 80% ❌ |
+
+Chiffres `api` et `frontend` remesurés le 4 septembre 2026 après l'ajout des
+tests d'authentification (64 tests : 35 sur `api/`, 38 sur `frontend/`).
 
 - [x] `database` : entrée corrigée — 81%, et non 100%. Au-dessus de la cible.
-- [ ] `api` (API IA) : **74%**, il manque 6 points. L'entrée précédente
-  annonçait 79%.
-- [ ] `frontend` (UI) : **46%** sur le code applicatif (`utils/` +
-  `components/`). [frontend/utils/auth_client.py](frontend/utils/auth_client.py)
-  et [frontend/utils/auth_crypto_client.py](frontend/utils/auth_crypto_client.py)
-  sont à **0%** — c'est-à-dire exactement le code d'authentification et de
-  chiffrement du mot de passe que l'Épilogue MLOps met en avant.
+- [x] `api` (API IA) : **74% → 93%** (96 tests). L'authentification, qui
+  concentrait le manque, est désormais couverte :
+  [auth_utils.py](api/auth_utils.py) 30% → **100%**,
+  [auth_routes.py](api/auth_routes.py) 30% → **97%**,
+  [auth_crypto.py](api/auth_crypto.py) → **100%**. Restent en dessous
+  [main.py](api/main.py) 58% (câblage de démarrage) et
+  [modules/chat_service.py](api/modules/chat_service.py) 38%.
+- [ ] `frontend` (UI) : **46% → 57%** sur le code applicatif.
+  [utils/auth_client.py](frontend/utils/auth_client.py) et
+  [utils/auth_crypto_client.py](frontend/utils/auth_crypto_client.py) sont
+  passés de **0% à 100%**. Il reste
+  [components/auth_components.py](frontend/components/auth_components.py) à
+  **0%** (97 instructions, formulaires Streamlit),
+  [components/components.py](frontend/components/components.py) à 67% et
+  [utils/api_client.py](frontend/utils/api_client.py) à 63% — c'est
+  `auth_components.py` qui pèse le plus dans les 23 points manquants.
 - [x] CI ([.github/workflows/docker.yml](.github/workflows/docker.yml)) :
   entrée périmée — lance déjà `uv sync` + `uv run pytest --cov=...` pour les
   **quatre** sous-projets (`agents`, `api`, `database`, `frontend`), chacun
