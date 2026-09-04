@@ -171,6 +171,40 @@ class TestMovieListDisplay:
         except Exception as e:
             assert False, f"display_movie_list a levé une exception: {e}"
 
+
+class TestAgentProgress:
+    """Tests de progression des étapes agent."""
+
+    def test_get_agent_step_progress_suit_l_ordre_du_graphe(self):
+        """Les étapes principales progressent sans retour arrière."""
+        from components.components import get_agent_step_progress
+
+        steps = [
+            "intent_classification",
+            "title_detection",
+            "merge_filters",
+            "vector_recommendations",
+            "search_vector",
+            "validation_hybrid",
+            "format_cards",
+            "narrator",
+        ]
+
+        progressions = [
+            get_agent_step_progress({"step": step, "status": "ok"})
+            for step in steps
+        ]
+
+        assert progressions == sorted(progressions)
+        assert progressions[-1] == 100
+
+    def test_get_agent_step_progress_utilise_progression_explicite(self):
+        """Une progression explicite du backend reste prioritaire."""
+        from components.components import get_agent_step_progress
+
+        assert get_agent_step_progress({"step": "custom", "progression": 0.42}) == 42
+        assert get_agent_step_progress({"step": "custom", "progression": 125}) == 100
+
     @patch("components.components.st")
     @patch("components.components.display_movie_card")
     def test_display_movie_list_with_films(
