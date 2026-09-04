@@ -1,7 +1,5 @@
 from unittest.mock import MagicMock, mock_open, patch
 
-from langgraph.graph.state import CompiledStateGraph
-
 # Import des éléments définis dans agents/graph.py
 from agents.graph import (
     graph,
@@ -11,12 +9,14 @@ from agents.graph import (
     wrapper_route_validation_hybrid,
     wrapper_route_verif_film,
 )
+from langgraph.graph.state import CompiledStateGraph
 from shared.schemas import AgentState
 
 
 def test_graph_compilation_and_nodes():
     """Vérifie la compilation et la présence de tous les nœuds de la v3."""
-    # On utilise mock_open() pour intercepter proprement les écritures des fichiers Mermaid
+    # On utilise mock_open() pour intercepter proprement les écritures des
+    # fichiers Mermaid
     with (
         patch("builtins.open", mock_open()),
         patch("langgraph.graph.state.CompiledStateGraph.get_graph") as mock_get_graph,
@@ -63,8 +63,8 @@ def test_route_after_search_vector_wrapper():
     state_hybrid.search_branch = "hybrid"
 
     with (
-        patch("agents.graph.route_direct_id_valid", return_value="direct_ok") as m_dir,
-        patch("agents.graph.route_hybrid_id_valid", return_value="hybrid_ok") as m_hyb,
+        patch("agents.graph.route_direct_id_valid", return_value="direct_ok"),
+        patch("agents.graph.route_hybrid_id_valid", return_value="hybrid_ok"),
     ):
         assert route_after_search_vector_wrapper(state_direct) == "direct_ok"
         assert route_after_search_vector_wrapper(state_hybrid) == "hybrid_ok"

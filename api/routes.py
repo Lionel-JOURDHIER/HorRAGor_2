@@ -14,11 +14,24 @@ La base de données est accessible uniquement via Database API.
 
 import json
 
+from agents.tools.wiki_tools import wikipedia_search
+from database.tables.users import User
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 
-from agents.tools.wiki_tools import wikipedia_search
+# LOGGER -----------------------------------------------------------
+from logger import get_logger, setup_logger
+from pydantic import BaseModel
+from shared.schemas import (
+    AgentStep,
+    ChatRequest,
+    ChatResponse,
+    ErrorResponse,
+    FilmDetail,
+    FilmShort,
+    HealthResponse,
+    WikipediaResponse,
+)
 
 from api.auth_utils import get_current_user
 from api.modules.chat_service import (
@@ -28,28 +41,13 @@ from api.modules.chat_service import (
     run_agent_stream_final,
 )
 from api.modules.database_client import get_film
-from database.tables.users import User
-
-from shared.schemas import (
-    AgentStep,
-    ChatRequest,
-    ChatResponse,
-    FilmShort,
-    ErrorResponse,
-    WikipediaResponse,
-    HealthResponse,
-    FilmDetail
-)
-
-# LOGGER -----------------------------------------------------------
-from logger import get_logger, setup_logger
-
 
 setup_logger()
 logger = get_logger("AI_ROUTES")
 
 # ROUTER -----------------------------------------------------------
 router = APIRouter()
+
 
 # HEALTH ----------------------------------------------------------
 @router.get(
@@ -59,10 +57,7 @@ router = APIRouter()
     tags=["System"],
 )
 async def health():
-    return {
-        "status": "ok",
-        "service": "ai_api"
-    }
+    return {"status": "ok", "service": "ai_api"}
 
 
 # CHAT ----------------------------------------------------------
@@ -213,12 +208,9 @@ async def chat_stream_final(
                         continue
 
                     for step in steps:
-                        payload = {
-                            "node": event["node"],
-                            "step": step
-                        }
+                        payload = {"node": event["node"], "step": step}
                         yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
- 
+
                     # last_step = steps[-1]
                     # payload = {"node": event["node"], "step": last_step}
                     # yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
@@ -259,7 +251,6 @@ async def chat_stream_final(
 
                     response = ChatResponse(
                         answer=result.get("answer") or "No answer generated",
-
                         steps=[
                             step
                             if isinstance(step, AgentStep)
@@ -268,7 +259,6 @@ async def chat_stream_final(
                             else AgentStep.model_validate(step)
                             for step in (result.get("steps") or [])
                         ],
-
                         film=film,
                         recommendations=recommendations,
                     )
@@ -315,10 +305,7 @@ async def wikipedia(tmdb_id: int):
         film = await get_film(tmdb_id)
 
         if not film:
-            raise HTTPException(
-                status_code=404,
-                detail="Film not found"
-            )
+            raise HTTPException(status_code=404, detail="Film not found")
 
         title = film.title
         year = film.release_date.year if film.release_date else None
@@ -330,9 +317,7 @@ async def wikipedia(tmdb_id: int):
             }
         )
 
-        logger.info(
-            "Successfully retrieved movie info from Wikipedia"
-        )
+        logger.info("Successfully retrieved movie info from Wikipedia")
 
         return response_wiki
 
@@ -340,11 +325,8 @@ async def wikipedia(tmdb_id: int):
         raise
 
     except Exception as e:
-        logger.exception(
-            f"Failed to retrieve wikipedia info: {str(e)}"
-        )
+        logger.exception(f"Failed to retrieve wikipedia info: {str(e)}")
 
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve wikipedia info: {str(e)}"
+            status_code=500, detail=f"Failed to retrieve wikipedia info: {str(e)}"
         )

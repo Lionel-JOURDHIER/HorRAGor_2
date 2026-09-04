@@ -8,6 +8,7 @@ Note : le CSV genres.csv ne contient pas id_genre — il sera généré
 
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
+
 from database.tables.base import Base
 
 

@@ -18,7 +18,7 @@ via Ollama.
 |---|---|
 | Lancer (stack complète) | `docker compose up --build` (premier démarrage), `docker compose up -d` ensuite |
 | Accès | http://localhost (front), http://localhost/api, http://localhost/dbapi, http://127.0.0.1:8080/dashboard/ (Traefik) |
-| Lint / format | `uv run ruff check` / `uv run ruff format` (dans `api/`, `agents/`, `database/`, `frontend/` — chacun a son propre `pyproject.toml`/`uv.lock`) |
+| Lint / format | `uv run ruff check` / `uv run ruff format` (dans `api/`, `agents/`, `database/`, `frontend/` — chacun a son propre `pyproject.toml`/`uv.lock`), puis `uv run --project api ruff check` / `... ruff format` à la racine pour `logger.py`, `shared/`, `scripts/` et `docs/` (config `ruff.toml`) |
 | Tests | `uv run pytest` (dans chacun des quatre sous-projets) |
 | Activer les hooks (une fois par machine) | `git config core.hooksPath .githooks` |
 

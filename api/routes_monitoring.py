@@ -7,20 +7,17 @@ Expose les métriques Langfuse pour le frontend Streamlit.
 
 from fastapi import APIRouter, HTTPException
 
-from api.monitoring.monitoring_service import monitoring_service
-
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
+
+from api.monitoring.monitoring_service import monitoring_service
 
 setup_logger()
 logger = get_logger("ROUTES")
 
 
 # ROUTER ---------------------------------------------------------
-router = APIRouter(
-    prefix="/monitoring",
-    tags=["Monitoring"]
-)
+router = APIRouter(prefix="/monitoring", tags=["Monitoring"])
 
 
 # METRICS --------------------------------------------------------
@@ -38,10 +35,7 @@ def get_langfuse_metrics():
         return monitoring_service.get_metrics()
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/traces")
@@ -53,7 +47,4 @@ def get_langfuse_traces(limit: int = 20):
         return {"traces": monitoring_service.get_traces(limit)}
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=500, detail=str(e))

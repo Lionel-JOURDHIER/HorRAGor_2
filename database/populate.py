@@ -3,7 +3,8 @@ Script d'extraction, de vectorisation locale et d'alimentation (Populate).
 
 Ce module s'exécute de manière autonome ou planifiée pour synchroniser la nouvelle
 table 'film_embeddings' sur Supabase à partir des données de la table 'films'.
-Il garantit une isolation complète et une sécurité totale vis-à-vis des données existantes.
+Il garantit une isolation complète et une sécurité totale vis-à-vis des
+données existantes.
 
 Processus séquentiel :
     1. Initialisation sécurisée : Crée la table 'film_embeddings' si elle n'existe pas
@@ -13,7 +14,8 @@ Processus séquentiel :
        session précédente.
     4. Inférence locale et souveraine : Appelle l'instance locale Ollama pour générer
        les vecteurs sémantiques (dimension 1024 via qwen3-embedding:0.6b).
-    5. Upload : Injecte les vecteurs par lots (batchs) directement dans le Cloud Supabase.
+    5. Upload : Injecte les vecteurs par lots (batchs) directement dans le
+       Cloud Supabase.
 
 Dépendances principales :
     - sqlalchemy.orm (Session)
@@ -48,7 +50,10 @@ def fetch_source_films(session) -> list:
 
 
 def fetch_already_vectorized_ids(session) -> set[int]:
-    """Récupère les IDs déjà présents dans la table d'embeddings pour la déduplication."""
+    """Récupère les IDs déjà présents dans la table d'embeddings.
+
+    Sert à la déduplication : les films déjà vectorisés sont ignorés.
+    """
     query = text("SELECT tmdb_id FROM film_embeddings")
     result = session.execute(query).fetchall()
     return {row.tmdb_id for row in result}
@@ -65,7 +70,8 @@ def generate_local_embedding(text_content: str) -> list[float]:
         return [0.0] * 1024
 
     # --- LE VRAI TRAVAIL COMMENCE ICI ---
-    # Initialisation du client Ollama avec ton modèle souverain (dim 1024 d'après tes specs)
+    # Initialisation du client Ollama avec ton modèle souverain (dim 1024 d'après
+    # tes specs)
     ollama_client = OLLAMA_CLIENT_EMBEDD
 
     # Appel de l'inférence locale
@@ -88,13 +94,15 @@ def run_pipeline():
 
             # Étape 3 : Déduplication
             print(
-                "🔍 Étape 3 : Vérification des enregistrements existants (Déduplication)..."
+                "🔍 Étape 3 : Vérification des enregistrements existants"
+                " (Déduplication)..."
             )
             existing_ids = fetch_already_vectorized_ids(session)
 
             films_to_process = [r for r in records if r.tmdb_id not in existing_ids]
             print(
-                f"-> {len(records)} films trouvés au total, {len(films_to_process)} à vectoriser."
+                f"-> {len(records)} films trouvés au total,"
+                f" {len(films_to_process)} à vectoriser."
             )
 
             # Étape 4 & 5 : Inférence locale et Injection par lots (Batch de 50)
@@ -102,7 +110,8 @@ def run_pipeline():
                 total_films = len(films_to_process)
                 BATCH_SIZE = 50
                 print(
-                    f"🧠 Étape 4 & 5 : Inférence locale Ollama et injection par lots de {BATCH_SIZE}..."
+                    "🧠 Étape 4 & 5 : Inférence locale Ollama et injection"
+                    f" par lots de {BATCH_SIZE}..."
                 )
 
                 current_batch = []
@@ -110,7 +119,8 @@ def run_pipeline():
                 for index, record in enumerate(films_to_process, start=1):
                     # Affichage de l'avancement global en temps réel
                     print(
-                        f"   ⏳ [Avancement : {index}/{total_films}] Vectorisation de : '{record.title}'...",
+                        f"   ⏳ [Avancement : {index}/{total_films}]"
+                        f" Vectorisation de : '{record.title}'...",
                         end="\r",
                         flush=True,
                     )
@@ -127,7 +137,10 @@ def run_pipeline():
                         current_batch.append(entry)
 
                     except Exception as e:
-                        # Si l'inférence d'un film plante (Ollama crash par exemple), on sauvegarde au moins le lot actuel avant de lever l'erreur
+                        # Si l'inférence d'un film plante
+                        # (Ollama crash par exemple), on
+                        # sauvegarde au moins le lot actuel
+                        # avant de lever l'erreur
                         if current_batch:
                             for item in current_batch:
                                 session.merge(item)
@@ -137,20 +150,24 @@ def run_pipeline():
                         )
                         raise e
 
-                    # Dès qu'on atteint la taille du lot (50) ou qu'on arrive au tout dernier film
+                    # Dès qu'on atteint la taille du lot (50) ou
+                    # qu'on arrive au tout dernier film
                     if len(current_batch) == BATCH_SIZE or index == total_films:
                         print(
-                            f"\n   📤 [Batch] Injection et sauvegarde de {len(current_batch)} films sur Supabase..."
+                            "\n   📤 [Batch] Injection et sauvegarde de"
+                            f" {len(current_batch)} films sur Supabase..."
                         )
 
                         for item in current_batch:
                             session.merge(item)
 
                         session.commit()  # Sauvegarde définitive dans le Cloud
-                        current_batch = []  # On vide le tampon local pour le prochain lot
+                        # On vide le tampon local pour le prochain lot
+                        current_batch = []
 
                 print(
-                    "\n🎉 Synchronisation avec le Cloud Supabase réussie à 100 % ! All checkpoints saved."
+                    "\n🎉 Synchronisation avec le Cloud Supabase réussie"
+                    " à 100 % ! All checkpoints saved."
                 )
 
         except Exception as e:

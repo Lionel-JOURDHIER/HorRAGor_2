@@ -7,11 +7,10 @@ from sqlalchemy import Column, Integer
 from sqlalchemy.orm import DeclarativeBase
 
 # Import des modèles utilisateur pour l'authentification
-from database.tables.users import User
-from database.tables.refresh_tokens import RefreshToken
 
 
-# 0. Classe de base déclarative partagée par tous les modèles ORM (ex: Film, FilmEmbedding)
+# 0. Classe de base déclarative partagée par tous les modèles ORM (ex: Film,
+# FilmEmbedding)
 class Base(DeclarativeBase):
     """Classe de base declarative SQLAlchemy 2.0 pour HorRAGor."""
 

@@ -42,18 +42,6 @@ Projet : HorRAGor
 # IMPORT ----------------------------------------------------------
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import text
-from sqlalchemy.orm import Session
-
-from database.connection import get_db
-from database.queries import (
-    get_all_directors,
-    get_all_genres,
-    get_film_details_by_id,
-    get_films_details_by_ids,
-    get_films_short_by_ids,
-    get_filtered_ids,
-)
 
 # LOGGER ------------------------------------------------------
 from logger import get_logger, setup_logger
@@ -65,6 +53,18 @@ from shared.schemas import (
     FilmIdsRequest,
     GenresResponse,
     HealthResponse,
+)
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from database.connection import get_db
+from database.queries import (
+    get_all_directors,
+    get_all_genres,
+    get_film_details_by_id,
+    get_films_details_by_ids,
+    get_films_short_by_ids,
+    get_filtered_ids,
 )
 
 setup_logger()

@@ -5,7 +5,6 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
-
 # Dossier contenant ce conftest : api/tests
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 

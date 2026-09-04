@@ -16,25 +16,24 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database.connection import engine
-from database.tables.base import Base
-from database.tables.users import User
 from database.tables.refresh_tokens import RefreshToken
+from database.tables.users import User
 
 
 def create_auth_tables():
     """Crée les tables users et refresh_tokens dans la base de données."""
-    
+
     print("🔧 Création des tables d'authentification...")
-    
+
     try:
         # Créer uniquement les tables User et RefreshToken
         User.__table__.create(engine, checkfirst=True)
         RefreshToken.__table__.create(engine, checkfirst=True)
-        
+
         print("✅ Tables créées avec succès :")
         print("   - users")
         print("   - refresh_tokens")
-        
+
     except Exception as e:
         print(f"❌ Erreur lors de la création des tables : {e}")
         raise

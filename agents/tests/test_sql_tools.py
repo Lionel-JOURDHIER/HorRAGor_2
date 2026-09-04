@@ -1,16 +1,12 @@
 from datetime import date
-
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from agents.tools.sql_tools import (
     filter_films_by_criteria,
     get_films_details,
 )
-
 from shared.schemas import FilmDetail
-
 
 # ==============================================================================
 # TESTS POUR get_films_details
@@ -161,15 +157,11 @@ async def test_filter_films_by_criteria_empty_pool_correct():
         return_value=[],
     ) as mock_api:
         # On force le retour de la Database API à être une liste vide []
-        result = await filter_films_by_criteria.coroutine(
-            realisateur="Inexistant"
-        )
+        result = await filter_films_by_criteria.coroutine(realisateur="Inexistant")
 
         assert result is None
 
-        mock_api.assert_awaited_once_with(
-            {"realisateur": "Inexistant"}
-        )
+        mock_api.assert_awaited_once_with({"realisateur": "Inexistant"})
 
 
 @pytest.mark.asyncio
@@ -180,8 +172,6 @@ async def test_filter_films_by_criteria_exception():
         new_callable=AsyncMock,
         side_effect=Exception("Database API Failure"),
     ):
-        result = await filter_films_by_criteria.coroutine(
-            realisateur="Snyder"
-        )
+        result = await filter_films_by_criteria.coroutine(realisateur="Snyder")
 
         assert result is None

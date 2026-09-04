@@ -20,6 +20,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
+
 from utils.api_client import get_genres, get_realisateurs
 
 
@@ -91,10 +92,10 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
             if movie.get("poster_url"):
                 st.markdown(
                     f"""
-                <div style="position: relative; overflow: hidden; border-radius: 20px; 
+                <div style="position: relative; overflow: hidden; border-radius: 20px;
                             box-shadow: 0 10px 40px rgba(255, 71, 87, 0.5), 0 0 30px rgba(255, 71, 87, 0.3);">
-                    <img src="{movie["poster_url"]}" style="width: 100%; display: block; transition: all 0.4s ease;" 
-                         onmouseover="this.style.transform='scale(1.08)'; this.style.filter='brightness(1.1)'" 
+                    <img src="{movie["poster_url"]}" style="width: 100%; display: block; transition: all 0.4s ease;"
+                         onmouseover="this.style.transform='scale(1.08)'; this.style.filter='brightness(1.1)'"
                          onmouseout="this.style.transform='scale(1)'; this.style.filter='brightness(1)'"/>
                 </div>
                 """,
@@ -103,8 +104,8 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
             else:
                 st.markdown(
                     """
-                <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2) 0%, rgba(255, 0, 110, 0.2) 100%); 
-                            padding: 60px; text-align: center; border-radius: 20px; 
+                <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2) 0%, rgba(255, 0, 110, 0.2) 100%);
+                            padding: 60px; text-align: center; border-radius: 20px;
                             border: 3px dashed rgba(255, 71, 87, 0.5);
                             box-shadow: 0 5px 25px rgba(255, 71, 87, 0.3);">
                     <p style="font-size: 4em; margin: 0;">🎬</p>
@@ -135,7 +136,7 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
             if movie.get("realisateur"):
                 st.markdown(
                     f"""
-                <div style="background: rgba(255, 71, 87, 0.2); padding: 12px; 
+                <div style="background: rgba(255, 71, 87, 0.2); padding: 12px;
                             border-radius: 15px; margin: 12px 0; border-left: 4px solid #ff4757;
                             box-shadow: 0 4px 15px rgba(255, 71, 87, 0.2);">
                     <strong style="color: #ff4757; font-size: 1.1em;">🎥 Réalisateur :</strong>
@@ -168,8 +169,8 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
                     </div>
                     <div style="background: rgba(255, 255, 255, 0.15); height: 15px; border-radius: 15px; overflow: hidden;
                                 box-shadow: inset 0 2px 5px rgba(0,0,0,0.3);">
-                        <div style="background: linear-gradient(90deg, {color} 0%, {color} 100%); 
-                                    width: {score_percentage}%; height: 100%; 
+                        <div style="background: linear-gradient(90deg, {color} 0%, {color} 100%);
+                                    width: {score_percentage}%; height: 100%;
                                     transition: width 0.5s ease;
                                     box-shadow: 0 0 15px {color};"></div>
                     </div>
@@ -187,7 +188,7 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
 
                 st.markdown(
                     f"""
-                <div style="display: inline-block; background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2)); 
+                <div style="display: inline-block; background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2));
                             padding: 10px 20px; border-radius: 25px; margin: 5px;
                             border: 2px solid rgba(255, 71, 87, 0.4);
                             box-shadow: 0 4px 15px rgba(255, 71, 87, 0.2);">
@@ -211,9 +212,9 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
                     genres_html = ""
                     for genre in genres:
                         genres_html += f"""
-                        <span style="display: inline-block; background: linear-gradient(135deg, #ff4757 0%, #ff006e 100%); 
-                                     color: white; padding: 8px 18px; border-radius: 25px; margin: 5px; 
-                                     font-size: 0.95em; font-weight: 700; 
+                        <span style="display: inline-block; background: linear-gradient(135deg, #ff4757 0%, #ff006e 100%);
+                                     color: white; padding: 8px 18px; border-radius: 25px; margin: 5px;
+                                     font-size: 0.95em; font-weight: 700;
                                      box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
                                      border: 2px solid rgba(255, 255, 255, 0.2);
                                      transition: transform 0.2s ease;">
@@ -226,7 +227,7 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
                     st.markdown(
                         f"""
                     <div style="margin: 10px 0;">
-                        <strong style="color: #ff4757; font-size: 1.1em;">🎭 Genres :</strong> 
+                        <strong style="color: #ff4757; font-size: 1.1em;">🎭 Genres :</strong>
                         <span style="color: #ffffff; font-weight: 600;">{genres}</span>
                     </div>
                     """,
@@ -238,7 +239,7 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
                 with st.expander("📖 Synopsis", expanded=False):
                     st.markdown(
                         f"""
-                    <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.1), rgba(255, 0, 110, 0.1)); 
+                    <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.1), rgba(255, 0, 110, 0.1));
                                 padding: 20px; border-radius: 15px; line-height: 1.8;
                                 border-left: 4px solid #ff4757; color: #ffffff; font-weight: 500;">
                         {movie["synopsis"]}
@@ -268,8 +269,8 @@ def display_movie_list(
     if not movies:
         st.markdown(
             """
-        <div style="background: linear-gradient(135deg, rgba(255, 152, 0, 0.2), rgba(255, 193, 7, 0.2)); 
-                    padding: 25px; border-radius: 20px; 
+        <div style="background: linear-gradient(135deg, rgba(255, 152, 0, 0.2), rgba(255, 193, 7, 0.2));
+                    padding: 25px; border-radius: 20px;
                     text-align: center; border: 3px dashed rgba(255, 152, 0, 0.5);
                     box-shadow: 0 5px 25px rgba(255, 152, 0, 0.3);">
             <h3 style="margin: 0; color: #ff9800; font-weight: 700; font-size: 1.5em;">⚠️ Aucun film à afficher</h3>
@@ -286,12 +287,12 @@ def display_movie_list(
     # En-tête avec compteur animé
     st.markdown(
         f"""
-    <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2)); 
+    <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2));
                 padding: 20px; border-radius: 15px; margin-bottom: 25px;
                 border: 2px solid rgba(255, 71, 87, 0.4);
                 box-shadow: 0 5px 25px rgba(255, 71, 87, 0.3);">
         <p style="margin: 0; font-size: 1.2em; color: #ffffff; font-weight: 700;">
-            <strong style="color: #ff4757;">🎯 {len(movies)} film(s) trouvé(s)</strong> 
+            <strong style="color: #ff4757;">🎯 {len(movies)} film(s) trouvé(s)</strong>
             correspondant à vos critères
         </p>
     </div>
@@ -338,7 +339,7 @@ def create_filters_sidebar(api_url: str) -> Dict[str, Any]:
     with st.sidebar:
         st.markdown(
             """
-        <div style="background: linear-gradient(135deg, #ff4757 0%, #ff006e 100%); 
+        <div style="background: linear-gradient(135deg, #ff4757 0%, #ff006e 100%);
                     padding: 25px; border-radius: 20px; text-align: center; margin-bottom: 25px;
                     box-shadow: 0 8px 30px rgba(255, 71, 87, 0.4);">
             <h2 style="margin: 0; color: white; font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,0.3);">🔍 Filtres</h2>
@@ -396,7 +397,6 @@ def create_filters_sidebar(api_url: str) -> Dict[str, Any]:
         try:
             genres = get_genres()
             if genres:
-
                 genres_inclus = st.multiselect(
                     "✅ Genres à conserver",
                     options=genres,
@@ -537,7 +537,7 @@ def create_filters_sidebar(api_url: str) -> Dict[str, Any]:
         if nb_filtres > 0:
             st.markdown(
                 f"""
-            <div style="background: linear-gradient(135deg, #4caf50 0%, #45a049 100%); 
+            <div style="background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
                         padding: 18px; border-radius: 15px; text-align: center; margin-bottom: 15px;
                         box-shadow: 0 5px 25px rgba(76, 175, 80, 0.4);">
                 <h4 style="margin: 0; color: white; font-weight: 700;">✓ {nb_filtres} filtre(s) actif(s)</h4>
@@ -596,15 +596,6 @@ def display_agent_status(status: Dict[str, Any]) -> None:
     if not status:
         return
 
-    # # Container avec style (aligné sur le motif de carte utilisé partout ailleurs dans l'app :
-    # # fond teinté corail, bordure gauche, halo lumineux)
-    # st.markdown(
-    #     '<div style="background: rgba(255, 71, 87, 0.1); padding: 18px; border-radius: 15px; '
-    #     'border-left: 4px solid #ff4757; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.2); margin: 10px 0;">'
-    #     "</div>",
-    #     unsafe_allow_html=True,
-    # )
-
     # Format API simple
     if "step" in status:
         step_text = status["step"]
@@ -637,7 +628,7 @@ def display_agent_status(status: Dict[str, Any]) -> None:
 
         st.markdown(
             f"""
-        <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2)); 
+        <div style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 0, 110, 0.2));
                             padding: 5px; border-radius: 20px; border-left: 5px solid #ff4757;
                             box-shadow: 0 8px 30px rgba(255, 71, 87, 0.3);">
             <span style="font-size: 1.5em;">{icon}</span>
@@ -655,7 +646,7 @@ def display_agent_status(status: Dict[str, Any]) -> None:
 
             st.markdown(
                 f"""
-            <div style="display: inline-block; background: {status_color}22; 
+            <div style="display: inline-block; background: {status_color}22;
                         padding: 5px 15px; border-radius: 15px; margin-top: 10px;">
                 <strong style="color: {status_color};">{status_emoji} {status_value}</strong>
             </div>
@@ -689,7 +680,7 @@ def display_agent_status(status: Dict[str, Any]) -> None:
 
         st.markdown(
             f"""
-        <div style="background: rgba(255, 107, 107, 0.1); padding: 10px; 
+        <div style="background: rgba(255, 107, 107, 0.1); padding: 10px;
                     border-radius: 8px; margin: 10px 0; display: inline-block;">
             <strong style="color: #ff4757; font-weight: 700;">{tool_icon} Outil utilisé :</strong> {tool}
         </div>
@@ -701,7 +692,7 @@ def display_agent_status(status: Dict[str, Any]) -> None:
     if status.get("pensee"):
         st.markdown(
             """
-        <div style="background: rgba(100, 149, 237, 0.1); padding: 15px; 
+        <div style="background: rgba(100, 149, 237, 0.1); padding: 15px;
                     border-radius: 10px; margin: 10px 0; border-left: 3px solid #6495ED;">
             <strong style="color: #6495ED;">💭 Réflexion de l'agent :</strong>
         </div>
