@@ -399,6 +399,18 @@ jobs:
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      # `latest` est réservé à `main` : un push sur `dev` tague `dev` à la
+      # place, pour qu'une image `:latest` ne puisse plus jamais provenir
+      # d'une branche d'intégration.
+      - name: Set channel tag
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "CHANNEL_TAG=latest" >> "$GITHUB_ENV"
+          else
+            echo "CHANNEL_TAG=dev" >> "$GITHUB_ENV"
+          fi
+
       # ───────────────── API ─────────────────
 
       - name: Build API image
@@ -409,7 +421,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ env.IMAGE_NAME }}/api:${{ github.sha }}
-            ghcr.io/${{ env.IMAGE_NAME }}/api:latest
+            ghcr.io/${{ env.IMAGE_NAME }}/api:${{ env.CHANNEL_TAG }}
 
 
       # ─────────────── DATABASE API ──────────
@@ -422,7 +434,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ env.IMAGE_NAME }}/database-api:${{ github.sha }}
-            ghcr.io/${{ env.IMAGE_NAME }}/database-api:latest
+            ghcr.io/${{ env.IMAGE_NAME }}/database-api:${{ env.CHANNEL_TAG }}
 
 
       # ─────────────── FRONTEND ──────────────
@@ -435,4 +447,4 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ env.IMAGE_NAME }}/frontend:${{ github.sha }}
-            ghcr.io/${{ env.IMAGE_NAME }}/frontend:latest
+            ghcr.io/${{ env.IMAGE_NAME }}/frontend:${{ env.CHANNEL_TAG }}

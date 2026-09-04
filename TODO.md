@@ -1042,13 +1042,12 @@ documentés. Chacune est un vrai écart, pas un faux positif.
 
 ## 🟡 CI — angles morts confirmés en relisant le workflow (suite)
 
-- [ ] **Toujours ouvert.** Les images sont poussées sur GHCR en `:latest`
-  **dès un push sur `dev`**, sans distinction de canal entre `dev` et `main` :
-  un `:latest` peut donc provenir de `dev`. Revérifié le 3 septembre 2026 :
-  le job `docker` déclenche toujours sur `push: branches: [dev, main]` et tague
-  sans condition `:${{ github.sha }}` **et** `:latest` pour les trois images
-  (api, database-api, frontend). → Tag distinct par branche, ou push
-  `:latest` réservé à `main`.
+- [x] **Corrigé.** [.github/workflows/docker.yml](.github/workflows/docker.yml)
+  calcule désormais un tag de canal (`CHANNEL_TAG`) selon `github.ref_name` :
+  `latest` uniquement depuis `main`, `dev` depuis `dev`. Les trois images
+  (api, database-api, frontend) taguent `:${{ github.sha }}` **et**
+  `:${{ env.CHANNEL_TAG }}` au lieu de `:latest` inconditionnel — un `:latest`
+  ne peut plus provenir de `dev`.
 - [x] **Résolu indirectement (par Hanna, commits « fix tests agents » sur
   `dev`).** Le job `test` du workflow ne testait à l'origine que `agents` ;
   il exécute désormais `uv sync` + `uv run pytest --cov=... --cov-fail-under=40`
