@@ -163,11 +163,20 @@ Select exactly one value for the `intent` field based on these rules:
 
 ## CHAMP `nouvelle_recherche`
 Renseigne aussi `nouvelle_recherche` (booléen), indépendamment de `intent` :
-- True : la requête introduit un nouveau critère (genre, nationalité, décennie,
-  réalisateur, titre) sans rapport avec CONTEXT_TITLES — c'est une nouvelle
-  recherche, même si HAS_CONTEXT est TRUE.
-- False : la requête poursuit la discussion sur un film déjà dans CONTEXT_TITLES
-  (pronom, absence de nouveau critère, ou titre déjà présent dans CONTEXT_TITLES).
+- True : la requête mentionne un genre, une nationalité, une décennie/année,
+  un réalisateur ou un titre absent de CONTEXT_TITLES — c'est une nouvelle
+  recherche, même si HAS_CONTEXT est TRUE et qu'aucun titre n'est cité.
+- False : la requête ne porte que sur un attribut du film déjà dans
+  CONTEXT_TITLES (durée, réalisateur, acteurs, budget, date de sortie), par
+  pronom ou par titre déjà connu.
+
+Exemples (HAS_CONTEXT=TRUE) :
+- "film japonais des années 1990" → nouvelle_recherche=True (nationalité +
+  décennie = nouveaux critères).
+- "un film de Kubrick dans un hôtel" → nouvelle_recherche=True (réalisateur +
+  thème = nouveaux critères).
+- "il dure combien de temps" → nouvelle_recherche=False (attribut du film en
+  contexte).
 
 # USER
 <USER_QUERY>
