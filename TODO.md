@@ -286,6 +286,26 @@ Mis à jour au fil des sessions.
   passage un bug réel dans `agents/chat_terminal.py`, qui appelait déjà
   `build_index()` alors que la méthode n'existait pas.
 
+- [x] **Régression du 4 septembre 2026 : `api` ne démarrait plus
+  (`RuntimeError: FAISS index empty after build from Supabase`).** Le
+  fallback ci-dessus s'est déclenché en usage réel alors que l'index était
+  bien présent dans l'image (`/app/faiss_data/horragor.index`, 63325 films,
+  vérifié par `docker run` direct sur l'image). Cause :
+  [docker-compose.yml:260-261](docker-compose.yml:260) pointait
+  `FAISS_INDEX_PATH`/`FAISS_MAPPING_PATH` vers `api/faiss_data/...` au lieu de
+  `faiss_data/...` — chemin relatif au `WORKDIR /app`, qui ne correspond à
+  rien (`COPY . .` place l'index à `/app/faiss_data`, pas
+  `/app/api/faiss_data`, cf. le commentaire de
+  [Dockerfile.api:39](Dockerfile.api:39)). `load_index()` échouait donc
+  silencieusement, déclenchant le fallback Supabase, qui échouait à son tour
+  faute de table `film_embeddings` peuplée à ce moment-là — masquant le vrai
+  bug derrière une erreur sans rapport. Régression introduite par le commit
+  `604ff13` (« fix: uptime kuma », Hanna) : changement collatéral, sans
+  rapport avec l'objet du commit. Corrigé en restaurant les deux chemins
+  relatifs à `faiss_data/`. Vérifié en conditions réelles :
+  `docker compose up -d api` → « Index FAISS chargé depuis disque : 63325
+  films », `GET /api/health` → 200.
+
 ## 🔴 Sécurité (Épilogue MLOps du cahier des charges)
 
 - [x] Authentification par **Refresh Tokens** entre le frontend et l'API IA —
