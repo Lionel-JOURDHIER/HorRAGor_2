@@ -47,4 +47,4 @@ def test_delete_active_conversation_garde_un_fil(monkeypatch: MonkeyPatch):
     assert (
         app.st.session_state.active_conversation_id
         in app.st.session_state.conversations
-        )
+    )

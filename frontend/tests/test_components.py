@@ -188,8 +188,7 @@ class TestAgentProgress:
         ]
 
         progressions = [
-            get_agent_step_progress({"step": step, "status": "ok"})
-            for step in steps
+            get_agent_step_progress({"step": step, "status": "ok"}) for step in steps
         ]
 
         assert progressions == sorted(progressions)
