@@ -682,13 +682,22 @@ qu'une lecture du seul contenu commité ne montre pas.
 
 ## 🟠 Trois sources de vérité pour les secrets
 
-- [ ] `.env` (racine), `database/.env` et `agents/tools/.env` déclarent **les
-  mêmes** identifiants Supabase/Postgres, dupliqués à l'identique. Trois copies
-  divergent, et c'est la mauvaise qui reste (socle § DRY). Les sous-projets
-  appellent tous `load_dotenv()` sans chemin explicite, donc la copie prise
-  dépend du répertoire courant au lancement — comportement différent entre
-  `docker compose` (racine) et un `uv run` depuis `database/`.
-  → Un seul `.env` à la racine, chargé par chemin explicite.
+- [x] **Choix retenu : trois `.env` séparés, pas de consolidation.** Décision
+  explicite de l'utilisateur — la modularité des sous-projets (`database/`,
+  `agents/tools/`) prime sur la déduplication stricte du socle § DRY ; les
+  copies séparées restent, `load_dotenv()` sans chemin explicite dans chaque
+  sous-projet aussi.
+  - **Doublons non essentiels supprimés** dans `database/.env` et
+    `agents/tools/.env` : les deux ne conservaient que 5 variables réellement
+    lues (`SUPABASE_USER/PASSWORD/HOST/PORT/DB`, consommées par
+    [database/connection.py:39-43](database/connection.py:39)) contre 12
+    avant correctif — `POSTGRES_USER/PASSWORD/DB/HOST/PORT` (aucun service
+    Postgres local dans `docker-compose.yml`, cf. item ci-dessous) et
+    `SUPABASE_PROJECT`/`SUPABASE_PUBLISHABLE_KEY` (jamais lus par aucun code
+    Python du dépôt, vérifié par recherche de référence) étaient recopiés
+    sans être utilisés dans ces deux emplacements. `.env` racine non touché :
+    hors périmètre de cette demande, et ces variables y servent
+    potentiellement à d'autres composants (docker-compose, scripts).
 
 - [ ] **Partiellement résolu (par Hanna, sur `dev`), reste ouvert pour le
   reste.** `.env.example` désynchronisé du code, dans les deux sens :
@@ -1042,13 +1051,12 @@ documentés. Chacune est un vrai écart, pas un faux positif.
 
 ## 🟡 CI — angles morts confirmés en relisant le workflow (suite)
 
-- [ ] **Toujours ouvert.** Les images sont poussées sur GHCR en `:latest`
-  **dès un push sur `dev`**, sans distinction de canal entre `dev` et `main` :
-  un `:latest` peut donc provenir de `dev`. Revérifié le 3 septembre 2026 :
-  le job `docker` déclenche toujours sur `push: branches: [dev, main]` et tague
-  sans condition `:${{ github.sha }}` **et** `:latest` pour les trois images
-  (api, database-api, frontend). → Tag distinct par branche, ou push
-  `:latest` réservé à `main`.
+- [x] **Corrigé.** [.github/workflows/docker.yml](.github/workflows/docker.yml)
+  calcule désormais un tag de canal (`CHANNEL_TAG`) selon `github.ref_name` :
+  `latest` uniquement depuis `main`, `dev` depuis `dev`. Les trois images
+  (api, database-api, frontend) taguent `:${{ github.sha }}` **et**
+  `:${{ env.CHANNEL_TAG }}` au lieu de `:latest` inconditionnel — un `:latest`
+  ne peut plus provenir de `dev`.
 - [x] **Résolu indirectement (par Hanna, commits « fix tests agents » sur
   `dev`).** Le job `test` du workflow ne testait à l'origine que `agents` ;
   il exécute désormais `uv sync` + `uv run pytest --cov=... --cov-fail-under=40`
