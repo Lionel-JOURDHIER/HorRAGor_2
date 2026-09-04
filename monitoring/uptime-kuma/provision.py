@@ -1,41 +1,42 @@
-"""
-Provisionne automatiquement la configuration d'Uptime Kuma.
-Ce script permet de synchroniser la configuration déclarative définie dans les fichiers YAML avec une instance Uptime Kuma.
+"""Provisionne automatiquement la configuration d'Uptime Kuma.
+
+Ce script permet de synchroniser la configuration déclarative définie dans
+les fichiers YAML avec une instance Uptime Kuma.
 
 Fonctionnalités :
-    - connexion à Uptime Kuma avec les identifiants fournis par les variables d'environnement ;
-    - création de la notification Discord si elle n'existe pas ;
+    - connexion à Uptime Kuma avec les identifiants fournis par les
+      variables d'environnement ;
+    - création ou mise à jour de la notification Discord (type ``discord``
+      natif d'Uptime Kuma, pas le type ``webhook`` générique) ;
     - création ou mise à jour des monitors définis dans ``monitors.yml`` ;
     - association des monitors à la notification Discord ;
-    - fonctionnement idempotent : le script peut être exécuté plusieurs fois sans créer de doublons.
+    - fonctionnement idempotent : le script peut être exécuté plusieurs
+      fois sans créer de doublons.
 
-Les paramètres sensibles (identifiants Uptime Kuma et webhook Discord) sont fournis par les variables d'environnement et ne sont pas stockés dans Git.
+Les paramètres sensibles (identifiants Uptime Kuma et webhook Discord) sont
+fournis par les variables d'environnement et ne sont pas stockés dans Git.
 
 Le script est utilisé :
-        - localement avec ``uv run python provision.py`` ;
-        - dans Docker Compose via le service ``uptime-kuma-provision``.
+    - localement avec ``uv run python provision.py`` ;
+    - dans Docker Compose via le service ``uptime-kuma-provision``.
 
 Variables d'environnement :
+    KUMA_URL: URL de l'instance Uptime Kuma.
+    KUMA_USERNAME: nom d'utilisateur Uptime Kuma.
+    KUMA_PASSWORD: mot de passe Uptime Kuma.
+    DISCORD_WEBHOOK_URL: URL du webhook Discord.
 
-        KUMA_URL: URL de l'instance Uptime Kuma.
-        KUMA_USERNAME: nom d'utilisateur Uptime Kuma.
-        KUMA_PASSWORD: mot de passe Uptime Kuma.
-        DISCORD_WEBHOOK_URL: URL du webhook Discord.
-
-    Configuration :
-        monitors.yml: définition des monitors à surveiller.
-        notifications.yml: définition des notifications.
-
-        Returns: None
+Configuration :
+    monitors.yml: définition des monitors à surveiller.
+    notifications.yml: définition des notifications.
 """
 
 import os
+import time
 
 import yaml
 from dotenv import load_dotenv
 from uptime_kuma_api import UptimeKumaApi
-import time
-
 
 load_dotenv()
 
@@ -43,6 +44,7 @@ KUMA_URL = os.getenv("KUMA_URL")
 KUMA_USERNAME = os.getenv("KUMA_USERNAME")
 KUMA_PASSWORD = os.getenv("KUMA_PASSWORD")
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
+
 
 def main():
     api = UptimeKumaApi(KUMA_URL)
@@ -62,33 +64,39 @@ def main():
         notification_config = yaml.safe_load(file)
 
     existing_notifications = {
-        notification["name"]: notification
-        for notification in api.get_notifications()
+        notification["name"]: notification for notification in api.get_notifications()
     }
 
     for notification in notification_config["notifications"]:
         name = notification["name"]
+        notif_type = notification["type"]
 
         if name in existing_notifications:
-            print(f"OK: notification {name}")
+            existing = existing_notifications[name]
+
+            if existing["type"] != notif_type:
+                api.edit_notification(
+                    existing["id"],
+                    name=name,
+                    type=notif_type,
+                    discordWebhookUrl=DISCORD_WEBHOOK_URL,
+                )
+                print(f"UPDATED: notification {name}")
+            else:
+                print(f"OK: notification {name}")
         else:
             api.add_notification(
                 name=name,
-                type=notification["type"],
-                webhookURL=DISCORD_WEBHOOK_URL,
-                webhookContentType=notification["content_type"],
+                type=notif_type,
+                discordWebhookUrl=DISCORD_WEBHOOK_URL,
             )
             print(f"CREATED: notification {name}")
 
     existing_notifications = {
-        notification["name"]: notification
-        for notification in api.get_notifications()
+        notification["name"]: notification for notification in api.get_notifications()
     }
 
-    existing_monitors = {
-        monitor["name"]: monitor
-        for monitor in api.get_monitors()
-    }
+    existing_monitors = {monitor["name"]: monitor for monitor in api.get_monitors()}
 
     with open("monitors.yml", encoding="utf-8") as file:
         config = yaml.safe_load(file)
@@ -96,13 +104,13 @@ def main():
     for monitor in config["monitors"]:
         name = monitor["name"]
 
+        notification_ids = [
+            existing_notifications[notification_name]["id"]
+            for notification_name in monitor.get("notifications", [])
+        ]
+
         if name in existing_monitors:
             existing = existing_monitors[name]
-
-            notification_ids = [
-                existing_notifications[name]["id"]
-                for name in monitor.get("notifications", [])
-            ]
 
             if (
                 existing["url"] != monitor["url"]
@@ -113,7 +121,7 @@ def main():
                     existing["id"],
                     url=monitor["url"],
                     interval=monitor["interval"],
-                    notificationIDList=notification_ids
+                    notificationIDList=notification_ids,
                 )
                 print(f"UPDATED: {name}")
             else:

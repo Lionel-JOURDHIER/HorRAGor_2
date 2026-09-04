@@ -7,13 +7,60 @@ donc sur le contrat de `api/auth_crypto.py` — un aller-retour fidèle, et un
 refus explicite de tout ce qui ne déchiffre pas — pas sur l'implémentation RSA
 elle-même, qui est celle de la bibliothèque `cryptography`.
 """
-
 import base64
 
 import pytest
 from api.auth_crypto import decrypt_password, get_public_key_pem
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
+
+from api.auth_crypto import decrypt_password, get_public_key_pem, _public_key
+
+
+def encrypt_password(password: str) -> str:
+    """Chiffre un mot de passe avec la clé publique utilisée par l'API."""
+    ciphertext = _public_key.encrypt(
+        password.encode("utf-8"),
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None,
+        ),
+    )
+    return base64.b64encode(ciphertext).decode("utf-8")
+
+
+def test_get_public_key_pem():
+    result = get_public_key_pem()
+
+    assert isinstance(result, str)
+    assert "-----BEGIN" in result
+    assert "PUBLIC KEY" in result
+    assert "-----END" in result
+
+
+def test_decrypt_password_success():
+    encrypted = encrypt_password("Password123!")
+
+    result = decrypt_password(encrypted)
+
+    assert result == "Password123!"
+
+
+def test_decrypt_password_invalid_base64():
+    with pytest.raises(ValueError, match="Mot de passe chiffré invalide"):
+        decrypt_password("not-valid-base64!!!")
+
+
+def test_decrypt_password_invalid_ciphertext():
+    encrypted = base64.b64encode(b"invalid ciphertext").decode("utf-8")
+
+    with pytest.raises(ValueError, match="Mot de passe chiffré invalide"):
+        decrypt_password(encrypted)
+
+
+
 
 _OAEP = padding.OAEP(
     mgf=padding.MGF1(algorithm=hashes.SHA256()),
@@ -94,3 +141,4 @@ def test_decrypt_password_refuse_un_chiffre_produit_avec_une_autre_cle():
 
     with pytest.raises(ValueError, match="Mot de passe chiffré invalide"):
         decrypt_password(chiffrer_avec(autre_pem, "motdepasse123"))
+

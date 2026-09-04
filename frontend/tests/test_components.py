@@ -144,13 +144,10 @@ class TestMovieCardDisplay:
         )
 
         rendered_text = " ".join(
-            str(call.args[0])
-            for call in mock_st.markdown.call_args_list
-            if call.args
+            str(call.args[0]) for call in mock_st.markdown.call_args_list if call.args
         )
         assert all(
-            genre in rendered_text
-            for genre in ("Horror", "Mystery", "Science Fiction")
+            genre in rendered_text for genre in ("Horror", "Mystery", "Science Fiction")
         )
         assert "Horror\nMystery\nScience Fiction" not in rendered_text
 

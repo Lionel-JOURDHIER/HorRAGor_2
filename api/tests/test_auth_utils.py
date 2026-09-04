@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from api.auth_config import JWT_ALGORITHM, JWT_SECRET_KEY
+>>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749
 from api.auth_utils import (
     authenticate_user,
     create_access_token,
@@ -23,6 +24,7 @@ from api.auth_utils import (
     validate_refresh_token,
     verify_password,
 )
+
 from database.tables.refresh_tokens import RefreshToken
 from database.tables.users import User
 from fastapi import HTTPException
@@ -329,3 +331,4 @@ async def test_get_current_user_refuse_un_compte_desactive(db_session, utilisate
 
     assert erreur.value.status_code == 403
     assert erreur.value.detail == "Compte désactivé"
+>>>>>>> a1ffb27804cd844cab2d1ad18bf22b502d0e4749

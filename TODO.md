@@ -434,7 +434,18 @@ tests d'authentification (64 tests : 35 sur `api/`, 38 sur `frontend/`).
     Isolation ; CLAUDE.md confirme qu'aucun test d'intégration Docker Compose
     n'existe pour l'instant). Corrigé en mockant `OLLAMA_CLIENT_EMBEDD` et
     `get_films_short_by_ids`, en ne laissant réelle que la recherche FAISS
-    elle-même sur l'index chargé depuis `faiss_data/`.
+    elle-même. **Correction suivante (même jour) :** cette recherche
+    s'appuyait encore sur l'index et le mapping réels chargés depuis
+    `faiss_data/` — un dossier ignoré par git (l'index est embarqué dans
+    l'image Docker `api`, jamais commité, voir CLAUDE.md § Pièges déjà
+    payés) et donc absent d'un checkout CI frais. 14 tests passaient en
+    local et échouaient systématiquement sur GitHub Actions
+    (`FileNotFoundError`). Corrigé en construisant l'index FAISS de manière
+    synthétique en mémoire (graine fixe, dimension 1024, volume dépassant
+    `SMALL_POOL_THRESHOLD` pour couvrir aussi le scénario grand pool), sans
+    dépendre d'aucun fichier du dépôt — conforme à `rules/tests-python.md` §
+    Fixtures. Vérifié en reproduisant la condition CI (`faiss_data/` retiré
+    localement) avant de committer.
   - Cinq tests (`test_build_filtered_ids_*`) appelaient une fonction
     `_build_filtered_ids` et un `db_session` jamais importables depuis
     `agents/` (import commenté, fonction inexistante dans
@@ -473,8 +484,17 @@ tests d'authentification (64 tests : 35 sur `api/`, 38 sur `frontend/`).
 
 ## 🟡 Gouvernance
 
-- [ ] Aucun template d'issue GitHub (`.github/ISSUE_TEMPLATE/`) — le cahier
-  des charges demande que chaque anomalie soit archivée en GitHub Issues.
+- [x] Templates d'issue GitHub — ajoutés le 4 septembre 2026 sous
+  [.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE) : `anomalie.yml`
+  (étapes de reproduction, attendu, observé et commit obligatoires),
+  `tache.yml` (besoin et critères de fin obligatoires) et `config.yml` qui
+  désactive les issues en texte libre. Les deux formulaires reprennent
+  l'échelle de priorité 🔴/🟠/🟡 de ce fichier et la liste des composants du
+  dépôt, pour que le tri d'une issue et celui du TODO se lisent pareil.
+  - Reste à faire côté GitHub, hors dépôt : ni les libellés ni la vue projet ne
+    sont versionnables. `bug` et `enhancement` sont créés par défaut avec tout
+    dépôt, donc utilisables tels quels ; un libellé absent est ignoré en
+    silence par GitHub, sans erreur visible.
 
 ## Dette déjà connue (hors scope Partie 3, cf. CLAUDE.md)
 
@@ -958,6 +978,23 @@ qu'une lecture du seul contenu commité ne montre pas.
   41 fichiers non formatés). Le détail des choix de suppression figure dans les
   `[tool.ruff.lint.per-file-ignores]` de chaque `pyproject.toml`, chacun avec sa
   justification.
+
+- [x] **Le lint a effectivement cassé le jour suivant (4 septembre 2026,
+  run `33853899120`), confirmant que le job sert à quelque chose.** `ruff
+  check` passait mais `ruff format --check` échouait sur
+  [components/components.py](frontend/components/components.py) et
+  [tests/test_components.py](frontend/tests/test_components.py) — deux
+  fichiers non reformatés, entrés via un merge (`a4b30b6 merge: mettre la
+  branche à jour avec dev`, Roxiina). Corrigé par un simple
+  `uv run ruff format .` dans `frontend/` (aucun changement de logique).
+  **Cause probable, non confirmée :** un merge automatique (fast-forward ou
+  sans conflit) n'invoque pas le hook `pre-commit` — seul un commit le
+  déclenche. Si `core.hooksPath` n'a pas non plus été activé sur le poste
+  d'origine (`git config core.hooksPath .githooks`, à faire une fois par
+  machine selon le `CLAUDE.md`), un fichier non formaté peut atteindre `dev`
+  sans qu'aucun garde-fou local ne le voie — seule la CI l'attrape, après
+  coup. Pas d'action corrective ouverte : la CI a joué son rôle de dernier
+  filet ; à surveiller si le cas se répète.
 
 - [x] **Trou de périmètre trouvé et comblé au passage.** Huit fichiers Python
   n'étaient vérifiés par personne : ni par le hook `pre-commit` (qui ne boucle

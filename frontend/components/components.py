@@ -203,15 +203,19 @@ def display_movie_card(movie: Dict[str, Any], show_details: bool = True) -> None
                 genre_values = (
                     [str(genre) for genre in genres]
                     if isinstance(genres, list)
-                    else [line.strip() for line in str(genres).splitlines() if line.strip()]
+                    else [
+                        line.strip()
+                        for line in str(genres).splitlines()
+                        if line.strip()
+                    ]
                 )
                 genres_html = "".join(
-                    f"<span style=\"display: inline-flex; align-items: center; "
+                    f'<span style="display: inline-flex; align-items: center; '
                     f"min-height: 32px; padding: 5px 13px; border-radius: 999px; "
                     f"background: linear-gradient(135deg, #ff4757, #c9184a); "
                     f"border: 1px solid rgba(255,255,255,.28); color: #fff; "
                     f"font-size: .88rem; font-weight: 700; white-space: nowrap; "
-                    f"box-shadow: 0 4px 12px rgba(255,71,87,.28);\">"
+                    f'box-shadow: 0 4px 12px rgba(255,71,87,.28);">'
                     f"{escape(genre)}"
                     "</span>"
                     for genre in genre_values

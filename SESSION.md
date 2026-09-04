@@ -1,5 +1,115 @@
 # SESSION.md — HorRAGor
 
+## [2026-09-04] — Port Traefik : configuration du frontend réalignée sur 8088
+
+**Branche :** `feature/port-traefik-8088`
+
+**Diagnostic :** Traefik fonctionnait. Le port publié est passé de 80 à 8088
+lors du revert du TLS (`f73a86b`), et trois endroits annonçaient encore le
+port 80 — dont la ligne d'accès de `CLAUDE.md`, ce qui menait à ouvrir une
+adresse où rien n'écoute (`curl http://localhost/` → `000`).
+
+**Fait :**
+- [CLAUDE.md](CLAUDE.md) — ligne d'accès en `http://localhost:8088`.
+- [frontend/.streamlit/config.toml](frontend/.streamlit/config.toml) —
+  `corsAllowedOrigins = ["http://localhost:8088"]` et `serverPort = 8088`.
+- [docker-compose.yml](docker-compose.yml) — commentaire du bloc `ports:`
+  corrigé, et mention du couplage avec les deux valeurs du `config.toml`.
+- Second commit, séparé : retrait de `server.allowedHosts`, qui n'est pas une
+  option Streamlit, et correction de l'affirmation de `CLAUDE.md` sur le
+  routage par chemin.
+
+**Décisions techniques :**
+- **Garder 8088 plutôt que revenir à 80** (choix de l'utilisateur) : le port 80
+  demande un privilège et peut être déjà pris sur le poste ; l'écart n'était pas
+  dans le compose mais dans ce qui le décrivait.
+- **Deux commits et non un** : réaligner un port et retirer une option morte
+  sont deux choses, et la seconde touche à une protection — elle devait pouvoir
+  se relire, et se révoquer, seule.
+- **Le couplage est documenté dans le compose, à côté du port**, et non
+  seulement dans `CLAUDE.md` : c'est en modifiant cette ligne qu'on casse le
+  WebSocket, donc c'est là que l'avertissement doit se lire.
+
+**Vérifié :**
+- Frontend reconstruit (`docker compose build frontend`) : annonce
+  `URL: http://localhost:8088`, et l'avertissement
+  « "server.allowedHosts" is not a valid config option » a disparu.
+- `/`, `/api/health`, `/dbapi/db/health` → 200 via Traefik.
+- WebSocket `/_stcore/stream` : **101** depuis `http://localhost:8088`,
+  **403** depuis `http://attaquant.example` — le retrait d'`allowedHosts` n'a
+  rien affaibli, le filtrage venait bien de `corsAllowedOrigins`.
+- `docker compose config -q` et chargement TOML du `config.toml` : OK.
+
+**Points de vigilance pour la suite :**
+- **Le `config.toml` est embarqué dans l'image** (`COPY . .`, aucun volume) :
+  un `up -d --force-recreate` relance l'ancienne configuration **sans rien
+  signaler**. C'est ce qui m'a fait croire d'abord que la correction n'avait
+  pas pris. Même piège que l'index FAISS ; noté dans `CLAUDE.md`.
+- `Origin: http://localhost` (sans port) obtient encore un 101 alors que
+  `corsAllowedOrigins` ne l'autorise plus : Streamlit accepte aussi l'origine
+  dérivée de `browser.serverAddress`. Plus permissif que la configuration ne le
+  laisse croire, mais pas moins — à savoir si le filtrage doit un jour être
+  strict.
+- Seul le nom d'hôte `localhost` répond : `http://127.0.0.1:8088/` renvoie 404
+  à cause des règles `Host(...)`. Ressemble à une panne de routage.
+
+## [2026-09-04] — Templates d'issue GitHub
+
+**Branche :** `feature/templates-issues`
+
+**Fait :**
+- [.github/ISSUE_TEMPLATE/anomalie.yml](.github/ISSUE_TEMPLATE/anomalie.yml) —
+  formulaire d'anomalie : composant, priorité, étapes de reproduction,
+  comportement attendu, comportement observé et commit sont obligatoires.
+- [.github/ISSUE_TEMPLATE/tache.yml](.github/ISSUE_TEMPLATE/tache.yml) —
+  formulaire de tâche : nature, composant, priorité, besoin et critères de fin
+  obligatoires.
+- [.github/ISSUE_TEMPLATE/config.yml](.github/ISSUE_TEMPLATE/config.yml) —
+  `blank_issues_enabled: false`.
+- [TODO.md](TODO.md) § Gouvernance : point fermé, avec ce qui reste à faire
+  côté GitHub et n'est pas versionnable.
+
+**Décisions techniques :**
+- **Formulaires YAML (issue forms) et non templates Markdown** : un template
+  Markdown est un texte pré-rempli qu'on peut effacer ; un formulaire peut
+  rendre un champ obligatoire. Le cahier des charges demande que chaque
+  anomalie soit *archivée*, ce qui n'a de valeur que si l'archive est
+  exploitable.
+- **Deux formulaires, pas un ni cinq** : le TODO distingue de fait des
+  anomalies et des tâches (dette, refonte, documentation, outillage), et ces
+  deux familles n'ont pas les mêmes champs — une anomalie a des étapes de
+  reproduction, une tâche a des critères de fin. Découper plus finement
+  reviendrait à créer un formulaire par entrée du champ « nature ».
+- **Échelle de priorité 🔴/🟠/🟡 reprise de `TODO.md`** plutôt qu'un
+  `severity: high/medium/low` : deux échelles pour la même notion divergent, et
+  c'est la mauvaise qui sert au tri.
+- **Liste de composants figée dans les deux formulaires** (agents, api,
+  database, frontend, monitoring, infrastructure) : un champ libre produit
+  « front », « frontend » et « streamlit » pour un même composant, et le
+  filtrage ne marche plus.
+- **`blank_issues_enabled: false`** : une issue en texte libre sans étapes de
+  reproduction ni critère de fin ne peut être ni reproduite ni fermée.
+- Option « je ne sais pas » présente sur le composant d'une anomalie
+  uniquement : rendre le champ obligatoire sans échappatoire pousse à cocher
+  n'importe quoi, ce qui est pire qu'une valeur explicitement inconnue.
+
+**Vérifié :**
+- Les trois fichiers se chargent en YAML et respectent le schéma des
+  formulaires d'issue GitHub : clés de premier niveau admises, `type` de chaque
+  bloc valide, `id` et `label` présents sur tout bloc non `markdown`, `options`
+  non vide sur chaque `dropdown`.
+- **Non vérifié** : le rendu réel des formulaires sur GitHub, qui suppose de
+  pousser la branche.
+
+**Points de vigilance pour la suite :**
+- Les libellés `bug` et `enhancement` sont ceux créés par défaut avec tout
+  dépôt GitHub, donc présents. Si l'un est renommé ou supprimé, GitHub
+  **ignore le libellé en silence** au lieu d'échouer : l'issue est créée sans
+  étiquette, et rien ne le signale.
+- Ni les libellés ni la vue projet ne se versionnent : le tri par priorité
+  décrit dans les formulaires n'existera dans GitHub que si quelqu'un crée les
+  libellés correspondants à la main.
+
 ## [2026-09-04] — Tests d'authentification
 
 **Branche :** `feature/tests-authentification`
