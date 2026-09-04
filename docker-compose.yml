@@ -257,8 +257,8 @@ services:
       # Aucun volume n'est monté sur /app/faiss_data : un montage y masquerait
       # l'index de l'image, qui est la source unique.
       - PYTHONPATH=/app
-      - FAISS_INDEX_PATH=api/faiss_data/horragor.index
-      - FAISS_MAPPING_PATH=api/faiss_data/horragor_mapping.json
+      - FAISS_INDEX_PATH=faiss_data/horragor.index
+      - FAISS_MAPPING_PATH=faiss_data/horragor_mapping.json
       # Voir la note sur `UVICORN_ROOT_PATH` du service database_api.
       - UVICORN_ROOT_PATH=/api
       # Mémoire de conversation LangGraph (checkpointer SQLite), un thread
