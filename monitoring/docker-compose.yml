@@ -230,6 +230,8 @@ services:
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
     networks:
       - horragor_net
 
@@ -263,6 +265,7 @@ volumes:
   prometheus_data:
   grafana_data:
   uptime_kuma_data:
+  loki_data:
   promtail_positions:
   
 

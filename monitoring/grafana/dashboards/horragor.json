@@ -325,7 +325,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "afwve5oglmvwgb"
+        "uid": "PBFA97CFB590B2093"
       },
       "fieldConfig": {
         "defaults": {
@@ -419,7 +419,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "afwve5oglmvwgb"
+        "uid": "PBFA97CFB590B2093"
       },
       "fieldConfig": {
         "defaults": {
@@ -507,7 +507,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "afwve5oglmvwgb"
+            "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(\r\n  0.95,\r\n  sum(rate(http_request_duration_seconds_bucket{job=\"horragor-api\"}[5m]))\r\n  by (le)\r\n)",
@@ -522,7 +522,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "afwve5oglmvwgb"
+        "uid": "PBFA97CFB590B2093"
       },
       "fieldConfig": {
         "defaults": {
@@ -582,7 +582,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "afwve5oglmvwgb"
+            "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
           "expr": "sum by (handler) (\r\n  rate(http_requests_total{job=\"horragor-api\"}[5m])\r\n)",
@@ -597,7 +597,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "afwve5oglmvwgb"
+        "uid": "PBFA97CFB590B2093"
       },
       "fieldConfig": {
         "defaults": {
@@ -661,7 +661,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "cfx7ycfxputxca"
+        "uid": "horragor-loki"
       },
       "fieldConfig": {
         "defaults": {},
@@ -689,7 +689,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "cfx7ycfxputxca"
+            "uid": "horragor-loki"
           },
           "direction": "backward",
           "editorMode": "code",
@@ -704,7 +704,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "cfx7ycfxputxca"
+        "uid": "horragor-loki"
       },
       "fieldConfig": {
         "defaults": {},
@@ -732,7 +732,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "cfx7ycfxputxca"
+            "uid": "horragor-loki"
           },
           "direction": "backward",
           "editorMode": "code",
