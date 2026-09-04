@@ -119,6 +119,11 @@ class IntentOutput(BaseModel):
     intent: Literal["RECHERCHE", "DISCUSSION", "CHITCHAT", "AUCUN_FILM_TROUVE"] = Field(
         description="L'intention unique detectée dans le message de l'utilisateur"
     )
+    nouvelle_recherche: bool = Field(
+        description="True si la requête introduit un nouveau critère de recherche "
+        "(genre, nationalité, décennie, réalisateur, titre) sans rapport avec "
+        "CONTEXT_TITLES ; False si elle poursuit la discussion sur le film en contexte."
+    )
 
 
 # ==============================================================================
@@ -192,12 +197,23 @@ def intent_classifier_node(state: AgentState) -> dict[str, Any]:
         )
         intent_verdict = "AUCUN_FILM_TROUVE"
 
-    # 5b. Forçage si le LLM retourne AUCUN_FILM_TROUVE alors qu'un film est en contexte
+    # 5b. Forçage si le LLM retourne AUCUN_FILM_TROUVE alors qu'un film est en contexte :
+    # DISCUSSION pour une continuation sur ce film, RECHERCHE si la requête introduit
+    # de nouveaux critères sans rapport (sinon le film en contexte est réutilisé à tort
+    # comme contexte du narrateur pour une question qui ne le concerne pas).
     elif intent_verdict == "AUCUN_FILM_TROUVE" and has_context_bool:
-        logger.warning(
-            "[intent_classifier_node] LLM a retourné AUCUN_FILM_TROUVE mais un film est en contexte. Redirection vers DISCUSSION."
-        )
-        intent_verdict = "DISCUSSION"
+        if result.nouvelle_recherche:
+            logger.warning(
+                "[intent_classifier_node] LLM a retourné AUCUN_FILM_TROUVE mais la requête "
+                "introduit de nouveaux critères. Redirection vers RECHERCHE."
+            )
+            intent_verdict = "RECHERCHE"
+        else:
+            logger.warning(
+                "[intent_classifier_node] LLM a retourné AUCUN_FILM_TROUVE mais un film est "
+                "en contexte. Redirection vers DISCUSSION."
+            )
+            intent_verdict = "DISCUSSION"
 
     # 6. Si la session vient d'ouvrir et qu'on ne sait pas quoi faire
     elif not has_context_bool and intent_verdict not in ["CHITCHAT", "RECHERCHE"]:
