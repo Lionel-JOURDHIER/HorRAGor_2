@@ -96,13 +96,13 @@ def main():
     for monitor in config["monitors"]:
         name = monitor["name"]
 
+        notification_ids = [
+            existing_notifications[notification_name]["id"]
+            for notification_name in monitor.get("notifications", [])
+        ]
+
         if name in existing_monitors:
             existing = existing_monitors[name]
-
-            notification_ids = [
-                existing_notifications[name]["id"]
-                for name in monitor.get("notifications", [])
-            ]
 
             if (
                 existing["url"] != monitor["url"]
