@@ -682,13 +682,22 @@ qu'une lecture du seul contenu commité ne montre pas.
 
 ## 🟠 Trois sources de vérité pour les secrets
 
-- [ ] `.env` (racine), `database/.env` et `agents/tools/.env` déclarent **les
-  mêmes** identifiants Supabase/Postgres, dupliqués à l'identique. Trois copies
-  divergent, et c'est la mauvaise qui reste (socle § DRY). Les sous-projets
-  appellent tous `load_dotenv()` sans chemin explicite, donc la copie prise
-  dépend du répertoire courant au lancement — comportement différent entre
-  `docker compose` (racine) et un `uv run` depuis `database/`.
-  → Un seul `.env` à la racine, chargé par chemin explicite.
+- [x] **Choix retenu : trois `.env` séparés, pas de consolidation.** Décision
+  explicite de l'utilisateur — la modularité des sous-projets (`database/`,
+  `agents/tools/`) prime sur la déduplication stricte du socle § DRY ; les
+  copies séparées restent, `load_dotenv()` sans chemin explicite dans chaque
+  sous-projet aussi.
+  - **Doublons non essentiels supprimés** dans `database/.env` et
+    `agents/tools/.env` : les deux ne conservaient que 5 variables réellement
+    lues (`SUPABASE_USER/PASSWORD/HOST/PORT/DB`, consommées par
+    [database/connection.py:39-43](database/connection.py:39)) contre 12
+    avant correctif — `POSTGRES_USER/PASSWORD/DB/HOST/PORT` (aucun service
+    Postgres local dans `docker-compose.yml`, cf. item ci-dessous) et
+    `SUPABASE_PROJECT`/`SUPABASE_PUBLISHABLE_KEY` (jamais lus par aucun code
+    Python du dépôt, vérifié par recherche de référence) étaient recopiés
+    sans être utilisés dans ces deux emplacements. `.env` racine non touché :
+    hors périmètre de cette demande, et ces variables y servent
+    potentiellement à d'autres composants (docker-compose, scripts).
 
 - [ ] **Partiellement résolu (par Hanna, sur `dev`), reste ouvert pour le
   reste.** `.env.example` désynchronisé du code, dans les deux sens :
