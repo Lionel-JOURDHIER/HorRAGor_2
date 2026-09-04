@@ -656,19 +656,7 @@ def validation_node(state: AgentState) -> dict[str, Any]:
             "judge_feedback": result.feedback,
         }
 
-        # Extraction générique depuis les guillemets simples du feedback
-
-        import re
-
-        if not result.corrected_title:
-            match = re.search(r"'([^']+)'", result.feedback)
-            if match:
-                result.corrected_title = match.group(1)
-                logger.info(
-                    f"[validation_node] Titre extrait du feedback : '{result.corrected_title}'"
-                )
-
-        # Cas 4 : Validation Echouée du validateur mais titre trouvé
+        # Cas 4 : Validation Echouée du validateur mais titre corrigé identifié avec certitude
         if result.corrected_title:
             logger.warning(
                 f"[validation_node] Validation Échouée. Titre corrigé identifié par le validateur : "
@@ -677,9 +665,16 @@ def validation_node(state: AgentState) -> dict[str, Any]:
             update["answer"] = result.corrected_title
             return update
 
-        # Cas 5 : Validation Echouée du validateur et aucun titre trouvé
+        # Cas 5 : Validation Echouée et aucun titre corrigé identifié avec certitude.
+        # Rejouer Search_vector_node avec le même state.answer (None) redonnerait le
+        # même film invalide : on force le passage direct au Narrateur plutôt que
+        # de consommer un retry inutile.
         else:
-            logger.warning("[validation_node] Validation Échouée. Aucun titre trouvé. ")
+            logger.warning(
+                "[validation_node] Validation Échouée. Aucun titre corrigé identifié. "
+                "Abandon de la recherche directe ciblée."
+            )
+            update["retry_count"] = 2
             return update
 
 
