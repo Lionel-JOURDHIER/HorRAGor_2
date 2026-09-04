@@ -1,7 +1,5 @@
 from unittest.mock import patch
 
-from api.main import app
-
 
 @patch("api.routes_monitoring.monitoring_service.get_metrics")
 def test_monitoring_metrics(mock_get_metrics, client):

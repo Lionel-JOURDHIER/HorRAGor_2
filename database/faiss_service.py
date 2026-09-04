@@ -9,9 +9,10 @@ Stratégie de recherche multiniveau (Matching & Sémantique) :
     - Niveau 1 (Matching Exact) : Vérification immédiate dans un dictionnaire Python
       (Complexité O(1), temps d'exécution proche de 0ms) pour résoudre instantanément
       les requêtes strictes sans solliciter l'IA.
-    - Niveau 2 (Recherche Sémantique FAISS) : Inférence vectorielle locale via Ollama
-      (qwen3-embedding:0.6b) et recherche par produit scalaire (IndexFlatIP) normalisé L2
-      pour capter les synonymes, les fautes de frappe et les intentions complexes.
+    - Niveau 2 (Recherche Sémantique FAISS) : Inférence vectorielle locale via
+      Ollama (qwen3-embedding:0.6b) et recherche par produit scalaire (IndexFlatIP)
+      normalisé L2 pour capter les synonymes, les fautes de frappe et les
+      intentions complexes.
 
 Dépendances principales :
     - faiss (IndexFlatIP)
@@ -29,9 +30,12 @@ from pathlib import Path
 
 import faiss
 import numpy as np
-# from sqlalchemy.orm import Session
+from logger import get_logger
+from sqlalchemy.orm import Session
 
-# from database.models import FilmEmbedding
+from database.models import FilmEmbedding
+
+logger = get_logger("FAISS_SERVICE")
 
 # --- CONFIGURATION DES CHEMINS ABSOLUS (DRY) ---
 BASE_DIR = Path(__file__).resolve().parent.parent  # Racine du projet HorRAGor
@@ -46,19 +50,40 @@ class FaissService:
         self.index = faiss.IndexFlatL2(dimension)
         self.id_mapping = {}
 
-    # def build_index(self, session: Session):
-    #     """Charge tous les vecteurs depuis Supabase vers FAISS."""
-    #     embeddings = session.query(FilmEmbedding).all()
-    #     vectors = []
-    #     for i, emb in enumerate(embeddings):
-    #         vector = np.array(emb.embedd_title, dtype="float32")
-    #         vectors.append(vector)
-    #         self.id_mapping[i] = emb.tmdb_id
+    def build_index(self, session: Session) -> None:
+        """Charge tous les vecteurs depuis Supabase (film_embeddings) vers FAISS."""
+        embeddings = session.query(FilmEmbedding).all()
+        vectors = []
+        for i, emb in enumerate(embeddings):
+            vector = np.array(emb.embedd_title, dtype="float32")
+            vectors.append(vector)
+            self.id_mapping[i] = emb.tmdb_id
 
-    #     if vectors:
-    #         data = np.array(vectors).astype("float32")
-    #         self.index.add(data)
-    #         print(f"✅ Index FAISS construit avec {len(vectors)} films.")
+        if vectors:
+            data = np.array(vectors).astype("float32")
+            self.index.add(data)
+            logger.info("Index FAISS construit avec {} films.", len(vectors))
+
+    def load_or_build(
+        self,
+        session: Session,
+        index_path: str = INDEX_PATH,
+        mapping_path: str = MAPPING_PATH,
+    ) -> None:
+        """
+        Charge l'index depuis le disque, ou le construit depuis Supabase et le persiste.
+
+        Args:
+            session: Session SQLAlchemy synchrone ouverte sur Supabase.
+            index_path: Chemin du fichier .index à charger ou créer.
+            mapping_path: Chemin du fichier .json de mapping à charger ou créer.
+        """
+        if self.load_index(index_path, mapping_path):
+            return
+
+        logger.info("Index introuvable sur le disque. Construction depuis Supabase...")
+        self.build_index(session)
+        self.save_index(index_path, mapping_path)
 
     def save_index(self, index_path: str, mapping_path: str) -> None:
         """
@@ -103,28 +128,15 @@ class FaissService:
 
         xq = np.array([query_vector]).astype("float32")
 
-        # D = distances, I = indices FAISS
-        D, I = self.index.search(xq, k)
+        distances, indices = self.index.search(xq, k)
 
         results = []
-        for distance, faiss_id in zip(D[0], I[0]):
+        for distance, faiss_id in zip(distances[0], indices[0]):
             if faiss_id in self.id_mapping:
                 tmdb_id = self.id_mapping[faiss_id]
                 results.append((tmdb_id, float(distance)))
 
         return results
-
-    # def load_or_build(self, session: Session) -> None:
-    #     """Tente de charger l'index depuis le disque, sinon le construit depuis SQL."""
-    #     # Utilise les chemins absolus centralisés du module
-    #     if self.load_index(INDEX_PATH, MAPPING_PATH):
-    #         return
-
-    #     print("ℹ️ Index introuvable sur le disque. Construction depuis Supabase...")
-    #     # self.build_index(session)
-
-    #     print("💾 Persistance automatique de l'index sur le disque...")
-    #     self.save_index(INDEX_PATH, MAPPING_PATH)
 
     def get_vector_by_id(self, movie_id: int) -> list[float] | None:
         """

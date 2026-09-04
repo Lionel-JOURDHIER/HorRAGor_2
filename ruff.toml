@@ -1,0 +1,35 @@
+# Configuration ruff des fichiers Python situés hors des quatre sous-projets :
+# logger.py, shared/, scripts/ et docs/source/conf.py. Ces fichiers sont
+# partagés (logger.py et shared/ sont importés par les quatre sous-projets)
+# mais n'appartiennent à aucun d'eux, et n'étaient donc couverts par aucune
+# configuration : ruff résout sa configuration par ancêtre le plus proche, et
+# le pyproject.toml de chaque sous-projet ne vaut que pour son propre dossier.
+#
+# Ce n'est volontairement pas un pyproject.toml : le CLAUDE.md interdit d'en
+# créer un à la racine, qui fusionnerait les quatre sous-projets en un seul.
+# Les quatre sont exclus ici pour que `ruff check` lancé à la racine ne
+# double pas leur propre vérification, qui garde leurs règles à elles
+# (per-file-ignores compris).
+# "*.md" : ruff formate aussi les blocs de code Python contenus dans les
+# fichiers Markdown. Sans cette exclusion, `ruff format` lancé à la racine
+# réécrit les exemples de la documentation et ceux du sous-module de
+# standards partagés, qui ne sont pas du code de ce dépôt.
+extend-exclude = ["api", "agents", "database", "frontend", "*.md"]
+
+line-length = 88
+target-version = "py311"
+
+[lint]
+# Même jeu de règles que les quatre sous-projets. D (docstrings) volontairement
+# omis pour l'instant : le code existant n'a pas encore été mis à niveau.
+select = ["E", "W", "F", "I"]
+
+[lint.per-file-ignores]
+# verifier_synopsis_enrichment.py insère la racine du dépôt dans sys.path avant
+# d'importer agents.* et database.* : ces imports doivent donc rester après ce
+# code, ce que E402 signale à tort comme un défaut d'ordre.
+"scripts/verifier_synopsis_enrichment.py" = ["E402"]
+
+# Ré-export de paquet : le `import *` d'un __init__.py est intentionnel, et
+# F403 ne sait pas le distinguer d'un import de commodité.
+"shared/__init__.py" = ["F403"]

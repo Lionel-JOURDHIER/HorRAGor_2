@@ -6,6 +6,32 @@ L'architecture est entièrement conteneurisée et pensée pour s'exécuter local
 
 ---
 
+## 🌐 Adresses
+
+Une fois la stack lancée (`docker compose up -d`), tout passe par Traefik sur
+`localhost` — le routage se fait par chemin, pas par nom d'hôte, donc rien à
+ajouter dans `/etc/hosts`.
+
+| Élément | Adresse |
+|---|---|
+| Frontend (Streamlit) | http://localhost |
+| API IA | http://localhost/api |
+| Documentation Swagger — API IA | http://localhost/api/docs |
+| API Database | http://localhost/dbapi |
+| Documentation Swagger — API Database | http://localhost/dbapi/docs |
+| Dashboard Traefik | http://127.0.0.1:8080/dashboard/ |
+
+La stack `monitoring/docker-compose.yml` (à lancer séparément) expose en plus :
+
+| Élément | Adresse |
+|---|---|
+| Langfuse (traces LLM) | http://localhost:3000 |
+| Grafana | http://localhost:3001 |
+| Prometheus | http://localhost:9092 |
+| Uptime Kuma | http://localhost:3002 |
+
+---
+
 ## 🛠️ Stack Technique
 
 * **Front-End** : Streamlit (Python)
@@ -25,41 +51,49 @@ Le projet est découpé en composants autonomes (KISS/DRY), chacun avec son prop
 
 ```text
 HORRAGOR_2/
-├── agents/                # Moteur de l'agent intelligent (LangGraph)
-│   ├── tools/             # Outils de l'agent (SQL, FAISS, Wikipédia)
-│   ├── graph.py           # Assemblage et orchestration du StateGraph
-│   ├── router.py          # Routage RAG / Wikipedia / narrateur
-│   ├── nodes_rag.py        # Nœud de récupération vectorielle + SQL
-│   ├── nodes_wikipedia.py  # Nœud de récupération Wikipédia
-│   ├── nodes_narrateur.py  # Nœud de génération narrative
-│   ├── state.py            # Structure de données circulante (AgentState)
-│   └── prompts.py          # Centralisation de l'ingénierie des invites
-├── api/                    # API IA (FastAPI) — orchestration de l'agent uniquement
+├── agents/                  # Moteur de l'agent intelligent (LangGraph)
+│   ├── tools/                # Outils de l'agent (SQL, FAISS, Wikipédia)
+│   ├── config.py              # Configuration du sous-projet (variables d'environnement)
+│   ├── chat_terminal.py       # Lanceur de test en ligne de commande, hors API
+│   ├── graph.py                # Assemblage et orchestration du StateGraph
+│   ├── router.py                # Routage RAG / Wikipedia / narrateur
+│   ├── nodes_rag.py              # Nœud de récupération vectorielle + SQL
+│   ├── nodes_wikipedia.py        # Nœud de récupération Wikipédia
+│   ├── nodes_narrateur.py        # Nœud de génération narrative
+│   └── prompts.py                 # Centralisation de l'ingénierie des invites
+├── api/                      # API IA (FastAPI) — orchestration de l'agent uniquement
 │   ├── modules/
-│   │   ├── chat_service.py      # Exécution du graphe LangGraph, streaming
-│   │   └── database_client.py   # Client HTTP vers l'API Database
-│   ├── monitoring/          # Intégration Langfuse
-│   ├── routes.py            # Endpoints /health, /chat/response_stream, /wikipedia
-│   ├── routes_monitoring.py # Endpoints /monitoring/metrics, /monitoring/traces
-│   └── main.py               # Point d'entrée du serveur (charge l'index FAISS)
-├── database/                # API Database (FastAPI) — accès aux données uniquement
-│   ├── tables/               # Tables SQLAlchemy (Film, Genre, Réalisateur, Scores...)
-│   ├── connection.py          # Initialisation de la session de base de données
-│   ├── faiss_service.py       # Gestion globale de l'index vectoriel en RAM
-│   ├── models.py               # Modèles SQLAlchemy
-│   ├── queries.py               # Requêtes métier (jointures, agrégats, filtres)
-│   ├── populate.py              # Script d'initialisation et d'ingestion des données
-│   ├── routes_db.py             # Endpoints /db/health, /db/list_real, /db/film/{id}...
-│   └── main.py                   # Point d'entrée du serveur
-├── frontend/                # Interface utilisateur (Streamlit)
-│   ├── components/           # Composants d'affichage réutilisables
-│   ├── utils/                 # Client API
-│   └── app.py                  # Point d'entrée IHM avec le formulaire de préférences
-├── monitoring/               # Configuration Prometheus / Grafana
-├── shared/                    # Schémas Pydantic partagés entre les sous-projets
-├── docker-compose.yml         # Orchestration multi-conteneurs locale (api, database_api, frontend)
-├── .gitignore                  # Protections des index, variables d'environnement et caches
-└── .env.example                # Modèle de configuration des variables d'environnement
+│   │   ├── chat_service.py         # Exécution du graphe LangGraph, streaming
+│   │   └── database_client.py      # Client HTTP vers l'API Database
+│   ├── monitoring/             # Intégration Langfuse
+│   ├── auth_config.py           # Configuration JWT (durées, algorithme, clé de signature)
+│   ├── auth_crypto.py            # Chiffrement RSA du mot de passe en transit (login/register)
+│   ├── auth_routes.py             # Endpoints /auth/register, /login, /refresh, /logout, /me
+│   ├── auth_utils.py               # Création/validation des tokens JWT, hachage bcrypt
+│   ├── schemas.py                   # Schémas Pydantic propres à l'authentification
+│   ├── routes.py                     # Endpoints /health, /chat/response_stream, /wikipedia
+│   ├── routes_monitoring.py           # Endpoints /monitoring/metrics, /monitoring/traces
+│   └── main.py                         # Point d'entrée du serveur (charge l'index FAISS)
+├── database/                 # API Database (FastAPI) — accès aux données uniquement
+│   ├── tables/                 # Tables SQLAlchemy (Film, Genre, Réalisateur, Scores...)
+│   ├── connection.py            # Initialisation de la session de base de données
+│   ├── faiss_service.py          # Gestion globale de l'index vectoriel en RAM
+│   ├── models.py                  # Modèles SQLAlchemy
+│   ├── create_auth_tables.py       # Script de création des tables users/refresh_tokens
+│   ├── queries.py                   # Requêtes métier (jointures, agrégats, filtres)
+│   ├── populate.py                   # Script d'initialisation et d'ingestion des données
+│   ├── routes_db.py                   # Endpoints /db/health, /db/list_real, /db/film/{id}...
+│   └── main.py                         # Point d'entrée du serveur
+├── frontend/                 # Interface utilisateur (Streamlit)
+│   ├── components/             # Composants d'affichage réutilisables (dont l'authentification)
+│   ├── utils/                    # Clients API (chat, authentification, chiffrement du mot de passe)
+│   └── app.py                     # Point d'entrée IHM avec le formulaire de préférences
+├── scripts/                  # Lanceurs et scripts de vérification manuelle, hors conteneurs
+├── monitoring/                # Configuration Prometheus / Grafana / Langfuse
+├── shared/                     # Schémas Pydantic et embeddings partagés entre les sous-projets
+├── docker-compose.yml          # Orchestration multi-conteneurs locale (api, database_api, frontend)
+├── .gitignore                   # Protections des index, variables d'environnement et caches
+└── .env.example                  # Modèle de configuration des variables d'environnement
 ```
 
 ---

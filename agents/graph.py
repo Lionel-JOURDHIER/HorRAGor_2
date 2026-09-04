@@ -17,6 +17,14 @@ if str(root_path) not in sys.path:
 
 
 import os
+import sqlite3
+
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+from langgraph.checkpoint.sqlite import SqliteSaver
+
+# Import de l'état global
+from shared.schemas import AgentState, AgentStep, ChatFilters, FilmShort
 
 from agents.nodes_narrateur import narrator_node
 
@@ -52,19 +60,18 @@ from agents.router import (
     route_verif_film,
 )
 
-# Import de l'état global
-from shared.schemas import AgentState
-
-os.environ["LANGGRAPH_STRICT_MSGPACK"] = "false"
-
-import sqlite3
-
-from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.checkpoint.sqlite import SqliteSaver
-
 # Persiste la mémoire de conversation (dont last_displayed_movies_id) entre
 # les redémarrages du conteneur.
 CHECKPOINT_DB_PATH = os.getenv("CHECKPOINT_DB_PATH", "data/checkpoints.sqlite")
+
+# Enregistre explicitement les types Pydantic sérialisés dans AgentState
+# (ChatFilters, AgentStep, FilmShort) plutôt que de désactiver globalement le
+# contrôle strict du msgpack : évite les avertissements « Deserializing
+# unregistered type » sans se retrouver bloqué le jour où LangGraph rend le
+# mode strict obligatoire par défaut.
+CHECKPOINT_SERDE = JsonPlusSerializer(
+    allowed_msgpack_modules=[ChatFilters, AgentStep, FilmShort]
+)
 
 
 def _build_sync_checkpointer() -> SqliteSaver:
@@ -77,7 +84,8 @@ def _build_sync_checkpointer() -> SqliteSaver:
     """
     Path(CHECKPOINT_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(CHECKPOINT_DB_PATH, check_same_thread=False)
-    return SqliteSaver(conn)
+    return SqliteSaver(conn, serde=CHECKPOINT_SERDE)
+
 
 # LOGGER
 from logger import get_logger, setup_logger
@@ -115,7 +123,7 @@ def wrapper_route_validation_hybrid(state: AgentState) -> str:
 
 
 def wrapper_route_verif_film(state: AgentState) -> str:
-    """Aiguille après load_film_node. Si OK, on va vérifier le film (verif_film_node)."""
+    """Aiguille après load_film_node vers verif_film_node si le film est chargé."""
     res = route_verif_film(state)
     if res == "route_need_wikipedia":
         return "verif_film_node"

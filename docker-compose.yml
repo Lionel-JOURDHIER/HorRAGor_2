@@ -114,7 +114,7 @@ services:
       # restriction qui garantit que rien ne circule en clair sur le réseau.
       # Pour ouvrir volontairement l'accès depuis une autre machine, remplacer
       # par "80:80" — et remettre le TLS avant.
-      - "127.0.0.1:80:80"
+      - "127.0.0.1:8088:80"
       # Dashboard : même principe, boucle locale uniquement.
       - "127.0.0.1:8080:8080"
 
@@ -251,8 +251,8 @@ services:
       # Aucun volume n'est monté sur /app/faiss_data : un montage y masquerait
       # l'index de l'image, qui est la source unique.
       - PYTHONPATH=/app
-      - FAISS_INDEX_PATH=faiss_data/horragor.index
-      - FAISS_MAPPING_PATH=faiss_data/horragor_mapping.json
+      - FAISS_INDEX_PATH=api/faiss_data/horragor.index
+      - FAISS_MAPPING_PATH=api/faiss_data/horragor_mapping.json
       # Voir la note sur `UVICORN_ROOT_PATH` du service database_api.
       - UVICORN_ROOT_PATH=/api
       # Mémoire de conversation LangGraph (checkpointer SQLite), un thread

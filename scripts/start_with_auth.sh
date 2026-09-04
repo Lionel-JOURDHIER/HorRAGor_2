@@ -1,5 +1,6 @@
 #!/bin/bash
-# Script de démarrage rapide pour tester l'EPIC 10
+# Script de démarrage rapide pour tester l'EPIC 10 — à lancer depuis la
+# racine du dépôt : bash scripts/start_with_auth.sh
 
 echo "🚀 === Démarrage de HorRAGor avec authentification ==="
 echo ""
@@ -26,7 +27,7 @@ echo ""
 
 # 4. Lancer les tests
 echo "4️⃣ Lancement des tests d'authentification..."
-python test_auth.py
+python scripts/verifier_auth.py
 echo ""
 
 # 5. Démarrer le frontend

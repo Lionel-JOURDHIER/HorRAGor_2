@@ -6,20 +6,18 @@
 HorRAGor
 ========
 
-README
-======
 
-.. mdinclude:: ../../README.md
-
-Documentation technique du projet HorRAGor.
-===========================================
 
 .. toctree::
    :maxdepth: 2
    :caption: Documentation technique
 
+   presentation
+   coverage
    api
    agents
    database
+   frontend
+   shared
    database_schema
    langgraph

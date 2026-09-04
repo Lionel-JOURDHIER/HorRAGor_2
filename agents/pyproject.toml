@@ -5,7 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "dotenv>=0.9.9",
     "faiss-cpu>=1.14.2",
     "langchain-core>=1.4.0",
     "langchain-ollama>=1.1.0",
@@ -15,18 +14,20 @@ dependencies = [
     "loguru>=0.7.3",
     "pgvector>=0.4.2",
     "psycopg2>=2.9.12",
-    "pytest-asyncio>=1.4.0",
+    "python-dotenv>=1.2.3",
     "sqlalchemy>=2.0.50",
 ]
 
 [tool.setuptools]
 package-dir = {"" = "."}
-packages = ["database", "agents", "api", "frontend"]
+packages = ["agents", "database", "api", "shared"]
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
+    "ruff>=0.16.5",
 ]
 
 [tool.coverage.report]
@@ -37,3 +38,40 @@ exclude_lines = [
 ]
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.ruff]
+# "*.md" : ruff formate aussi les blocs de code Python contenus dans les
+# fichiers Markdown. Sans cette exclusion, `ruff format` réécrit les
+# exemples des README, qui sont de la documentation et pas du code exécuté.
+extend-exclude = ["*.md"]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+# D (docstrings) volontairement omis pour l'instant : le code existant n'a
+# pas encore été mis à niveau, l'activer ferait échouer le hook pre-commit
+# sur la quasi-totalité des fichiers. À ajouter une fois une passe de mise
+# en conformité des docstrings faite séparément.
+select = ["E", "W", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# Ces modules insèrent la racine du dépôt dans sys.path avant leurs imports
+# locaux (agents.*, shared.*) : ces imports doivent donc rester après ce code,
+# ce que E402 signale à tort comme un défaut d'ordre.
+"graph.py" = ["E402"]
+"chat_terminal.py" = ["E402"]
+
+# E501 : les lignes trop longues restantes sont le texte des prompts envoyés
+# au LLM, pas du code. Les replier insérerait des retours à la ligne dans la
+# charge utile du modèle, ce qu'aucun test ne couvre — le repli des prompts
+# est une tâche à part, avec sa propre validation de comportement.
+"prompts.py" = ["E501"]
+"router.py" = ["E501"]
+"nodes_rag.py" = ["E402", "E501"]
+"nodes_narrateur.py" = ["E402", "E501"]
+"nodes_wikipedia.py" = ["E402", "E501"]
+"tools/vector_tools.py" = ["E402", "E501"]
+"tools/wiki_tools.py" = ["E501"]
+"tests/test_graph.py" = ["E501"]
+"tests/test_router.py" = ["E501"]
+"tests/test_nodes_narrateur.py" = ["E501"]

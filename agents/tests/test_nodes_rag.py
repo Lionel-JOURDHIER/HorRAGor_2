@@ -1,12 +1,8 @@
 """tests/test_nodes_rag.py"""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-pytestmark = pytest.mark.skip(reason="Временно отключено")
-from langchain_core.messages import AIMessage
-
 from agents.nodes_rag import (
     card_node,
     format_cards_node,
@@ -20,6 +16,7 @@ from agents.nodes_rag import (
     validation_node,
     verif_film_node,
 )
+from langchain_core.messages import AIMessage
 from shared.schemas import ChatFilters
 
 # ==============================================================================
@@ -297,81 +294,95 @@ def test_merge_filters_fallback_sur_erreur_llm(mock_llm, base_state):
 # ==============================================================================
 
 
+@pytest.mark.asyncio
 @patch("agents.nodes_rag.search_vector_catalog")
 @patch("agents.nodes_rag.filter_films_by_criteria")
-def test_search_vector_branche_directe(mock_sql, mock_faiss, base_state):
+async def test_search_vector_branche_directe(mock_sql, mock_faiss, base_state):
     """Branche directe : query = answer, top_k=1, pas de filtre SQL."""
     base_state.search_branch = "direct"
     base_state.answer = "Alien"
-    mock_faiss.func.return_value = [MockFilmShort()]
+    mock_faiss.ainvoke = AsyncMock(return_value=[MockFilmShort()])
+    mock_sql.ainvoke = AsyncMock()
 
-    result = search_vector_node(base_state)
+    result = await search_vector_node(base_state)
 
-    mock_sql.func.assert_not_called()
-    mock_faiss.func.assert_called_once_with(query="Alien", top_k=1, candidate_ids=None)
-    assert result["current_step"] == "has_results"
-
-
-@patch("agents.nodes_rag.search_vector_catalog")
-@patch("agents.nodes_rag.filter_films_by_criteria")
-def test_search_vector_branche_hybride(mock_sql, mock_faiss, base_state):
-    """Branche hybride : query = user_query, top_k=5, filtre SQL."""
-    base_state.search_branch = "hybrid"
-    base_state.sql_filters = ChatFilters(realisateur="Kubrick")
-    mock_sql.func.return_value = [1, 2, 3]
-    mock_faiss.func.return_value = [MockFilmShort()]
-
-    result = search_vector_node(base_state)
-
-    mock_sql.func.assert_called_once()
-    mock_faiss.func.assert_called_once_with(
-        query=base_state.user_query, top_k=5, candidate_ids=[1, 2, 3]
+    mock_sql.ainvoke.assert_not_called()
+    mock_faiss.ainvoke.assert_called_once_with(
+        {"query": "Alien", "candidate_ids": None, "top_k": 1}
     )
     assert result["current_step"] == "has_results"
 
 
+@pytest.mark.asyncio
 @patch("agents.nodes_rag.search_vector_catalog")
 @patch("agents.nodes_rag.filter_films_by_criteria")
-def test_search_vector_pool_sql_vide_court_circuit(mock_sql, mock_faiss, base_state):
+async def test_search_vector_branche_hybride(mock_sql, mock_faiss, base_state):
+    """Branche hybride : query = user_query, top_k=5, filtre SQL."""
+    base_state.search_branch = "hybrid"
+    base_state.sql_filters = ChatFilters(realisateur="Kubrick")
+    mock_sql.ainvoke = AsyncMock(return_value=[1, 2, 3])
+    mock_faiss.ainvoke = AsyncMock(return_value=[MockFilmShort()])
+
+    result = await search_vector_node(base_state)
+
+    mock_sql.ainvoke.assert_called_once()
+    mock_faiss.ainvoke.assert_called_once_with(
+        {"query": base_state.user_query, "candidate_ids": [1, 2, 3], "top_k": 5}
+    )
+    assert result["current_step"] == "has_results"
+
+
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.search_vector_catalog")
+@patch("agents.nodes_rag.filter_films_by_criteria")
+async def test_search_vector_pool_sql_vide_court_circuit(
+    mock_sql, mock_faiss, base_state
+):
     """Pool SQL vide → court-circuit, FAISS non appelé."""
     base_state.search_branch = "hybrid"
     base_state.sql_filters = ChatFilters(realisateur="Kubrick", release_year_min=2020)
-    mock_sql.func.return_value = []
+    mock_sql.ainvoke = AsyncMock(return_value=[])
+    mock_faiss.ainvoke = AsyncMock()
 
-    result = search_vector_node(base_state)
+    result = await search_vector_node(base_state)
 
-    mock_faiss.func.assert_not_called()
+    mock_faiss.ainvoke.assert_not_called()
     assert result["current_step"] == "no_results"
     assert result["retrieved_movies"] == []
 
 
+@pytest.mark.asyncio
 @patch("agents.nodes_rag.search_vector_catalog")
 @patch("agents.nodes_rag.filter_films_by_criteria")
-def test_search_vector_faiss_vide(mock_sql, mock_faiss, base_state):
+async def test_search_vector_faiss_vide(mock_sql, mock_faiss, base_state):
     """FAISS retourne vide → no_results."""
     base_state.search_branch = "direct"
     base_state.answer = "FilmInexistant"
-    mock_faiss.func.return_value = []
+    mock_faiss.ainvoke = AsyncMock(return_value=[])
+    mock_sql.ainvoke = AsyncMock()
 
-    result = search_vector_node(base_state)
+    result = await search_vector_node(base_state)
 
     assert result["current_step"] == "no_results"
     assert result["retrieved_movies"] == []
 
 
+@pytest.mark.asyncio
 @patch("agents.nodes_rag.search_vector_catalog")
 @patch("agents.nodes_rag.filter_films_by_criteria")
-def test_search_vector_sql_none_catalogue_complet(mock_sql, mock_faiss, base_state):
+async def test_search_vector_sql_none_catalogue_complet(
+    mock_sql, mock_faiss, base_state
+):
     """SQL retourne None → candidate_ids=None, FAISS sur catalogue complet."""
     base_state.search_branch = "hybrid"
     base_state.sql_filters = ChatFilters()
-    mock_sql.func.return_value = None
-    mock_faiss.func.return_value = [MockFilmShort()]
+    mock_sql.ainvoke = AsyncMock(return_value=None)
+    mock_faiss.ainvoke = AsyncMock(return_value=[MockFilmShort()])
 
-    result = search_vector_node(base_state)
+    result = await search_vector_node(base_state)
 
-    mock_faiss.func.assert_called_once_with(
-        query=base_state.user_query, top_k=5, candidate_ids=None
+    mock_faiss.ainvoke.assert_called_once_with(
+        {"query": base_state.user_query, "candidate_ids": None, "top_k": 5}
     )
     assert result["current_step"] == "has_results"
 
@@ -381,48 +392,52 @@ def test_search_vector_sql_none_catalogue_complet(mock_sql, mock_faiss, base_sta
 # ==============================================================================
 
 
-@patch("agents.nodes_rag.get_films_details_by_ids")
-def test_hydratation_nominale(mock_sql, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_details_by_ids", new_callable=AsyncMock)
+async def test_hydratation_nominale(mock_sql, base_state):
     """Film trouvé → FilmDetail dans retrieved_movies."""
     base_state.retrieved_movies = [MockFilmShort()]
     mock_sql.return_value = [MockFilmDetail()]
 
-    result = hydratation_node(base_state)
+    result = await hydratation_node(base_state)
 
     assert result["current_step"] == "hydrated"
     assert result["retrieved_movies"][0].title == "Alien"
 
 
-@patch("agents.nodes_rag.get_films_details_by_ids")
-def test_hydratation_retrieved_movies_vide(mock_sql, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_details_by_ids", new_callable=AsyncMock)
+async def test_hydratation_retrieved_movies_vide(mock_sql, base_state):
     """retrieved_movies vide → no_results sans appel SQL."""
     base_state.retrieved_movies = []
 
-    result = hydratation_node(base_state)
+    result = await hydratation_node(base_state)
 
     mock_sql.assert_not_called()
     assert result["current_step"] == "no_results"
 
 
-@patch("agents.nodes_rag.get_films_details_by_ids")
-def test_hydratation_film_absent_sql(mock_sql, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_details_by_ids", new_callable=AsyncMock)
+async def test_hydratation_film_absent_sql(mock_sql, base_state):
     """Film présent dans FAISS mais absent en SQL → no_results."""
     base_state.retrieved_movies = [MockFilmShort(tmdb_id=9999)]
     mock_sql.return_value = []
 
-    result = hydratation_node(base_state)
+    result = await hydratation_node(base_state)
 
     assert result["current_step"] == "no_results"
 
 
-@patch("agents.nodes_rag.get_films_details_by_ids")
-def test_hydratation_utilise_premier_film_uniquement(mock_sql, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_details_by_ids", new_callable=AsyncMock)
+async def test_hydratation_utilise_premier_film_uniquement(mock_sql, base_state):
     """Seul retrieved_movies[0] est hydraté."""
     films = [MockFilmShort(tmdb_id=1), MockFilmShort(tmdb_id=2)]
     base_state.retrieved_movies = films
     mock_sql.return_value = [MockFilmDetail(tmdb_id=1)]
 
-    hydratation_node(base_state)
+    await hydratation_node(base_state)
 
     mock_sql.assert_called_once_with([1])
 
@@ -477,7 +492,7 @@ def test_card_node_last_displayed_movies_id(base_state):
 # ==============================================================================
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_node_cas2_valid(mock_llm, base_state):
     """Film pertinent et complet → valid."""
     base_state.retrieved_movies = [MockFilmDetail()]
@@ -492,7 +507,7 @@ def test_validation_node_cas2_valid(mock_llm, base_state):
     assert result["current_step"] == "valid"
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_node_cas3_valid_missing_synopsis(mock_llm, base_state):
     """Film pertinent mais synopsis manquant → valid_missing_synopsis."""
     base_state.retrieved_movies = [MockFilmDetail()]
@@ -510,7 +525,7 @@ def test_validation_node_cas3_valid_missing_synopsis(mock_llm, base_state):
     assert result["current_step"] == "valid_missing_synopsis"
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_node_invalid_avec_corrected_title(mock_llm, base_state):
     """Film invalide avec corrected_title → answer mis à jour."""
     base_state.retrieved_movies = [MockFilmDetail()]
@@ -531,7 +546,7 @@ def test_validation_node_invalid_avec_corrected_title(mock_llm, base_state):
     assert result["retry_count"] == 1
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_node_invalid_titre_extrait_du_feedback(mock_llm, base_state):
     """corrected_title=None mais titre dans feedback → extrait par regex."""
     base_state.retrieved_movies = [MockFilmDetail()]
@@ -550,7 +565,7 @@ def test_validation_node_invalid_titre_extrait_du_feedback(mock_llm, base_state)
     assert result["answer"] == "The Shining"
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_node_invalid_sans_titre_corrige(mock_llm, base_state):
     """Film invalide sans titre corrigé → invalid_coherence sans answer."""
     base_state.retrieved_movies = [MockFilmDetail()]
@@ -567,10 +582,10 @@ def test_validation_node_invalid_sans_titre_corrige(mock_llm, base_state):
     result = validation_node(base_state)
 
     assert result["current_step"] == "invalid_coherence"
-    assert result["answer"] == None
+    assert result["answer"] is None
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_node_retrieved_movies_vide(mock_llm, base_state):
     """retrieved_movies vide → invalid_coherence direct."""
     base_state.retrieved_movies = []
@@ -581,7 +596,7 @@ def test_validation_node_retrieved_movies_vide(mock_llm, base_state):
     assert result["current_step"] == "invalid_coherence"
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_node_fallback_erreur_llm(mock_llm, base_state):
     """Erreur LLM → fallback valid."""
     base_state.retrieved_movies = [MockFilmDetail()]
@@ -599,41 +614,40 @@ def test_validation_node_fallback_erreur_llm(mock_llm, base_state):
 # ==============================================================================
 
 
-@patch("agents.nodes_rag.get_films_short_by_ids")
-@patch("agents.nodes_rag.db_session")
-def test_format_cards_nominal(mock_db, mock_get, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_short_by_ids", new_callable=AsyncMock)
+async def test_format_cards_nominal(mock_get, base_state):
     """Hydratation SQL réussie → cards_ready avec last_displayed_movies_id."""
     base_state.retrieved_movies = [MockFilmShort(tmdb_id=1), MockFilmShort(tmdb_id=2)]
-    mock_db.return_value.__enter__.return_value = MagicMock()
     mock_get.return_value = [MockFilmShort(tmdb_id=1), MockFilmShort(tmdb_id=2)]
 
-    result = format_cards_node(base_state)
+    result = await format_cards_node(base_state)
 
     assert result["current_step"] == "cards_ready"
     assert result["last_displayed_movies_id"] == [1, 2]
     assert len(result["retrieved_movies"]) == 2
 
 
-@patch("agents.nodes_rag.get_films_short_by_ids")
-@patch("agents.nodes_rag.db_session")
-def test_format_cards_retrieved_movies_vide(mock_db, mock_get, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_short_by_ids", new_callable=AsyncMock)
+async def test_format_cards_retrieved_movies_vide(mock_get, base_state):
     """retrieved_movies vide → no_results sans appel SQL."""
     base_state.retrieved_movies = []
 
-    result = format_cards_node(base_state)
+    result = await format_cards_node(base_state)
 
     mock_get.assert_not_called()
     assert result["current_step"] == "no_results"
 
 
-@patch("agents.nodes_rag.get_films_short_by_ids")
-@patch("agents.nodes_rag.db_session")
-def test_format_cards_erreur_sql(mock_db, mock_get, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_short_by_ids", new_callable=AsyncMock)
+async def test_format_cards_erreur_sql(mock_get, base_state):
     """Erreur SQL → no_results, retrieved_movies vide, pas d'exception."""
     base_state.retrieved_movies = [MockFilmShort()]
-    mock_db.return_value.__enter__.side_effect = Exception("DB down")
+    mock_get.side_effect = Exception("DB down")
 
-    result = format_cards_node(base_state)
+    result = await format_cards_node(base_state)
 
     assert result["current_step"] == "no_results"
     assert result["retrieved_movies"] == []
@@ -644,7 +658,7 @@ def test_format_cards_erreur_sql(mock_db, mock_get, base_state):
 # ==============================================================================
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_film_cas2_pass_total(mock_llm, base_state):
     """Tous les films valides → valid, retrieved_movies inchangé."""
     films = [
@@ -666,7 +680,7 @@ def test_validation_film_cas2_pass_total(mock_llm, base_state):
     assert len(result["retrieved_movies"]) == 2
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_film_cas3_pass_partiel(mock_llm, base_state):
     """Certains films valides → valid_partial, liste filtrée."""
     films = [
@@ -689,7 +703,7 @@ def test_validation_film_cas3_pass_partiel(mock_llm, base_state):
     assert result["retrieved_movies"][0].title == "Alien"
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_film_cas4_fail_total(mock_llm, base_state):
     """Aucun film valide → invalid_coherence, retry_count incrémenté."""
     base_state.retrieved_movies = [MockFilmShort(title="Film Hors-Sujet")]
@@ -708,7 +722,7 @@ def test_validation_film_cas4_fail_total(mock_llm, base_state):
     assert result["retry_count"] == 1
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_film_cas1_retrieved_movies_vide(mock_llm, base_state):
     """retrieved_movies vide → invalid_coherence direct."""
     base_state.retrieved_movies = []
@@ -719,7 +733,7 @@ def test_validation_film_cas1_retrieved_movies_vide(mock_llm, base_state):
     assert result["current_step"] == "invalid_coherence"
 
 
-@patch("agents.nodes_rag.structured_llm")
+@patch("agents.nodes_rag.validation_llm")
 def test_validation_film_fallback_erreur_llm(mock_llm, base_state):
     """Erreur LLM → fallback valid avec tous les films."""
     films = [MockFilmShort(title="Alien")]
@@ -739,12 +753,13 @@ def test_validation_film_fallback_erreur_llm(mock_llm, base_state):
 # ==============================================================================
 
 
-@patch("agents.nodes_rag.get_films_details_by_ids")
-def test_load_film_cas1_ids_vides(mock_sql, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_details_by_ids", new_callable=AsyncMock)
+async def test_load_film_cas1_ids_vides(mock_sql, base_state):
     """Aucun ID en mémoire → intent_rupture, branch=RAG."""
     base_state.last_displayed_movies_id = []
 
-    result = load_film_node(base_state)
+    result = await load_film_node(base_state)
 
     mock_sql.assert_not_called()
     assert result["current_step"] == "intent_rupture"
@@ -752,37 +767,40 @@ def test_load_film_cas1_ids_vides(mock_sql, base_state):
     assert result["retrieved_movies"] == []
 
 
-@patch("agents.nodes_rag.get_films_details_by_ids")
-def test_load_film_cas2_sql_vide(mock_sql, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_details_by_ids", new_callable=AsyncMock)
+async def test_load_film_cas2_sql_vide(mock_sql, base_state):
     """ID en mémoire mais film absent en SQL → intent_rupture."""
     base_state.last_displayed_movies_id = [999]
     mock_sql.return_value = []
 
-    result = load_film_node(base_state)
+    result = await load_film_node(base_state)
 
     assert result["current_step"] == "intent_rupture"
     assert result["retrieved_movies"] == []
 
 
-@patch("agents.nodes_rag.get_films_details_by_ids")
-def test_load_film_cas2_erreur_sql(mock_sql, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_details_by_ids", new_callable=AsyncMock)
+async def test_load_film_cas2_erreur_sql(mock_sql, base_state):
     """Erreur SQL → intent_rupture, pas d'exception."""
     base_state.last_displayed_movies_id = [123]
     mock_sql.side_effect = Exception("DB down")
 
-    result = load_film_node(base_state)
+    result = await load_film_node(base_state)
 
     assert result["current_step"] == "intent_rupture"
     assert result["retrieved_movies"] == []
 
 
-@patch("agents.nodes_rag.get_films_details_by_ids")
-def test_load_film_cas3_succes(mock_sql, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_details_by_ids", new_callable=AsyncMock)
+async def test_load_film_cas3_succes(mock_sql, base_state):
     """Film chargé → film_loaded, branch=DISCUSSION."""
     base_state.last_displayed_movies_id = [123]
     mock_sql.return_value = [MockFilmDetail()]
 
-    result = load_film_node(base_state)
+    result = await load_film_node(base_state)
 
     assert result["current_step"] == "film_loaded"
     assert result["branch_search_wiki"] == "DISCUSSION"
@@ -790,12 +808,13 @@ def test_load_film_cas3_succes(mock_sql, base_state):
     assert result["retrieved_movies"][0].title == "Alien"
 
 
-@patch("agents.nodes_rag.get_films_details_by_ids")
-def test_load_film_last_displayed_none(mock_sql, base_state):
+@pytest.mark.asyncio
+@patch("agents.nodes_rag.get_films_details_by_ids", new_callable=AsyncMock)
+async def test_load_film_last_displayed_none(mock_sql, base_state):
     """last_displayed_movies_id=None → traité comme liste vide."""
     base_state.last_displayed_movies_id = None
 
-    result = load_film_node(base_state)
+    result = await load_film_node(base_state)
 
     mock_sql.assert_not_called()
     assert result["current_step"] == "intent_rupture"
@@ -959,8 +978,8 @@ def test_validation_node_cas_4_titre_corrige_identifie(base_state):
     }
 
     # 3. On injecte ce mock lors de l'appel du LLM
-    with patch("agents.nodes_rag.structured_llm") as mock_llm:
-        # structured_llm.with_structured_output(ValidationResult).invoke(...)
+    with patch("agents.nodes_rag.validation_llm") as mock_llm:
+        # validation_llm.with_structured_output(ValidationResult).invoke(...)
         mock_llm.with_structured_output.return_value.invoke.return_value = (
             mock_validation_result
         )

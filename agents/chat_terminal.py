@@ -17,10 +17,11 @@ root_path = Path(__file__).resolve().parents[1]  # agents/ → racine
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))
 
-from agents.graph import graph as build_my_graph
-from shared.schemas import ChatFilters
 from database.connection import db_session
 from database.faiss_service import faiss_global_service
+from shared.schemas import ChatFilters
+
+from agents.graph import graph as build_my_graph
 
 STOP_WORDS = {"exit", "quit", "q", "bye"}
 

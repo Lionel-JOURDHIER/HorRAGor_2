@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import relationship
+
 from database.tables.base import Base
 
 
@@ -34,7 +35,8 @@ class Film(Base):
     tmdb_id = Column(Integer, primary_key=True, autoincrement=False)
 
     # --- Foreign Keys ---
-    # SET NULL on delete ensures we keep the film even if the director/collection is removed
+    # SET NULL on delete ensures we keep the film even if the director/collection
+    # is removed
     director_id = Column(
         Integer,
         ForeignKey("realisateurs.director_id", ondelete="SET NULL"),

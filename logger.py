@@ -33,9 +33,10 @@ Auteur :
     Équipe HorRAGor - projet pédagogique IA / RAG
 """
 
-from loguru import logger
 import sys
 from pathlib import Path
+
+from loguru import logger
 
 LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
@@ -47,7 +48,10 @@ def setup_logger():
     logger.add(
         sys.stdout,
         level="DEBUG",
-        format="<green>{time}</green> | <level>{level}</level> | {extra[module]} | {message}"
+        format=(
+            "<green>{time}</green> | <level>{level}</level>"
+            " | {extra[module]} | {message}"
+        ),
     )
 
     logger.add(
@@ -55,7 +59,7 @@ def setup_logger():
         level="INFO",
         rotation="10 MB",
         retention="7 days",
-        format="{time} | {level} | {extra[module]} | {message}"
+        format="{time} | {level} | {extra[module]} | {message}",
     )
 
     logger.add(
@@ -63,7 +67,7 @@ def setup_logger():
         level="ERROR",
         rotation="5 MB",
         retention="14 days",
-        format="{time} | {level} | {extra[module]} | {message}"
+        format="{time} | {level} | {extra[module]} | {message}",
     )
 
     return logger

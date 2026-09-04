@@ -214,7 +214,9 @@ def send_chat_query(
     except (requests.exceptions.Timeout, httpx.TimeoutException):
         return {
             "status": "error",
-            "message_erreur": "La requête a pris trop de temps. L'agent est peut-être surchargé.",
+            "message_erreur": (
+                "La requête a pris trop de temps. L'agent est peut-être surchargé."
+            ),
         }
     except (requests.exceptions.RequestException, httpx.RequestError) as e:
         return {
@@ -239,9 +241,7 @@ def get_chat_history(access_token: str) -> List[Dict[str, Any]]:
     headers = {"Authorization": f"Bearer {access_token}"}
 
     try:
-        response = requests.get(
-            f"{api_url}/chat/history", headers=headers, timeout=10
-        )
+        response = requests.get(f"{api_url}/chat/history", headers=headers, timeout=10)
         response.raise_for_status()
         return response.json().get("history", [])
     except requests.exceptions.RequestException:
@@ -307,7 +307,7 @@ def send_chat_query_streaming(
                 "POST", f"{api_url}/chat/response_stream", json=payload, headers=headers
             ) as response:
                 response.raise_for_status()
-                
+
                 for line in response.iter_lines():
                     # Ignorer les lignes vides ou sans préfixe "data: "
                     if not line or not line.startswith("data: "):
@@ -316,7 +316,7 @@ def send_chat_query_streaming(
                     # Parser l'événement SSE
                     event = json.loads(line[6:])
                     yield event
-                    
+
                     # Arrêter si c'est l'événement de fin
                     if event.get("type") == "done":
                         break

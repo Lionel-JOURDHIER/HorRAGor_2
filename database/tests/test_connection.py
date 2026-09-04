@@ -13,13 +13,12 @@ Usage :
 import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
-from sqlalchemy import text
-from sqlalchemy.orm import Session
-
 # Import direct rendu robuste grâce au conftest.py global
 import database.connection as connection
+import pytest
 from database.connection import db_session
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 def test_db_connection():
@@ -81,7 +80,10 @@ def test_db_connection_failure():
 
 
 def test_db_connection_url_parse_failure():
-    """Force un échec de parsing de l'URL sur le bon module (Couvre le premier 'except')."""
+    """Force un échec de parsing de l'URL sur le bon module.
+
+    Couvre le premier 'except'.
+    """
     # On patche DATABASE_URL directement dans le module 'connection'
     with patch("database.connection.DATABASE_URL", "sqlite:///:memory:"):
         # On patche aussi connect pour éviter que le test ne crash sur l'étape suivante
@@ -124,7 +126,7 @@ def test_db_session_rollback_on_exception():
 
     # On force une levée d'exception à l'intérieur du bloc contextuel
     with pytest.raises(FakeDatabaseError):
-        with db_session() as session:
+        with db_session():
             # On simule un ajout qui va crasher ou une erreur d'exécution
             raise FakeDatabaseError("Simulated database crash")
 

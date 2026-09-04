@@ -21,5 +21,6 @@ root_dir = Path(__file__).resolve().parents[2]
 env_path = root_dir / ".env"
 
 if env_path.exists():
-    # override=True permet de s'assurer que les vraies valeurs écrasent les valeurs par défaut
+    # override=True permet de s'assurer que les vraies valeurs écrasent les
+    # valeurs par défaut
     load_dotenv(dotenv_path=env_path, override=True)

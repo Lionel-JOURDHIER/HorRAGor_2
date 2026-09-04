@@ -3,9 +3,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage
-
 from agents.nodes_narrateur import narrator_node
+from langchain_core.messages import AIMessage
 from shared.schemas import AgentStep
 
 # ==============================================================================
@@ -122,7 +121,7 @@ def test_narrator_cas_b_retrieved_movies_vide(mock_llm, base_state):
     base_state.retrieved_movies = []
     mock_llm.invoke.return_value = AIMessage(content="Aucun film dans les archives...")
 
-    result = narrator_node(base_state)
+    narrator_node(base_state)
 
     call_args = mock_llm.invoke.call_args[0][0]
     assert any("échoué" in str(m.content) for m in call_args)
@@ -172,7 +171,8 @@ def test_narrator_cas_c_cards_ready(mock_llm, base_state):
     base_state.current_step = "cards_ready"
     base_state.retrieved_movies = films
 
-    # Optionnel : On simule que le nœud "card" (passé juste avant) a bien fait son travail
+    # Optionnel : On simule que le nœud "card" (passé juste avant) a bien fait son
+    # travail
     base_state.last_displayed_movies_id = [1, 2, 3]
 
     mock_llm.invoke.return_value = AIMessage(
@@ -188,8 +188,10 @@ def test_narrator_cas_c_cards_ready(mock_llm, base_state):
     call_args = mock_llm.invoke.call_args[0][0]
     assert any("parchemins" in str(m.content) for m in call_args)
 
-    # Si votre nœud narrateur renvoie l'état complet, on s'assure qu'il n'a pas altéré la mémoire.
-    # S'il ne renvoie que les clés modifiées (ex: {"answer": ...}), vous pouvez omettre cette ligne.
+    # Si votre nœud narrateur renvoie l'état complet, on s'assure qu'il n'a pas
+    # altéré la mémoire.
+    # S'il ne renvoie que les clés modifiées (ex: {"answer": ...}), vous pouvez
+    # omettre cette ligne.
     assert result["last_displayed_movies_id"] == [1, 2, 3]
 
 
@@ -372,7 +374,7 @@ def test_narrator_cas_c_multi_films_contexte(mock_llm, base_state):
     base_state.last_displayed_movies_id = [1, 2, 3]
     mock_llm.invoke.return_value = AIMessage(content="Trois monstres émergent...")
 
-    result = narrator_node(base_state)
+    narrator_node(base_state)
 
     call_args = mock_llm.invoke.call_args[0][0]
     context_str = " ".join(str(m.content) for m in call_args)
@@ -428,7 +430,7 @@ def test_narrator_cas_b_priorite_sur_cas_c(mock_llm, base_state):
     base_state.retrieved_movies = [MockFilmDetail()]  # Non vide
     mock_llm.invoke.return_value = AIMessage(content="Réponse B...")
 
-    result = narrator_node(base_state)
+    narrator_node(base_state)
 
     call_args = mock_llm.invoke.call_args[0][0]
     # Doit partir sur le contexte B (échec), pas C (cartes)

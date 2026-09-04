@@ -8,22 +8,18 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Request
+import aiosqlite
+from agents.graph import CHECKPOINT_DB_PATH, CHECKPOINT_SERDE
+from fastapi import FastAPI, Request
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-
-from agents.graph import CHECKPOINT_DB_PATH
-from api.modules.chat_service import init_graph
-from api.monitoring.langfuse_client import langfuse
-from api.routes_monitoring import router as monitoring_router
-from api.auth_routes import router as auth_router
+from logger import get_logger, setup_logger
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from fastapi import FastAPI
-
-
+from api.auth_routes import router as auth_router
+from api.modules.chat_service import init_graph
+from api.monitoring.langfuse_client import langfuse
 from api.routes import router
-
-from logger import get_logger, setup_logger
+from api.routes_monitoring import router as monitoring_router
 
 setup_logger()
 logger = get_logger("MAIN")
@@ -42,6 +38,7 @@ async def lifespan(app: FastAPI):
     - Aucun accès direct à SQLAlchemy ou Supabase.
     """
 
+    from database.connection import db_session
     from database.faiss_service import faiss_global_service
 
     index_path = os.getenv(
@@ -54,9 +51,7 @@ async def lifespan(app: FastAPI):
         "faiss_data/horragor_mapping.json",
     )
 
-    logger.info(
-        f"Chargement de l'index FAISS (instance={id(faiss_global_service)})..."
-    )
+    logger.info(f"Chargement de l'index FAISS (instance={id(faiss_global_service)})...")
 
     loaded = faiss_global_service.load_index(
         index_path=index_path,
@@ -64,21 +59,27 @@ async def lifespan(app: FastAPI):
     )
 
     if not loaded:
-        logger.error(
-            "Impossible de charger l'index FAISS. "
-            "Les fichiers d'index sont absents."
+        logger.warning(
+            "Index FAISS absent sur le disque. Construction depuis Supabase..."
         )
-        raise RuntimeError(
-            "FAISS index not found."
-        )
+        with db_session() as session:
+            faiss_global_service.build_index(session)
 
-    logger.info(
-        f"Index FAISS chargé : {faiss_global_service.index.ntotal} films."
-    )
+        if faiss_global_service.index.ntotal == 0:
+            logger.error(
+                "Construction de l'index FAISS depuis Supabase : aucun film "
+                "vectorisé trouvé (table film_embeddings vide)."
+            )
+            raise RuntimeError("FAISS index empty after build from Supabase.")
+
+        faiss_global_service.save_index(index_path, mapping_path)
+
+    logger.info(f"Index FAISS chargé : {faiss_global_service.index.ntotal} films.")
 
     Path(CHECKPOINT_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
 
-    async with AsyncSqliteSaver.from_conn_string(CHECKPOINT_DB_PATH) as checkpointer:
+    async with aiosqlite.connect(CHECKPOINT_DB_PATH) as conn:
+        checkpointer = AsyncSqliteSaver(conn, serde=CHECKPOINT_SERDE)
         init_graph(checkpointer)
         logger.info("Graphe LangGraph compilé avec le checkpointer SQLite async.")
 
@@ -95,6 +96,7 @@ app = FastAPI(
 
 Instrumentator().instrument(app).expose(app)
 
+
 @app.middleware("http")
 async def langfuse_middleware(request: Request, call_next):
     """
@@ -104,12 +106,12 @@ async def langfuse_middleware(request: Request, call_next):
     """
 
     excluded_paths = {
-        "/health",
-        "/metrics",
-        "/monitoring/metrics",
-        "/monitoring/traces",
-        "/docs",
-        "/openapi.json",
+        "/api/health",
+        "/api/metrics",
+        "/api/monitoring/metrics",
+        "/api/monitoring/traces",
+        "/api/docs",
+        "/api/openapi.json",
     }
 
     if request.url.path in excluded_paths:
@@ -126,16 +128,12 @@ async def langfuse_middleware(request: Request, call_next):
         try:
             response = await call_next(request)
 
-            observation.update(
-                output={"status_code": response.status_code}
-            )
+            observation.update(output={"status_code": response.status_code})
 
             return response
 
         except Exception as e:
-            observation.update(
-                output={"error": str(e)}
-            )
+            observation.update(output={"error": str(e)})
             raise
 
         finally:

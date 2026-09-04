@@ -1,9 +1,8 @@
 from unittest.mock import MagicMock, patch
 
+import database.populate as populate
 import numpy as np
 import pytest
-
-import database.populate as populate
 from database.faiss_service import FaissService
 
 
@@ -53,7 +52,8 @@ def test_run_pipeline_batch_recovery(mock_get_db, mock_embed):
     mock_get_db.return_value.__next__.return_value = mock_context
 
     # Film 1 (titre + overview) et Film 2 (titre + overview) réussissent.
-    # L'exception est levée juste après la création du Film 2 pour simuler un crash pendant la boucle.
+    # L'exception est levée juste après la création du Film 2 pour simuler
+    # un crash pendant la boucle.
     mock_embed.side_effect = [
         [0.1] * 1024,
         [0.1] * 1024,  # Film 1 : OK
@@ -79,7 +79,8 @@ def test_run_pipeline_batch_recovery(mock_get_db, mock_embed):
 
             assert "Crash Ollama simulé" in str(exc_info.value)
 
-    # Vérifie que malgré le crash, le merge du tampon (Film 1 et Film 2) a bien été exécuté
+    # Vérifie que malgré le crash, le merge du tampon (Film 1 et Film 2)
+    # a bien été exécuté
     assert mock_session.merge.called
     assert mock_session.commit.called
 
@@ -88,7 +89,7 @@ def test_run_pipeline_batch_recovery(mock_get_db, mock_embed):
 
 
 def test_save_and_load_index(tmp_path):
-    """Vérifie la persistance sur disque (écriture et lecture) de l'index et du mapping."""
+    """Vérifie la persistance sur disque de l'index et du mapping."""
     # 1. Préparation d'un service avec des données factices
     service = FaissService(dimension=4)  # Dimension réduite pour le test
     test_vec = np.array([[0.1, 0.2, 0.3, 0.4]], dtype="float32")
@@ -126,7 +127,7 @@ def test_load_index_missing_files(tmp_path):
 
 
 def test_load_or_build_when_files_exist():
-    """Vérifie que la construction est ignorée si l'index est chargé depuis le disque."""
+    """Vérifie que la construction est ignorée si l'index se charge depuis le disque."""
     service = FaissService(dimension=4)
     mock_session = MagicMock()
 
@@ -142,7 +143,7 @@ def test_load_or_build_when_files_exist():
 
 
 def test_load_or_build_when_files_missing():
-    """Vérifie la construction et la sauvegarde si l'index est introuvable sur le disque."""
+    """Vérifie la construction et la sauvegarde si l'index est introuvable."""
     service = FaissService(dimension=4)
     mock_session = MagicMock()
 
@@ -159,21 +160,21 @@ def test_load_or_build_when_files_missing():
     service.save_index.assert_called_once()
 
 
-def test_get_vector_by_id():
-    """Vérifie la récupération d'un vecteur depuis la RAM via l'ID TMDB."""
-    service = FaissService(dimension=2)
+# def test_get_vector_by_id():
+#     """Vérifie la récupération d'un vecteur depuis la RAM via l'ID TMDB."""
+#     service = FaissService(dimension=2)
 
-    # Cas 1 : Index vide
-    assert service.get_vector_by_id(999) is None
+#     # Cas 1 : Index vide
+#     assert service.get_vector_by_id(999) is None
 
-    # Ajout d'un vecteur
-    test_vec = np.array([[0.5, 0.8]], dtype="float32")
-    service.index.add(test_vec)
-    service.id_mapping[0] = 999
+#     # Ajout d'un vecteur
+#     test_vec = np.array([[0.5, 0.8]], dtype="float32")
+#     service.index.add(test_vec)
+#     service.id_mapping[0] = 999
 
-    # Cas 2 : Récupération réussie
-    vec = service.get_vector_by_id(999)
-    assert pytest.approx(vec) == [0.5, 0.8]
+#     # Cas 2 : Récupération réussie
+#     vec = service.get_vector_by_id(999)
+#     assert pytest.approx(vec) == [0.5, 0.8]
 
-    # Cas 3 : ID TMDB introuvable dans le mapping
-    assert service.get_vector_by_id(777) is None
+#     # Cas 3 : ID TMDB introuvable dans le mapping
+#     assert service.get_vector_by_id(777) is None

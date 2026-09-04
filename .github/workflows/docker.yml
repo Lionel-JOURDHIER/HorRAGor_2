@@ -24,6 +24,29 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
 
+    env:
+        JWT_SECRET_KEY: test-secret-key-for-ci-only
+        SUPABASE_USER: test
+        SUPABASE_PASSWORD: test-password-for-ci
+        SUPABASE_HOST: localhost
+        SUPABASE_PORT: "5432"
+        SUPABASE_DB: test
+
+    services:
+        postgres:
+            image:  pgvector/pgvector:pg16
+            env:
+                POSTGRES_USER: test
+                POSTGRES_PASSWORD: test-password-for-ci
+                POSTGRES_DB: test
+            ports:
+            - 5432:5432
+            options: >-
+                --health-cmd pg_isready
+                --health-interval 10s
+                --health-timeout 5s
+                --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,21 +59,192 @@ jobs:
         with:
           python-version: "3.11"
 
+      # ───────────────── AGENTS ─────────────────
+
       - name: Install agents dependencies
         working-directory: agents
         run: uv sync
 
-      - name: Run tests
+      - name: Run agents tests
         working-directory: agents
-        run: uv run pytest
+        run: >
+          uv run pytest
+          --cov=.
+          --cov-report=term-missing
+          --cov-report=xml:coverage-agents.xml
+          --cov-report=html:htmlcov-agents
+          --cov-fail-under=40
 
-      - name: Build documentation
-        working-directory: docs
-        run: uv run --project ../api sphinx-build -E -b html source build/html
+      - name: Upload Agents coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: agents-coverage
+          path: |
+            agents/coverage-agents.xml
+            agents/htmlcov-agents/
 
-        
+      # ─────────────────── API ──────────────────
+
+      - name: Install API dependencies
+        working-directory: api
+        run: uv sync
+
+      - name: Run API tests
+        working-directory: api
+        run: >
+          uv run pytest
+          --cov=.
+          --cov-report=term-missing
+          --cov-report=xml:coverage-api.xml
+          --cov-report=html:htmlcov-api
+          --cov-fail-under=40
+
+      - name: Upload API coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-coverage
+          path: |
+            api/coverage-api.xml
+            api/htmlcov-api/
+
+      # ─────────────── DATABASE API ─────────────
+
+      - name: Install Database dependencies
+        working-directory: database
+        run: uv sync
+
+
+      - name: Run Database tests
+        working-directory: database
+        run: >
+          uv run pytest
+          --cov=.
+          --cov-report=term-missing
+          --cov-report=xml:coverage-database.xml
+          --cov-report=html:htmlcov-database
+          --cov-fail-under=40
+
+      - name: Upload Database coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-coverage
+          path: |
+            database/coverage-database.xml
+            database/htmlcov-database/
+
+      # ───────────────── FRONTEND ───────────────
+
+      - name: Install Frontend dependencies
+        working-directory: frontend
+        run: uv sync
+
+      - name: Run Frontend tests
+        working-directory: frontend
+        run: >
+          uv run pytest
+          --cov=.
+          --cov-report=term-missing
+          --cov-report=xml:coverage-frontend.xml
+          --cov-report=html:htmlcov-frontend
+          --cov-fail-under=40
+
+      - name: Upload Frontend coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: |
+            frontend/coverage-frontend.xml
+            frontend/htmlcov-frontend/
+
+
   # ─────────────────────────────────────────────
-  # 2. DOCUMENTATION
+  # 2. LINT
+  # ─────────────────────────────────────────────
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Un pas par sous-projet : ruff résout sa configuration par ancêtre le
+      # plus proche, et chacun a ses propres per-file-ignores. Les commandes
+      # sont celles déclarées dans le CLAUDE.md, à `--check` près : une CI
+      # vérifie, elle ne reformate pas.
+
+      # ───────────────── AGENTS ─────────────────
+
+      - name: Install agents dependencies
+        working-directory: agents
+        run: uv sync
+
+      - name: Lint agents
+        working-directory: agents
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      # ─────────────────── API ──────────────────
+
+      - name: Install API dependencies
+        working-directory: api
+        run: uv sync
+
+      - name: Lint API
+        working-directory: api
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      # ─────────────── DATABASE API ─────────────
+
+      - name: Install Database dependencies
+        working-directory: database
+        run: uv sync
+
+      - name: Lint database
+        working-directory: database
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      # ───────────────── FRONTEND ───────────────
+
+      - name: Install Frontend dependencies
+        working-directory: frontend
+        run: uv sync
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      # ──────────── FICHIERS PARTAGÉS ───────────
+
+      # logger.py, shared/, scripts/ et docs/source/conf.py n'appartiennent à
+      # aucun sous-projet : ils sont couverts par le ruff.toml de la racine,
+      # qui exclut les quatre dossiers déjà vérifiés ci-dessus. `--project api`
+      # ne sert qu'à désigner l'environnement qui fournit le binaire ruff (même
+      # version dans les quatre), la configuration venant du ruff.toml racine.
+      - name: Lint shared files
+        run: |
+          uv run --project api ruff check
+          uv run --project api ruff format --check
+
+
+  # ─────────────────────────────────────────────
+  # 3. DOCUMENTATION
   # ─────────────────────────────────────────────
 
   docs:
@@ -70,6 +264,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Download Agents coverage
+        uses: actions/download-artifact@v4
+        with:
+            name: agents-coverage
+            path: agents
+
+      - name: Download API coverage
+        uses: actions/download-artifact@v4
+        with:
+            name: api-coverage
+            path: api
+
+      - name: Download Database coverage
+        uses: actions/download-artifact@v4
+        with:
+            name: database-coverage
+            path: database
+
+      - name: Download Frontend coverage
+        uses: actions/download-artifact@v4
+        with:
+            name: frontend-coverage
+            path: frontend
+
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -85,6 +304,59 @@ jobs:
         working-directory: api
         run: uv sync
 
+      - name: Install Graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - name: Generate coverage documentation
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          files = {
+              "Agents": "agents/coverage-agents.xml",
+              "API": "api/coverage-api.xml",
+              "Database API": "database/coverage-database.xml",
+              "Frontend": "frontend/coverage-frontend.xml",
+          }
+
+          rows = []
+
+          for name, path in files.items():
+              root = ET.parse(path).getroot()
+              coverage = float(root.attrib["line-rate"]) * 100
+              rows.append((name, coverage))
+
+          content = """Couverture des tests
+          ====================
+
+          La couverture des tests des différents composants du projet est présentée
+          ci-dessous.
+
+          +----------------+------------+
+          | Composant      | Couverture |
+          +================+============+
+          """
+
+          for name, coverage in rows:
+            content += f"| {name:<14} | {coverage:>8.0f} % |\n"
+            content += "+----------------+------------+\n"
+
+          content += """
+          L'objectif du projet est d'atteindre une couverture d'au moins **80 %**
+          pour les API et l'interface utilisateur.
+
+          Les rapports de couverture sont générés automatiquement par le pipeline
+          CI/CD GitHub Actions.
+          """
+
+          Path("docs/source/coverage.rst").write_text(
+            content,
+            encoding="utf-8"
+          )
+          PY
+
+
       - name: Build Sphinx documentation
         working-directory: docs
         run: uv run --project ../api sphinx-build -E -b html source build/html
@@ -99,12 +371,12 @@ jobs:
         uses: actions/deploy-pages@v4
 
   # ─────────────────────────────────────────────
-  # 2. BUILD + PUSH DOCKER IMAGES
+  # 4. BUILD + PUSH DOCKER IMAGES
   # ─────────────────────────────────────────────
 
   docker:
     name: Build and Push Docker Images
-    needs: test
+    needs: [test, lint]
 
     if: github.event_name == 'push'
 
@@ -117,7 +389,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
 
       - name: Login to GHCR
         uses: docker/login-action@v3

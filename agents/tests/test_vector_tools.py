@@ -1,12 +1,8 @@
-from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import faiss
+import numpy as np
 import pytest
-pytestmark = pytest.mark.skip(reason="Временно отключено")
-
-from agents.tools.sql_tools import (
-    # _build_filtered_ids,
-    filter_films_by_criteria
-)
 from agents.tools.vector_tools import (
     SMALL_POOL_THRESHOLD,
     faiss_global_service,
@@ -14,35 +10,79 @@ from agents.tools.vector_tools import (
     search_vector_catalog,
 )
 from shared.schemas import FilmShort
-# from database.connection import db_session
+
+# Nombre de vecteurs synthétiques : dépasse SMALL_POOL_THRESHOLD pour que le
+# scénario « grand pool » (recherche globale + post-filtre) soit atteignable.
+SYNTHETIC_VECTOR_COUNT = SMALL_POOL_THRESHOLD + 500
+SYNTHETIC_TMDB_ID_BASE = 900000
+
+
+@pytest.fixture
+def mock_external_services():
+    """Isole search_vector_catalog des services réseau réels (Ollama, Database API).
+
+    L'embedding et l'hydratation SQL sont simulés ; seule la recherche FAISS
+    elle-même reste réelle, sur l'index chargé par `setup_faiss_index`.
+    """
+    mock_embedder = MagicMock()
+    mock_embedder.embed_query.return_value = [0.1] * 1024
+    with (
+        patch("agents.tools.vector_tools.OLLAMA_CLIENT_EMBEDD", mock_embedder),
+        patch(
+            "agents.tools.vector_tools.get_films_short_by_ids",
+            new_callable=AsyncMock,
+        ) as mock_get_films,
+    ):
+        mock_get_films.side_effect = lambda ids: [
+            FilmShort(tmdb_id=i, title=f"Film {i}", overview="...", tmdb_score=7.0)
+            for i in ids
+        ]
+        yield
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_faiss_index():
-    """Hydrate le service FAISS vide avec le fichier d'index physique pour les tests."""
+    """Hydrate le service FAISS avec un index synthétique construit en mémoire.
 
-    # 1. Résolution dynamique du chemin vers ton fichier (indépendant du dossier d'où pytest est lancé)
-    project_root = Path(__file__).resolve().parent.parent.parent
-    index_path = project_root / "faiss_data" / "horragor.index"
-    mapping_path = project_root / "faiss_data" / "horragor_mapping.json"
-
-    # Sécurité : on s'assure que le test trouve bien le fichier
-    assert index_path.exists(), f"❌ Fichier index introuvable à : {index_path}"
-
-    # 2. Chargement des données dans ton instance globale
-    # (Remplace "load_index" par le vrai nom de la méthode dans ta classe FaissService)
-    faiss_global_service.load_index(
-        index_path=str(index_path), mapping_path=str(mapping_path)
+    L'index et le mapping réels (`faiss_data/`) sont ignorés par git — voir
+    CLAUDE.md § L'index FAISS est embarqué dans l'image `api` — et donc absents
+    d'un checkout CI. `rules/tests-python.md` § Fixtures interdit de toute façon
+    un chemin en dur vers un dossier du dépôt : les vecteurs sont générés ici,
+    déterministes (graine fixe), sans dépendre d'aucun fichier local.
+    """
+    rng = np.random.default_rng(42)
+    vectors = rng.random(
+        (SYNTHETIC_VECTOR_COUNT, faiss_global_service.dimension), dtype=np.float32
     )
+    faiss_global_service.index = faiss.IndexFlatL2(faiss_global_service.dimension)
+    faiss_global_service.index.add(vectors)
+    faiss_global_service.id_mapping = {
+        i: SYNTHETIC_TMDB_ID_BASE + i for i in range(SYNTHETIC_VECTOR_COUNT)
+    }
+
+
+@pytest.fixture(scope="module")
+def real_tmdb_ids():
+    """IDs tmdb présents dans l'index FAISS synthétique de `setup_faiss_index`.
+
+    Simule le pool que renverrait `filter_films_by_criteria` (Database API
+    réelle, hors de portée d'un test isolé) : des candidate_ids qui existent
+    réellement dans l'index en mémoire, pour que la recherche vectorielle qui
+    suit ait un pool où trouver des résultats.
+    """
+    return [SYNTHETIC_TMDB_ID_BASE + i for i in range(SYNTHETIC_VECTOR_COUNT)]
 
 
 # ──────────────────────────────────────────────────────────────
 # SCÉNARIO 1 : Catalogue complet (Aucun filtre)
 # ──────────────────────────────────────────────────────────────
-def test_search_global_no_filters():
+@pytest.mark.asyncio
+async def test_search_global_no_filters(mock_external_services):
     query = "un tueur avec un masque de hockey dans un camp de vacances"
 
-    results = search_vector_catalog.func(query=query, top_k=3, candidate_ids=None)
+    results = await search_vector_catalog.ainvoke(
+        {"query": query, "top_k": 3, "candidate_ids": None}
+    )
 
     assert results is not None
     assert len(results) <= 3
@@ -53,38 +93,30 @@ def test_search_global_no_filters():
 # ──────────────────────────────────────────────────────────────
 # SCÉNARIO 2 : Petit Pool (Filtre strict / Moins que le seuil)
 # ──────────────────────────────────────────────────────────────
-def test_search_small_pool_kubrick():
+@pytest.mark.asyncio
+async def test_search_small_pool_kubrick(real_tmdb_ids, mock_external_services):
     query = "un écrivain fou dans un hôtel enneigé et hanté"
-
-    candidate_ids = filter_films_by_criteria.func(realisateur="Kubrick")
-
-    assert candidate_ids is not None
+    candidate_ids = real_tmdb_ids[:50]
     assert len(candidate_ids) < SMALL_POOL_THRESHOLD
 
-    results = search_vector_catalog.func(
-        query=query, top_k=3, candidate_ids=candidate_ids
+    results = await search_vector_catalog.ainvoke(
+        {"query": query, "top_k": 3, "candidate_ids": candidate_ids}
     )
 
     assert len(results) > 0
-    # Optionnel : si "The Shining" est dans ta base, tu peux valider sa présence
-    # assert any("Shining" in res.title for res in results)
 
 
 # ──────────────────────────────────────────────────────────────
 # SCÉNARIO 3 : Grand Pool (Supérieur au seuil avec la bonne liste)
 # ──────────────────────────────────────────────────────────────
-def test_search_large_pool_thriller():
+@pytest.mark.asyncio
+async def test_search_large_pool_thriller(real_tmdb_ids, mock_external_services):
     query = "un monstre qui terrifie des adolescents dans leurs rêves"
-
-    candidate_ids = filter_films_by_criteria.func(
-        genres_included=["Horror", "Thriller"]
-    )
-
-    assert candidate_ids is not None
+    candidate_ids = real_tmdb_ids
     assert len(candidate_ids) >= SMALL_POOL_THRESHOLD
 
-    results = search_vector_catalog.func(
-        query=query, top_k=3, candidate_ids=candidate_ids
+    results = await search_vector_catalog.ainvoke(
+        {"query": query, "top_k": 3, "candidate_ids": candidate_ids}
     )
 
     assert len(results) <= 3
@@ -94,20 +126,13 @@ def test_search_large_pool_thriller():
 # ──────────────────────────────────────────────────────────────
 # SCÉNARIO 4 : Le Court-circuit de sécurité (Pool vide)
 # ──────────────────────────────────────────────────────────────
-def test_search_empty_pool_short_circuit():
+@pytest.mark.asyncio
+async def test_search_empty_pool_short_circuit():
     query = "un film d'horreur spatial avec des aliens"
 
-    # Filtre impossible (Kubrick n'a pas sorti de film en 2026)
-    candidate_ids = filter_films_by_criteria.func(
-        realisateur="Kubrick", release_year_min=2026
-    )
-
-    # Validation du contrat d'interface : l'outil SQL DOIT renvoyer une liste vide
-    assert candidate_ids == []
-
     # L'outil vectoriel doit intercepter la liste vide et court-circuiter immédiatement
-    results = search_vector_catalog.func(
-        query=query, top_k=3, candidate_ids=candidate_ids
+    results = await search_vector_catalog.ainvoke(
+        {"query": query, "top_k": 3, "candidate_ids": []}
     )
 
     # Strictement aucun résultat et exécution instantanée
@@ -115,83 +140,32 @@ def test_search_empty_pool_short_circuit():
 
 
 # ──────────────────────────────────────────────────────────────
-# TESTS COMPLÉMENTAIRES POUR ATTEINDRE 100% DE COUVERTURE SQL
-# ──────────────────────────────────────────────────────────────
-
-
-def test_build_filtered_ids_no_filters_active():
-    """Lignes 24-25 : Aucun filtre actif (retourne None)"""
-    with db_session() as session:
-        result = _build_filtered_ids(
-            session=session,
-            realisateur=None,
-            genres_included=None,
-            genres_excluded=None,
-            release_year_min=None,
-            release_year_max=None,
-            tmdb_score_min=None,
-            runtime_min=None,
-            runtime_max=None,
-        )
-        assert result is None
-
-
-def test_build_filtered_ids_with_genres_excluded():
-    """Lignes 44-53 : Exclusion de genres (NOT EXISTS)"""
-    with db_session() as session:
-        result = _build_filtered_ids(
-            session=session,
-            genres_included=["Horror"],
-            genres_excluded=["Comedy", "Sci-Fi"],
-        )
-        assert isinstance(result, list)
-
-
-def test_build_filtered_ids_with_runtime_bounds():
-    """Lignes 61-64 : Filtres sur la durée du film (runtime min/max)"""
-    with db_session() as session:
-        result = _build_filtered_ids(
-            session=session, genres_included=["Horror"], runtime_min=60, runtime_max=120
-        )
-        assert isinstance(result, list)
-
-
-def test_build_filtered_ids_with_tmdb_score():
-    """Lignes 65-68 : Import dynamique et filtre du score TMDB"""
-    with db_session() as session:
-        result = _build_filtered_ids(
-            session=session, genres_included=["Horror"], tmdb_score_min=6.0
-        )
-        assert isinstance(result, list)
-
-
-from unittest.mock import patch
-
-import pytest
-
-# ──────────────────────────────────────────────────────────────
 # TESTS COMPLÉMENTAIRES : EXCEPTION ET RETOURS VIDES (Outil 1)
 # ──────────────────────────────────────────────────────────────
 
 
-def test_search_vector_catalog_empty_faiss_results():
+@pytest.mark.asyncio
+async def test_search_vector_catalog_empty_faiss_results(mock_external_services):
     """Ligne rouge 'if not faiss_results: return []'"""
     # On simule un cas où FAISS ne trouve absolument rien (retourne une liste vide)
     with patch("database.faiss_service.faiss_global_service.search", return_value=[]):
-        results = search_vector_catalog.func(
-            query="requête obscure", candidate_ids=None
+        results = await search_vector_catalog.ainvoke(
+            {"query": "requête obscure", "candidate_ids": None}
         )
         assert results == []
 
 
-def test_search_vector_catalog_exception_handling():
+@pytest.mark.asyncio
+async def test_search_vector_catalog_exception_handling(mock_external_services):
     """Lignes rouges du bloc 'except Exception as e'"""
     # On force une exception (ex: SideEffect provoquant une erreur) lors de la recherche
     with patch(
         "database.faiss_service.faiss_global_service.search",
         side_effect=Exception("FAISS Crash de test"),
     ):
-        results = search_vector_catalog.func(query="test exception", candidate_ids=None)
+        results = await search_vector_catalog.ainvoke(
+            {"query": "test exception", "candidate_ids": None}
+        )
         assert results == []
 
 
@@ -200,18 +174,22 @@ def test_search_vector_catalog_exception_handling():
 # ──────────────────────────────────────────────────────────────
 
 
-def test_search_similar_movies_id_not_found():
+@pytest.mark.asyncio
+async def test_search_similar_movies_id_not_found():
     """Lignes rouges 'if not query_vector: return []'"""
     # On simule un ID de film qui n'a pas de vecteur d'embedding en base
     with patch(
         "database.faiss_service.faiss_global_service.get_vector_by_id",
         return_value=None,
     ):
-        results = search_similar_movies_by_id.func(movie_id=999999, candidate_ids=None)
+        results = await search_similar_movies_by_id.ainvoke(
+            {"movie_id": 999999, "candidate_ids": None}
+        )
         assert results == []
 
 
-def test_search_similar_movies_no_faiss_results():
+@pytest.mark.asyncio
+async def test_search_similar_movies_no_faiss_results():
     """Lignes rouges 'if not faiss_results: return []' pour le deuxième outil"""
     dummy_vector = [0.1] * 384  # Ajuste la dimension selon ton modèle
     with (
@@ -221,14 +199,15 @@ def test_search_similar_movies_no_faiss_results():
         ),
         patch("agents.tools.vector_tools._search_in_pool", return_value=[]),
     ):
-        results = search_similar_movies_by_id.func(
-            movie_id=123, candidate_ids=[456, 789]
+        results = await search_similar_movies_by_id.ainvoke(
+            {"movie_id": 123, "candidate_ids": [456, 789]}
         )
         assert results == []
 
 
-def test_search_similar_movies_success_flow():
-    """Couvre tout le reste du bloc du bas (ordered_ids, distance_map, mapping et return)"""
+@pytest.mark.asyncio
+async def test_search_similar_movies_success_flow():
+    """Couvre le reste du bloc du bas (ordered_ids, distance_map, mapping, return)."""
     dummy_vector = [0.1] * 384
     mock_faiss_results = [(456, 0.2)]  # (tmdb_id, distance)
     mock_films_short = [
@@ -248,20 +227,23 @@ def test_search_similar_movies_success_flow():
             return_value=mock_films_short,
         ),
     ):
-        results = search_similar_movies_by_id.func(
-            movie_id=123, candidate_ids=[456, 789]
+        results = await search_similar_movies_by_id.ainvoke(
+            {"movie_id": 123, "candidate_ids": [456, 789]}
         )
         assert len(results) == 1
         assert results[0].similarity_score is not None
 
 
-def test_search_similar_movies_exception_handling():
+@pytest.mark.asyncio
+async def test_search_similar_movies_exception_handling():
     """Bloc d'exception final 'except Exception as e' du deuxième outil"""
     with patch(
         "database.faiss_service.faiss_global_service.get_vector_by_id",
         side_effect=Exception("Crash global"),
     ):
-        results = search_similar_movies_by_id.func(movie_id=123, candidate_ids=[456])
+        results = await search_similar_movies_by_id.ainvoke(
+            {"movie_id": 123, "candidate_ids": [456]}
+        )
         assert results == []
 
 
@@ -321,52 +303,35 @@ def test_search_in_pool_sub_index_ntotal_zero():
         assert results == []
 
 
-def test_search_similar_movies_else_candidate_ids_none():
-    """Ligne rouge : Force le bloc else à retourner [] quand candidate_ids est None"""
-    from unittest.mock import patch
-
-    # On simule un vecteur valide pour que le test passe la première étape 'if not query_vector:'
+@pytest.mark.asyncio
+async def test_search_similar_movies_else_candidate_ids_none():
+    """Force le bloc else à retourner [] quand candidate_ids est None."""
+    # On simule un vecteur valide pour passer la première étape 'if not query_vector:'
     dummy_vector = [0.1] * 1024
 
     with patch(
         "database.faiss_service.faiss_global_service.get_vector_by_id",
         return_value=dummy_vector,
     ):
-        # On passe explicitement candidate_ids=None pour rentrer directement dans le else rouge
-        results = search_similar_movies_by_id.func(
-            movie_id=123, top_k=5, candidate_ids=None
+        # On passe explicitement candidate_ids=None pour rentrer dans le else rouge
+        results = await search_similar_movies_by_id.ainvoke(
+            {"movie_id": 123, "top_k": 5, "candidate_ids": None}
         )
 
         # On valide le contrat d'interface : le retour doit être une liste vide
         assert results == []
 
 
-def test_build_filtered_ids_with_release_year_bounds():
-    """Ligne rouge : Force l'exécution du filtre de l'année maximale de sortie (release_year_max)"""
-    with db_session() as session:
-        # On définit une plage d'années pour forcer le passage dans les deux blocs 'if'
-        result = _build_filtered_ids(
-            session=session,
-            genres_included=["Horror"],
-            release_year_min=2000,
-            release_year_max=2025,
-        )
-
-        # On valide que la requête s'exécute correctement et renvoie une liste
-        assert isinstance(result, list)
-
-
 def test_search_in_pool_faiss_id_not_in_sub_mapping():
-    """Couvre la condition de sécurité de la boucle de restitution 'if faiss_id in sub_mapping'."""
+    """Couvre la condition de sécurité 'if faiss_id in sub_mapping'."""
     import numpy as np
-
     from agents.tools.vector_tools import _search_in_pool
 
     candidate_ids = [123]
     dummy_vector = [0.1] * 1024
     mock_vector = [0.2] * 1024
 
-    # On simule un comportement où FAISS retourne un ID (-1) qui n'est pas dans notre dictionnaire local
+    # On simule un ID (-1) que FAISS retourne mais absent du dictionnaire local
     mock_D = np.array([[0.5]], dtype="float32")
     mock_I = np.array([[-1]], dtype="int64")  # -1 n'existe pas dans sub_mapping
 

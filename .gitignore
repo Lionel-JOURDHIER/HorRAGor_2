@@ -6,16 +6,17 @@
 .venv/
 venv/
 ENV/
-env/
-bin/
-lib/
-include/
+/env/
+/bin/
+/lib/
+/include/
 /build/
 /dist/
 *.egg-info/
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
 
 # --- Variables d'Environnement (Sécurité Supabase / API) ---
 .env
@@ -61,7 +62,22 @@ data_backup/
 
 monitoring/langfuse/
 
+# sphinx docs
 docs/build/
+
+# Test coverage
+coverage*.xml
+htmlcov*/
 
 # --- Images de travail (overlays de correction de diagrammes, non destinées au dépôt) ---
 slide*_corrections.png
+
+# --- Diagramme du graphe LangGraph, régénéré au démarrage (agents/graph.py) ---
+# Seule la copie à la racine est versionnée (référencée par docs/source/langgraph.rst) ;
+# une régénération locale depuis agents/, api/ ou docs/ ne doit pas recréer de doublon.
+/agents/graph.mmd
+/agents/HorRAGor_graph.png
+/api/graph.mmd
+/api/HorRAGor_graph.png
+/docs/graph.mmd
+/docs/HorRAGor_graph.png

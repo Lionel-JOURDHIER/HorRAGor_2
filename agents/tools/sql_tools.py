@@ -13,15 +13,14 @@ All database operations are performed through HTTP requests.
 
 from typing import List, Optional
 
-from langchain_core.tools import tool
-
 from api.modules.database_client import (
     filter_films as api_filter_films,
+)
+from api.modules.database_client import (
     get_films_details_by_ids as api_get_films_details,
 )
-
+from langchain_core.tools import tool
 from logger import get_logger, setup_logger
-
 
 setup_logger()
 logger = get_logger("DATABASE_TOOLS")
@@ -63,48 +62,31 @@ async def filter_films_by_criteria(
     }
 
     # Remove empty values
-    filters = {
-        key: value
-        for key, value in filters.items()
-        if value is not None
-    }
+    filters = {key: value for key, value in filters.items() if value is not None}
 
     # No business filters
     if not filters:
-        logger.info(
-            "No filters provided, using full catalog"
-        )
+        logger.info("No filters provided, using full catalog")
         return None
 
     try:
-
         ids = await api_filter_films(filters)
 
         if not ids:
-
-            logger.warning(
-                "No films found after filtering"
-            )
+            logger.warning("No films found after filtering")
 
             return None
 
-        logger.info(
-            f"Database API returned {len(ids)} films"
-        )
+        logger.info(f"Database API returned {len(ids)} films")
 
         return ids
 
-
     except Exception as e:
-
-        logger.exception(
-            f"Database API filtering failed: {e}"
-        )
+        logger.exception(f"Database API filtering failed: {e}")
 
         # Important:
         # Agent continues with FAISS full catalog
         return None
-
 
 
 @tool
@@ -125,31 +107,18 @@ async def get_films_details(
     """
 
     if not tmdb_ids:
-
-        logger.info(
-            "No TMDB ids provided"
-        )
+        logger.info("No TMDB ids provided")
 
         return []
 
-
     try:
+        films = await api_get_films_details(tmdb_ids)
 
-        films = await api_get_films_details(
-            tmdb_ids
-        )
-
-        logger.info(
-            f"Retrieved {len(films)} film details"
-        )
+        logger.info(f"Retrieved {len(films)} film details")
 
         return films
 
-
     except Exception as e:
-
-        logger.exception(
-            f"Failed to retrieve film details: {e}"
-        )
+        logger.exception(f"Failed to retrieve film details: {e}")
 
         return []

@@ -1,0 +1,33 @@
+/* HorRAGor documentation */
+
+h1 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+h2 {
+    margin-top: 2.5rem;
+    font-weight: 650;
+}
+
+h3 {
+    margin-top: 2rem;
+}
+
+.sd-card,
+.admonition {
+    border-radius: 10px;
+}
+
+pre {
+    border-radius: 8px;
+}
+
+table.docutils {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.sidebar-brand-text {
+    font-weight: 700;
+}

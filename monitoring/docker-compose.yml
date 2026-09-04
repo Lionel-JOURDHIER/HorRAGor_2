@@ -209,6 +209,18 @@ services:
     networks:
       - horragor_net
 
+  uptime-kuma-provision:
+    build:
+      context: ./uptime-kuma
+    container_name: horragor_uptime_kuma_provision
+    depends_on:
+      - uptime-kuma
+    env_file:
+      - ./uptime-kuma/.env
+    environment:
+      KUMA_URL: http://uptime-kuma:3001
+    networks:
+      - horragor_net
 
 volumes:
   langfuse_postgres_data:

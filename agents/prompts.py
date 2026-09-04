@@ -64,7 +64,7 @@ Règles de mapping :
 RÈGLE CRITIQUE — CRITÈRES NON COUVERTS PAR LE SCHÉMA :
 Ce schéma ne permet PAS de filtrer par nationalité, pays d'origine ou langue du film.
 Si la demande porte uniquement sur un critère non couvert (ex: "films japonais", "films français", "cinéma coréen"),
-laisse TOUS les champs à leur valeur par défaut (listes vides, valeurs null). 
+laisse TOUS les champs à leur valeur par défaut (listes vides, valeurs null).
 N'utilise JAMAIS genres_excluded pour compenser un critère que tu ne sais pas mapper.
 Ne mets JAMAIS l'intégralité de la liste des genres dans genres_excluded : cela exclurait tout le catalogue.
 

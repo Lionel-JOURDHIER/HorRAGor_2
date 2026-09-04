@@ -86,13 +86,12 @@ class MonitoringService:
 
         return {
             "total_traces": total_traces,
-            "average_latency_ms": (
-                total_latency / total_traces if total_traces else 0
-            ),
+            "average_latency_ms": (total_latency / total_traces if total_traces else 0),
             "input_tokens": total_input_tokens,
             "output_tokens": total_output_tokens,
             "total_tokens": total_input_tokens + total_output_tokens,
         }
+
 
 # Instance utilisée par FastAPI
 monitoring_service = MonitoringService()

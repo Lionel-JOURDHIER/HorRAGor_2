@@ -9,7 +9,5 @@ Tracks:
 """
 
 from langfuse.langchain import CallbackHandler
-import os
-
 
 langfuse_handler = CallbackHandler()
