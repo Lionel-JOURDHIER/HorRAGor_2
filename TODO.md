@@ -499,8 +499,83 @@ tests d'authentification (64 tests : 35 sur `api/`, 38 sur `frontend/`).
   (Langfuse full stack + Uptime Kuma) est **séparé** de la stack principale
   ([docker-compose.yml](docker-compose.yml)) — pas de "stack Docker unifiée"
   au sens du cahier des charges.
-- [ ] Uptime Kuma présent mais pas de confirmation que les 3 composants
-  (API IA, API Database, Frontend) sont effectivement sondés.
+- [x] **Uptime Kuma sonde bien l'API IA et l'API Database** (confirmé le
+  4 septembre 2026 par lecture de
+  [monitoring/uptime-kuma/monitors.yml](monitoring/uptime-kuma/monitors.yml) :
+  5 moniteurs — `HorRAGor API`, `Database API`, `Prometheus`, `Grafana`,
+  `Langfuse`). Reste non sondé : le **frontend** (`horragor_frontend`), absent
+  des 5 moniteurs — à ajouter si son indisponibilité doit remonter sur
+  Discord comme celle des deux API.
+- [x] **Corrigé (4 septembre 2026).** `monitoring/docker-compose.yml` : le
+  service `loki` n'avait **aucun volume déclaré** (seul service à état de tout
+  le fichier dans ce cas — `prometheus_data`, `grafana_data`,
+  `uptime_kuma_data`, `promtail_positions` et les 4 volumes Langfuse existent
+  tous). Confirmé via la config par défaut embarquée dans l'image
+  (`path_prefix: /loki`, `chunks_directory: /loki/chunks`) : chaque
+  recréation du conteneur perdait tout l'historique de logs. Volume
+  `loki_data:/loki` ajouté au service et déclaré en bas de fichier.
+- [x] **Corrigé (4 septembre 2026).** Grafana n'avait **aucune datasource
+  Loki provisionnée** (seul
+  [monitoring/grafana/provisioning/datasources/prometheus.yml](monitoring/grafana/provisioning/datasources/prometheus.yml)
+  existait) : les 2 panels de logs du dashboard (`Logs horragor API`,
+  `Logs horragor API database`) référençaient un UID Loki
+  (`cfx7ycfxputxca`) qui ne correspondait à aucune datasource réelle.
+  [monitoring/grafana/provisioning/datasources/loki.yml](monitoring/grafana/provisioning/datasources/loki.yml)
+  créé (`uid: horragor-loki`, `url: http://horragor_loki:3100`), références
+  mises à jour dans
+  [monitoring/grafana/dashboards/horragor.json](monitoring/grafana/dashboards/horragor.json).
+- [x] **Corrigé (4 septembre 2026).** 6 des 8 panels Prometheus du dashboard
+  référençaient l'UID `afwve5oglmvwgb` (fixé dans une session précédente),
+  qui ne correspondait plus à l'UID réellement stocké en base par Grafana
+  (`PBFA97CFB590B2093`) — dérive survenue après que le commit `604ff13`
+  (Hanna, "fix: uptime kuma") a supprimé la ligne `uid:` du provisioning
+  (`monitoring/grafana/provisioning/datasources/prometheus.yml`), laissant
+  Grafana régénérer un UID différent à la recréation suivante du conteneur.
+  Tentative de restaurer l'ancien UID en dur : a fait crash-looper Grafana
+  (`Datasource provisioning error: data source not found`, l'UID en base ne
+  correspondant à aucune ligne). Repointé sur l'UID réellement vivant plutôt
+  que l'inverse — les 8 panels Prometheus référencent maintenant tous
+  `PBFA97CFB590B2093`.
+  - **Non résolu, fragilité résiduelle** : `prometheus.yml` ne porte
+    aujourd'hui plus aucun `uid:` (Grafana ne recolle par nom sans erreur que
+    faute de mieux). Un volume `grafana_data` neuf régénérerait un nouvel UID
+    aléatoire et recasserait les 8 panels — il faudrait fixer un `uid:` en dur
+    ET s'assurer qu'aucune divergence entre le fichier et la base ne se
+    reproduise, ce qui dépend de qui a accès à l'admin Grafana (identifiants
+    non retrouvés cette session : ni `admin`/`admin` ni ceux d'Uptime Kuma ne
+    fonctionnent).
+- [x] **Corrigé (4 septembre 2026).**
+  [monitoring/prometheus/prometheus.yml](monitoring/prometheus/prometheus.yml)
+  scrape désormais bien les deux API (`horragor-api` **et**
+  `horragor-database-api`, confirmé `up` sur les deux cibles via l'API
+  Prometheus) : `Instrumentator()` est maintenant branché aussi sur
+  [database/main.py](database/main.py), plus seulement sur
+  [api/main.py](api/main.py). L'item historique ci-dessous, qui documentait
+  encore l'ancien état, est obsolète.
+- [x] **Corrigé (4 septembre 2026).** `LANGFUSE_HOST` n'était jamais défini
+  côté conteneur `api` : le `.env` racine portait `LANGFUSE_BASE_URL` (nom
+  différent de celui lu par
+  [api/monitoring/monitoring_service.py:30](api/monitoring/monitoring_service.py:30)
+  et [api/monitoring/langfuse_client.py:14](api/monitoring/langfuse_client.py:14)),
+  donc le code retombait sur son défaut `http://localhost:3000` — qui, dans
+  le conteneur `horragor_api`, désigne le conteneur lui-même (rien n'y écoute
+  sur ce port) → `Connection refused` en boucle sur l'export des traces.
+  Renommé en `LANGFUSE_HOST`, valeur corrigée en `http://langfuse-web:3000`
+  (nom du service Docker, atteignable via le réseau partagé
+  `horragor_2_horragor_net` — pas un problème de Traefik, qui ne route jamais
+  les appels de conteneur à conteneur).
+- [x] **Corrigé (4 septembre 2026).** Le middleware Langfuse
+  ([api/main.py](api/main.py), `langfuse_middleware`) était censé exclure les
+  routes techniques (`/health`, `/metrics`...) du traçage, mais comparait
+  `request.url.path` à des chemins jamais atteints en pratique — la
+  correspondance exacte dépend de la forme réellement prise par
+  `request.url.path` derrière `UVICORN_ROOT_PATH=/api` (confirmé
+  empiriquement via les noms de trace observés dans Langfuse :
+  `GET /api/health`, `GET /api/metrics`). Résultat : chaque sonde de santé
+  (Uptime Kuma toutes les 60 s, Prometheus toutes les 15 s, healthcheck
+  Docker) polluait Langfuse au lieu d'en être exclue, noyant les vraies
+  traces de conversation. `excluded_paths` corrigé pour couvrir les formes
+  observées.
 
 ## 🟡 Gouvernance
 
@@ -875,11 +950,9 @@ qu'une lecture du seul contenu commité ne montre pas.
   ce nom est désormais garanti correct par le `name:` fixé côté stack
   principale, plutôt que dépendant accidentellement du nom du dossier.
   Revérifié le 3 septembre 2026 après les commits d'Hanna sur `dev`.
-- [ ] [monitoring/prometheus/prometheus.yml:8](monitoring/prometheus/prometheus.yml:8)
-  ne scrape que `horragor_api:8000`. `database_api` n'expose d'ailleurs aucune
-  métrique : `Instrumentator()` n'est branché que sur
-  [api/main.py:81](api/main.py:81). Complète l'item « les 3 composants sont-ils
-  sondés » déjà listé.
+- [x] **Obsolète, corrigé — voir la section 🟡 Monitoring plus haut.**
+  `Instrumentator()` est désormais branché sur les deux API, Prometheus
+  scrape les deux cibles (confirmé `up`).
 - [ ] [monitoring/.gitignore](monitoring/.gitignore) est le `.gitignore` du
   dépôt **Langfuse** recopié tel quel (~120 lignes de Next.js, pnpm, Prisma,
   Vercel, Turbo, Playwright, `.claude/settings.json`, `.superset/`…). Une
