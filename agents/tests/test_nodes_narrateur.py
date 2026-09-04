@@ -480,6 +480,29 @@ def test_narrator_steps_conserves_depuis_etat_precedent(mock_llm, base_state):
 
 
 @patch("agents.nodes_narrateur.llm_narrateur")
+def test_narrator_prompt_contient_garde_fou_hors_sujet(mock_llm, base_state):
+    """
+    Le prompt système doit instruire le narrateur d'avouer honnêtement son
+    ignorance plutôt que d'halluciner une réponse quand le <contexte> fourni
+    ne correspond pas à la question posée (cas D avec contexte hors sujet).
+    """
+    film = MockFilmDetail()
+    base_state.intent = "DISCUSSION"
+    base_state.current_step = "synthesis_done"
+    base_state.retrieved_movies = [film]
+    base_state.data_enriched = "La durée du film 'Alien' est de 117 minutes."
+    base_state.user_query = "film japonais des années 1990"
+    mock_llm.invoke.return_value = AIMessage(content="...")
+
+    narrator_node(base_state)
+
+    call_args = mock_llm.invoke.call_args[0][0]
+    system_prompt = str(call_args[0].content)
+    assert "ne permet manifestement pas de répondre" in system_prompt
+    assert "avoue-le honnêtement" in system_prompt
+
+
+@patch("agents.nodes_narrateur.llm_narrateur")
 def test_narrator_reponse_llm_vide(mock_llm, base_state):
     """
     Vérifie le comportement si le LLM retourne une réponse vide.
