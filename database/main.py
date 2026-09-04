@@ -18,9 +18,12 @@ Aucune logique IA :
 
 from fastapi import FastAPI
 
+from prometheus_fastapi_instrumentator import Instrumentator
+
 from database.routes_db import router
 
 from logger import get_logger, setup_logger
+
 
 
 setup_logger()
@@ -48,6 +51,7 @@ app.include_router(
     prefix="/db",
 )
 
+Instrumentator().instrument(app).expose(app)
 
 @app.on_event("startup")
 async def startup_event():

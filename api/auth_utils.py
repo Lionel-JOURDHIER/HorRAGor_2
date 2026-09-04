@@ -11,6 +11,9 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
+from database.connection import get_db
+from database.tables.refresh_tokens import RefreshToken
+from database.tables.users import User
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -23,9 +26,6 @@ from api.auth_config import (
     JWT_SECRET_KEY,
     REFRESH_TOKEN_EXPIRE,
 )
-from database.connection import get_db
-from database.tables.refresh_tokens import RefreshToken
-from database.tables.users import User
 
 # Configuration du hachage de mots de passe
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
