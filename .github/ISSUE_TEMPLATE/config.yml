@@ -1,0 +1,4 @@
+# Les issues sans formulaire sont désactivées : le cahier des charges demande
+# que chaque anomalie soit archivée, et une issue en texte libre sans étapes de
+# reproduction ni critère de fin ne peut être ni reproduite ni fermée.
+blank_issues_enabled: false

@@ -1,5 +1,62 @@
 # SESSION.md — HorRAGor
 
+## [2026-09-04] — Templates d'issue GitHub
+
+**Branche :** `feature/templates-issues`
+
+**Fait :**
+- [.github/ISSUE_TEMPLATE/anomalie.yml](.github/ISSUE_TEMPLATE/anomalie.yml) —
+  formulaire d'anomalie : composant, priorité, étapes de reproduction,
+  comportement attendu, comportement observé et commit sont obligatoires.
+- [.github/ISSUE_TEMPLATE/tache.yml](.github/ISSUE_TEMPLATE/tache.yml) —
+  formulaire de tâche : nature, composant, priorité, besoin et critères de fin
+  obligatoires.
+- [.github/ISSUE_TEMPLATE/config.yml](.github/ISSUE_TEMPLATE/config.yml) —
+  `blank_issues_enabled: false`.
+- [TODO.md](TODO.md) § Gouvernance : point fermé, avec ce qui reste à faire
+  côté GitHub et n'est pas versionnable.
+
+**Décisions techniques :**
+- **Formulaires YAML (issue forms) et non templates Markdown** : un template
+  Markdown est un texte pré-rempli qu'on peut effacer ; un formulaire peut
+  rendre un champ obligatoire. Le cahier des charges demande que chaque
+  anomalie soit *archivée*, ce qui n'a de valeur que si l'archive est
+  exploitable.
+- **Deux formulaires, pas un ni cinq** : le TODO distingue de fait des
+  anomalies et des tâches (dette, refonte, documentation, outillage), et ces
+  deux familles n'ont pas les mêmes champs — une anomalie a des étapes de
+  reproduction, une tâche a des critères de fin. Découper plus finement
+  reviendrait à créer un formulaire par entrée du champ « nature ».
+- **Échelle de priorité 🔴/🟠/🟡 reprise de `TODO.md`** plutôt qu'un
+  `severity: high/medium/low` : deux échelles pour la même notion divergent, et
+  c'est la mauvaise qui sert au tri.
+- **Liste de composants figée dans les deux formulaires** (agents, api,
+  database, frontend, monitoring, infrastructure) : un champ libre produit
+  « front », « frontend » et « streamlit » pour un même composant, et le
+  filtrage ne marche plus.
+- **`blank_issues_enabled: false`** : une issue en texte libre sans étapes de
+  reproduction ni critère de fin ne peut être ni reproduite ni fermée.
+- Option « je ne sais pas » présente sur le composant d'une anomalie
+  uniquement : rendre le champ obligatoire sans échappatoire pousse à cocher
+  n'importe quoi, ce qui est pire qu'une valeur explicitement inconnue.
+
+**Vérifié :**
+- Les trois fichiers se chargent en YAML et respectent le schéma des
+  formulaires d'issue GitHub : clés de premier niveau admises, `type` de chaque
+  bloc valide, `id` et `label` présents sur tout bloc non `markdown`, `options`
+  non vide sur chaque `dropdown`.
+- **Non vérifié** : le rendu réel des formulaires sur GitHub, qui suppose de
+  pousser la branche.
+
+**Points de vigilance pour la suite :**
+- Les libellés `bug` et `enhancement` sont ceux créés par défaut avec tout
+  dépôt GitHub, donc présents. Si l'un est renommé ou supprimé, GitHub
+  **ignore le libellé en silence** au lieu d'échouer : l'issue est créée sans
+  étiquette, et rien ne le signale.
+- Ni les libellés ni la vue projet ne se versionnent : le tri par priorité
+  décrit dans les formulaires n'existera dans GitHub que si quelqu'un crée les
+  libellés correspondants à la main.
+
 ## [2026-09-04] — Tests d'authentification
 
 **Branche :** `feature/tests-authentification`

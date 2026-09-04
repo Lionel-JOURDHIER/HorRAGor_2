@@ -1,0 +1,79 @@
+name: Tâche
+description: Fonctionnalité, refonte, dette technique ou documentation
+title: "[tâche] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Pour une tâche, la question qui coûte le plus cher plus tard est
+        « comment saura-t-on que c'est fini ? ». Elle est en bas du formulaire.
+
+  - type: dropdown
+    id: nature
+    attributes:
+      label: Nature
+      options:
+        - Fonctionnalité — comportement visible nouveau
+        - Refonte — même comportement, code différent
+        - Dette technique — écart aux conventions, code mort, duplication
+        - Documentation
+        - Outillage, CI, conteneurisation
+    validations:
+      required: true
+
+  - type: dropdown
+    id: composant
+    attributes:
+      label: Composant
+      options:
+        - agents (graphe LangGraph)
+        - api (API IA)
+        - database (API Database, FAISS)
+        - frontend (Streamlit)
+        - monitoring (Prometheus, Grafana, Uptime Kuma, Langfuse)
+        - infrastructure (Docker Compose, Traefik, CI)
+        - transverse
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priorite
+    attributes:
+      label: Priorité
+      description: Même échelle que TODO.md.
+      options:
+        - 🔴 critique — bloque une exigence du cahier des charges
+        - 🟠 majeure — attendue pour la livraison
+        - 🟡 mineure — souhaitable, non bloquante
+    validations:
+      required: true
+
+  - type: textarea
+    id: besoin
+    attributes:
+      label: Besoin
+      description: Le problème à résoudre, pas la solution envisagée.
+    validations:
+      required: true
+
+  - type: textarea
+    id: fini
+    attributes:
+      label: Critères de fin
+      description: >
+        Ce qui devra être vrai pour fermer l'issue. Un critère qu'aucun test
+        ni aucune vérification ne peut trancher n'en est pas un.
+      placeholder: |
+        - [ ] `frontend/components/auth_components.py` couvert à ≥ 80 %
+        - [ ] `uv run pytest` passe dans les quatre sous-projets
+    validations:
+      required: true
+
+  - type: textarea
+    id: contexte
+    attributes:
+      label: Contexte complémentaire
+      description: Entrée de TODO.md concernée, issues liées, contraintes connues.
+    validations:
+      required: false
