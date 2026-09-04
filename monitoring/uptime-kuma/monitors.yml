@@ -1,0 +1,35 @@
+monitors:
+  - name: HorRAGor API
+    type: http
+    url: http://horragor_api:8000/health
+    interval: 60
+    notifications:
+      - Discord
+
+  - name: Database API
+    type: http
+    url: http://horragor_database_api:8000/db/health
+    interval: 60
+    notifications:
+      - Discord
+
+  - name: Prometheus
+    type: http
+    url: http://horragor_prometheus:9090/-/healthy
+    interval: 60
+    notifications:
+      - Discord
+
+  - name: Grafana
+    type: http
+    url: http://horragor_grafana:3000/api/health
+    interval: 60
+    notifications:
+      - Discord
+
+  - name: Langfuse
+    type: http
+    url: http://langfuse-web:3000
+    interval: 60
+    notifications:
+      - Discord
