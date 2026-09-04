@@ -1,6 +1,7 @@
 
 from types import SimpleNamespace
-
+import pytest
+from unittest.mock import MagicMock, patch
 from api.modules import chat_service
 from api.modules.chat_service import (
     get_conversation_history,
