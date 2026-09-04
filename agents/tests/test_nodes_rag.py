@@ -174,6 +174,25 @@ def test_intent_classifier_aucun_film_trouve_avec_contexte_continuation(
 
 
 @patch("agents.nodes_rag.structured_llm")
+def test_intent_classifier_prompt_contient_exemples_nouvelle_recherche(
+    mock_llm, base_state
+):
+    """Le prompt envoyé au LLM doit contenir les exemples nouvelle_recherche."""
+    base_state.last_displayed_movies_id = [694]
+    mock_extractor = MagicMock()
+    mock_extractor.invoke.return_value = MagicMock(
+        intent="RECHERCHE", nouvelle_recherche=True
+    )
+    mock_llm.with_structured_output.return_value = mock_extractor
+
+    intent_classifier_node(base_state)
+
+    prompt_sent = str(mock_extractor.invoke.call_args[0][0][0].content)
+    assert "film japonais des années 1990" in prompt_sent
+    assert "nouvelle_recherche=True" in prompt_sent
+
+
+@patch("agents.nodes_rag.structured_llm")
 def test_intent_classifier_fallback_sur_erreur_llm(mock_llm, base_state):
     """Erreur LLM → fallback RECHERCHE."""
     base_state.last_displayed_movies_id = []
